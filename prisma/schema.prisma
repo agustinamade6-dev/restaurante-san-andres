@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Mesa {
+  id        Int      @id @default(autoincrement())
+  numero    Int      @unique
+  capacidad Int      @default(4)
+  estado    String   @default("libre") // libre, ocupada, esperando
+  pedidos   Pedido[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Categoria {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  icono     String     @default("utensils")
+  orden     Int        @default(0)
+  productos Producto[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Producto {
+  id           Int         @id @default(autoincrement())
+  nombre       String
+  descripcion  String      @default("")
+  precio       Float
+  categoriaId  Int
+  categoria    Categoria   @relation(fields: [categoriaId], references: [id])
+  disponible   Boolean     @default(true)
+  imagen       String      @default("")
+  itemsPedido  ItemPedido[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Pedido {
+  id          Int          @id @default(autoincrement())
+  mesaId      Int
+  mesa        Mesa         @relation(fields: [mesaId], references: [id])
+  estado      String       @default("pendiente") // pendiente, preparando, listo, entregado, cancelado
+  items       ItemPedido[]
+  total       Float        @default(0)
+  notas       String       @default("")
+  creadoEn    DateTime     @default(now())
+  actualizadoEn DateTime   @updatedAt
+}
+
+model ItemPedido {
+  id         Int      @id @default(autoincrement())
+  pedidoId   Int
+  pedido     Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  productoId Int
+  producto   Producto @relation(fields: [productoId], references: [id])
+  cantidad   Int      @default(1)
+  notas      String   @default("")
+  precio     Float
+  createdAt  DateTime @default(now())
+}
+
+model Insumo {
+  id            Int               @id @default(autoincrement())
+  nombre        String
+  unidad        String            @default("unidad") // kg, litro, unidad, paquete
+  stockActual   Float             @default(0)
+  stockMinimo   Float             @default(5)
+  precioUnitario Float            @default(0)
+  proveedorId   Int?
+  proveedor     Proveedor?        @relation(fields: [proveedorId], references: [id])
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model Proveedor {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  contacto  String   @default("")
+  telefono  String   @default("")
+  email     String   @default("")
+  direccion String   @default("")
+  notas     String   @default("")
+  insumos   Insumo[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CostoFijo {
+  id          Int      @id @default(autoincrement())
+  concepto    String
+  monto       Float
+  tipo        String   @default("fijo") // fijo, variable
+  periodicidad String  @default("mensual") // diario, semanal, mensual
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Venta {
+  id        Int      @id @default(autoincrement())
+  fecha     DateTime @default(now())
+  total     Float
+  items     Int      @default(0)
+  mesa      Int
+  createdAt DateTime @default(now())
+}
