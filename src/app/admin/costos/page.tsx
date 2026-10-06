@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
@@ -22,7 +23,6 @@ interface CostoFijo {
 }
 
 export default function CostosPage() {
-  const [costos, setCostos] = useState<CostoFijo[]>([]);
   const [modal, setModal] = useState(false);
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
   const [errorModal, setErrorModal] = useState('');
@@ -34,14 +34,7 @@ export default function CostosPage() {
     periodicidad: 'mensual',
   });
 
-  const fetchCostos = useCallback(async () => {
-    const res = await fetch('/api/costos');
-    setCostos(await res.json());
-  }, []);
-
-  useEffect(() => {
-    fetchCostos();
-  }, [fetchCostos]);
+  const { data: costos, recargar: fetchCostos } = useApi<CostoFijo[]>('/api/costos', []);
 
   const guardar = async () => {
     setErrorModal('');

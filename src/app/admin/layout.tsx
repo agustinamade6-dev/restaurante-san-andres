@@ -8,7 +8,6 @@ import {
   Package,
   Truck,
   DollarSign,
-  ArrowLeft,
   Utensils,
   ClipboardList,
   Users,

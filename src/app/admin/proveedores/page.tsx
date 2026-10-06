@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
@@ -28,7 +29,6 @@ interface Proveedor {
 }
 
 export default function ProveedoresPage() {
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [modal, setModal] = useState(false);
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
   const [errorModal, setErrorModal] = useState('');
@@ -43,14 +43,7 @@ export default function ProveedoresPage() {
     notas: '',
   });
 
-  const fetchProveedores = useCallback(async () => {
-    const res = await fetch('/api/proveedores');
-    setProveedores(await res.json());
-  }, []);
-
-  useEffect(() => {
-    fetchProveedores();
-  }, [fetchProveedores]);
+  const { data: proveedores, recargar: fetchProveedores } = useApi<Proveedor[]>('/api/proveedores', []);
 
   const abrirModal = (prov?: Proveedor) => {
     if (prov) {

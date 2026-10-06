@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useState, useCallback } from 'react';
 import { formatDate } from '@/lib/formatDate';
 import {
-  ArrowLeft,
   ChefHat,
   Clock,
   Flame,
@@ -22,6 +20,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useSSE } from '@/hooks/useSSE';
+import { useAhora } from '@/hooks/useAhora';
+import { useApi } from '@/hooks/useApi';
 import { enviarJson } from '@/lib/api-cliente';
 
 interface HistorialPedido {
@@ -55,9 +55,6 @@ interface Pedido {
 }
 
 export default function CocinaPage() {
-  const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [entregados, setEntregados] = useState<Pedido[]>([]);
-  const [productos, setProductos] = useState<Array<{id: number, nombre: string, precio: number, categoriaId: number}>>([]);
   const [nuevoPedido, setNuevoPedido] = useState(false);
   const [modalEditOpen, setModalEditOpen] = useState<Pedido | null>(null);
   const [modalHistoryOpen, setModalHistoryOpen] = useState<Pedido | null>(null);
@@ -69,37 +66,21 @@ export default function CocinaPage() {
   // Errores de la API: aviso flotante para acciones sobre la grilla; el de cancelar va en su modal.
   const [aviso, setAviso] = useState('');
   const [errorCancelar, setErrorCancelar] = useState('');
+  // Hora que avanza sola: refresca "hace X min" y la marca de demorado aunque no lleguen eventos
+  const ahora = useAhora();
 
   const mostrarError = useCallback((mensaje: string) => {
     setAviso(mensaje);
     setTimeout(() => setAviso((actual) => (actual === mensaje ? '' : actual)), 5000);
   }, []);
 
-  const fetchPedidos = useCallback(async () => {
-    const res = await fetch('/api/pedidos');
-    const data = await res.json();
-    setPedidos(data);
-  }, []);
-
-  const fetchEntregados = useCallback(async () => {
-    const res = await fetch('/api/pedidos/history?days=1'); // Solo hoy por defecto
-    const data = await res.json();
-    setEntregados(data);
-  }, []);
-
-  const fetchProductos = useCallback(async () => {
-    const res = await fetch('/api/productos');
-    const data = await res.json();
-    setProductos(data);
-  }, []);
-
-  useEffect(() => {
-    fetchPedidos();
-    fetchProductos();
-    if (modalEntregadosOpen) {
-      fetchEntregados();
-    }
-  }, [fetchPedidos, fetchProductos, modalEntregadosOpen, fetchEntregados]);
+  const { data: pedidos, recargar: fetchPedidos } = useApi<Pedido[]>('/api/pedidos', []);
+  const { data: productos } = useApi<Array<{ id: number; nombre: string; precio: number; categoriaId: number }>>('/api/productos', []);
+  // Historial de hoy: solo se pide con su modal abierto (y se vuelve a pedir al reabrirlo)
+  const { data: entregados, recargar: fetchEntregados } = useApi<Pedido[]>(
+    modalEntregadosOpen ? '/api/pedidos/history?days=1' : null,
+    []
+  );
 
   // SSE for real-time updates
   useSSE(
@@ -115,7 +96,7 @@ export default function CocinaPage() {
     )
   );
 
-  const handleModifyItem = async (pedidoId: number, action: string, data: any) => {
+  const handleModifyItem = async (pedidoId: number, action: string, data: Record<string, unknown>) => {
     const error = await enviarJson(
       `/api/pedidos/${pedidoId}/items`,
       'PATCH',
@@ -145,7 +126,6 @@ export default function CocinaPage() {
         body: JSON.stringify({ motivo: motivoCambio }),
       });
       if (res.ok) {
-        setPedidos(prev => prev.filter(p => p.id !== pedidoId));
         setMotivoCambio('');
         setModalCancelarOpen(null);
         fetchPedidos();
@@ -161,7 +141,7 @@ export default function CocinaPage() {
   };
 
   const tiempoTranscurrido = (fecha: string) => {
-    const diff = Date.now() - new Date(fecha).getTime();
+    const diff = ahora - new Date(fecha).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Ahora';
     if (mins < 60) return `${mins} min`;
@@ -173,7 +153,7 @@ export default function CocinaPage() {
   const pedidosListos = pedidos.filter((p) => p.estado === 'listo');
 
   const renderPedido = (pedido: Pedido) => {
-    const minutos = Math.floor((Date.now() - new Date(pedido.creadoEn).getTime()) / 60000);
+    const minutos = Math.floor((ahora - new Date(pedido.creadoEn).getTime()) / 60000);
     const isDemorado = minutos >= 15 && pedido.estado !== 'listo';
 
     return (
@@ -588,7 +568,7 @@ export default function CocinaPage() {
                 entregados
                   .filter(p => historialTab === 'entregados' ? ['entregado', 'pagado'].includes(p.estado) : p.estado === 'cancelado')
                   .map((pedido) => {
-                  const end = pedido.entregadoEn ? new Date(pedido.entregadoEn).getTime() : Date.now();
+                  const end = pedido.entregadoEn ? new Date(pedido.entregadoEn).getTime() : ahora;
                   const start = new Date(pedido.creadoEn).getTime();
                   const durationMins = Math.floor((end - start) / 60000);
                   const isFast = durationMins <= 15;

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Lock, User, CheckCircle2, AlertTriangle, Shield, KeyRound, Eye, EyeOff, X, Delete } from 'lucide-react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
+import { User, CheckCircle2, AlertTriangle, Shield, KeyRound, Eye, EyeOff, X, Delete } from 'lucide-react';
 
 interface Usuario {
   id: number;
@@ -12,8 +13,7 @@ interface Usuario {
 }
 
 export default function UsuariosPage() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: usuarios, cargando: loading, recargar: fetchUsuarios } = useApi<Usuario[]>('/api/admin/usuarios', []);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -26,20 +26,6 @@ export default function UsuariosPage() {
 
   // Toast State
   const [toastMessage, setToastMessage] = useState('');
-
-  useEffect(() => {
-    fetchUsuarios();
-  }, []);
-
-  const fetchUsuarios = () => {
-    setLoading(true);
-    fetch('/api/admin/usuarios')
-      .then(res => res.json())
-      .then(data => {
-        setUsuarios(data);
-        setLoading(false);
-      });
-  };
 
   const openPinModal = (user: Usuario) => {
     setSelectedUser(user);

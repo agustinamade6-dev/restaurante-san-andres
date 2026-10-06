@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
@@ -34,8 +35,8 @@ interface Categoria {
 }
 
 export default function MenuPage() {
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const { data: productos, recargar: recargarProductos } = useApi<Producto[]>('/api/productos', []);
+  const { data: categorias, recargar: recargarCategorias } = useApi<Categoria[]>('/api/categorias', []);
   const [busqueda, setBusqueda] = useState('');
   const [catFiltro, setCatFiltro] = useState<number | null>(null);
   const [modal, setModal] = useState(false);
@@ -85,18 +86,10 @@ export default function MenuPage() {
     }
   };
 
-  const fetchData = useCallback(async () => {
-    const [prodRes, catRes] = await Promise.all([
-      fetch('/api/productos'),
-      fetch('/api/categorias'),
-    ]);
-    setProductos(await prodRes.json());
-    setCategorias(await catRes.json());
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const fetchData = () => {
+    recargarProductos();
+    recargarCategorias();
+  };
 
   const abrirModal = (producto?: Producto) => {
     if (producto) {

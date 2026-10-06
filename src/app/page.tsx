@@ -10,12 +10,11 @@ import {
   X,
   Delete,
   Power,
-  Wifi,
   Activity,
   Utensils
 } from 'lucide-react';
-import { formatDate } from '@/lib/formatDate';
 import { moduloDePagina } from '@/lib/sesion-vencida';
+import { useAhora } from '@/hooks/useAhora';
 
 export default function HomePage() {
   const router = useRouter();
@@ -26,7 +25,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   
   // Real-time info
-  const [now, setNow] = useState<Date | null>(null);
+  // Reloj de la pantalla: avanza cada segundo; null hasta hidratar (en el servidor no hay hora "actual")
+  const ahora = useAhora(1000);
+  const now = ahora ? new Date(ahora) : null;
   const [metrics, setMetrics] = useState({
     mesas: { ocupadas: 0, libres: 0 },
     cocina: { preparando: 0 }
@@ -50,13 +51,6 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Real-time clock
-  useEffect(() => {
-    setNow(new Date());
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   // Keyboard shortcuts
   const handleModuleClick = useCallback((module: 'comandas' | 'cocina' | 'admin') => {
     setTargetModule(module);
@@ -71,29 +65,12 @@ export default function HomePage() {
     if (params.get('sesion') !== 'vencida') return;
     window.history.replaceState(null, '', '/');
     const modulo = moduloDePagina(`/${params.get('modulo') ?? ''}`);
+    // Excepción intencional: esta página se prerenderiza estática, así que la URL solo se puede leer en el
+    // navegador, una vez, después de montar; y desde ahí hay que abrir el modal del PIN con el aviso.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (modulo) handleModuleClick(modulo);
     setError('Tu sesión venció. Ingresá tu PIN de nuevo.');
   }, [handleModuleClick]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!modalOpen) {
-        if (e.key === '1') handleModuleClick('comandas');
-        if (e.key === '2') handleModuleClick('cocina');
-        if (e.key === '3') handleModuleClick('admin');
-      } else {
-        if (e.key === 'Escape') {
-          setModalOpen(false);
-        } else if (/^[0-9]$/.test(e.key)) {
-          addDigit(e.key);
-        } else if (e.key === 'Backspace') {
-          removeDigit();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [modalOpen, handleModuleClick, pin]);
 
   const handlePinSubmit = async (overridePin?: string) => {
     const finalPin = overridePin || pin;
@@ -135,6 +112,27 @@ export default function HomePage() {
   };
 
   const removeDigit = () => setPin(prev => prev.slice(0, -1));
+
+  // Atajos de teclado (van después de addDigit/removeDigit, que usan)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!modalOpen) {
+        if (e.key === '1') handleModuleClick('comandas');
+        if (e.key === '2') handleModuleClick('cocina');
+        if (e.key === '3') handleModuleClick('admin');
+      } else {
+        if (e.key === 'Escape') {
+          setModalOpen(false);
+        } else if (/^[0-9]$/.test(e.key)) {
+          addDigit(e.key);
+        } else if (e.key === 'Backspace') {
+          removeDigit();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modalOpen, handleModuleClick, pin, addDigit, removeDigit]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#0a0f1c] to-[#04060a] relative overflow-hidden select-none">

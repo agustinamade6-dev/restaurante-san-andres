@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
 import { formatDate } from '@/lib/formatDate';
 import {
   ArrowLeft,
@@ -25,7 +24,6 @@ import {
   XCircle,
   Pencil,
   Trash2,
-  GripHorizontal,
   Banknote,
   CreditCard,
   Receipt,
@@ -33,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useSSE } from '@/hooks/useSSE';
 import { enviarJson } from '@/lib/api-cliente';
+import { useApi } from '@/hooks/useApi';
 
 interface HistorialPedido {
   id: number;
@@ -52,6 +51,34 @@ interface Producto {
   disponible: boolean;
   imagen: string;
   categoria: { id: number; nombre: string };
+}
+
+// Tickets que devuelve POST /api/checkout/pay (montos en pesos)
+interface LineaTicket {
+  nombre: string;
+  cantidad: number;
+  precioUnit: number;
+  subtotal: number;
+}
+
+interface Ticket {
+  tipo: string;
+  numeroTicket: string;
+  numeroControlInterno?: string;
+  fecha: string;
+  mesa: number;
+  sector?: string;
+  items: LineaTicket[];
+  subtotal: number;
+  propina: number;
+  total: number;
+  metodoPago: string;
+  mensaje?: string;
+  restaurante?: string;
+  cuit?: string;
+  direccion?: string;
+  ventaId?: number;
+  operadorId?: number;
 }
 
 interface Mesa {
@@ -89,8 +116,8 @@ interface Categoria {
 
 export default function ComandasPage() {
   const [mesas, setMesas] = useState<Mesa[]>([]);
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const { data: productos } = useApi<Producto[]>('/api/productos', []);
+  const { data: categorias } = useApi<Categoria[]>('/api/categorias', []);
   const [mesaSeleccionada, setMesaSeleccionada] = useState<Mesa | null>(null);
   const [modalHistoryOpen, setModalHistoryOpen] = useState<Mesa | null>(null);
   const [filtroZona, setFiltroZona] = useState<'todas' | 'salon' | 'barra'>('todas');
@@ -125,41 +152,37 @@ export default function ComandasPage() {
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [propina, setPropina] = useState(0);
   const [procesandoCobro, setProcesandoCobro] = useState(false);
-  const [ticketData, setTicketData] = useState<{ ticketCliente: any; ticketInterno: any } | null>(null);
+  const [ticketData, setTicketData] = useState<{ ticketCliente: Ticket; ticketInterno: Ticket } | null>(null);
 
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
+  // Las mesas se piden acá y se guardan en estado local, porque el editor del plano las modifica
+  // (arrastre, deshacer, eliminar) antes de guardar.
+  const pedirMesas = useCallback(async (): Promise<Mesa[]> => (await fetch('/api/mesas')).json(), []);
+
   const fetchMesas = useCallback(async () => {
-    const res = await fetch('/api/mesas');
-    const data = await res.json();
-    setMesas(data);
-  }, []);
-
-  const fetchProductos = useCallback(async () => {
-    const res = await fetch('/api/productos');
-    const data = await res.json();
-    setProductos(data);
-  }, []);
-
-  const fetchCategorias = useCallback(async () => {
-    const res = await fetch('/api/categorias');
-    const data = await res.json();
-    setCategorias(data);
-  }, []);
+    setMesas(await pedirMesas());
+  }, [pedirMesas]);
 
   useEffect(() => {
-    fetchMesas();
-    fetchProductos();
-    fetchCategorias();
+    let vigente = true;
+    pedirMesas()
+      .then((data) => {
+        if (vigente) setMesas(data);
+      })
+      .catch(() => {});
     fetch('/api/auth/session')
       .then(res => res.json())
       .then(data => {
-        if (data.user) {
+        if (vigente && data.user) {
           setCurrentUserRole(data.user.rol);
         }
       })
       .catch(() => {});
-  }, [fetchMesas, fetchProductos, fetchCategorias]);
+    return () => {
+      vigente = false;
+    };
+  }, [pedirMesas]);
 
   // SSE for real-time updates
   useSSE(
@@ -452,7 +475,7 @@ export default function ComandasPage() {
     const ticket = tipo === 'cliente' ? ticketData.ticketCliente : ticketData.ticketInterno;
     const w = window.open('', '_blank', 'width=320,height=600');
     if (!w) return;
-    const itemsHtml = ticket.items.map((i: any) => `<tr><td>${i.cantidad}x ${i.nombre}</td><td style="text-align:right">$${i.subtotal.toLocaleString()}</td></tr>`).join('');
+    const itemsHtml = ticket.items.map((i) => `<tr><td>${i.cantidad}x ${i.nombre}</td><td style="text-align:right">$${i.subtotal.toLocaleString()}</td></tr>`).join('');
     w.document.write(`<!DOCTYPE html><html><head><title>Ticket</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}td{padding:2px 0}.sep{border-top:1px dashed #000;margin:6px 0}.center{text-align:center}.bold{font-weight:bold}.right{text-align:right}</style></head><body>`);
     if (tipo === 'cliente') {
       w.document.write(`<div class="center bold" style="font-size:16px">${ticket.restaurante}</div>`);
@@ -966,7 +989,7 @@ export default function ComandasPage() {
           {mesaSeleccionada.pedidos?.length > 0 && mesaSeleccionada.pedidos[0].items.length > 0 && (
             <div className="mb-6 space-y-3">
               <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest border-b border-neutral-700 pb-2">Ya ordenado</h3>
-              {mesaSeleccionada.pedidos[0].items.map((item: any, i: number) => (
+              {mesaSeleccionada.pedidos[0].items.map((item, i: number) => (
                 <div key={`exist-${i}`} className="flex justify-between items-center bg-black/30 rounded-lg p-3 border border-neutral-800">
                   <div className="flex items-center gap-3">
                     <span className="w-8 h-8 rounded-lg bg-neutral-800 text-white flex items-center justify-center font-bold text-sm">
@@ -1306,7 +1329,7 @@ export default function ComandasPage() {
                       <p>Mesa: {ticketData.ticketCliente.mesa}</p>
                       <p>{formatDate(ticketData.ticketCliente.fecha, true)}</p>
                       <div className="border-t border-dashed border-neutral-300 my-2" />
-                      {ticketData.ticketCliente.items.map((it: any, i: number) => (
+                      {ticketData.ticketCliente.items.map((it, i: number) => (
                         <div key={i} className="flex justify-between"><span>{it.cantidad}x {it.nombre}</span><span>${it.subtotal}</span></div>
                       ))}
                       <div className="border-t border-dashed border-neutral-300 my-2" />
@@ -1323,7 +1346,7 @@ export default function ComandasPage() {
                       <p>Mesa: {ticketData.ticketInterno.mesa} | {ticketData.ticketInterno.sector}</p>
                       <p>{formatDate(ticketData.ticketInterno.fecha, true)}</p>
                       <div className="border-t border-dashed border-neutral-300 my-2" />
-                      {ticketData.ticketInterno.items.map((it: any, i: number) => (
+                      {ticketData.ticketInterno.items.map((it, i: number) => (
                         <div key={i} className="flex justify-between"><span>{it.cantidad}x {it.nombre}</span><span>${it.subtotal}</span></div>
                       ))}
                       <div className="border-t border-dashed border-neutral-300 my-2" />

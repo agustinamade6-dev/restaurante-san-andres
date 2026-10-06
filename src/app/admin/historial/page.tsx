@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useApi } from '@/hooks/useApi';
+import { useAhora } from '@/hooks/useAhora';
 import { Search, Clock, CheckCheck, TrendingUp, Filter } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
 
@@ -20,21 +22,12 @@ interface Pedido {
 }
 
 export default function AdminHistorialPage() {
-  const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [dias, setDias] = useState('1'); // Por defecto, hoy
-
-  const fetchHistorial = useCallback(async () => {
-    const res = await fetch(`/api/pedidos/history?days=${dias}`);
-    const data = await res.json();
-    if (Array.isArray(data)) {
-      setPedidos(data);
-    }
-  }, [dias]);
-
-  useEffect(() => {
-    fetchHistorial();
-  }, [fetchHistorial]);
+  const { data } = useApi<Pedido[]>(`/api/pedidos/history?days=${dias}`, []);
+  const pedidos = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  // Duración de pedidos aún sin entregar: se mide contra una hora que avanza sola
+  const ahora = useAhora();
 
   const pedidosFiltrados = useMemo(() => {
     return pedidos.filter((pedido) => {
@@ -154,7 +147,7 @@ export default function AdminHistorialPage() {
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
               {pedidosFiltrados.map((pedido) => {
-                const end = pedido.entregadoEn ? new Date(pedido.entregadoEn).getTime() : Date.now();
+                const end = pedido.entregadoEn ? new Date(pedido.entregadoEn).getTime() : ahora;
                 const start = new Date(pedido.creadoEn).getTime();
                 const durationMins = Math.floor((end - start) / 60000);
                 const isFast = durationMins <= 15;

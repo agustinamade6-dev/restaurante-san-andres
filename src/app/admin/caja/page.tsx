@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
 import { 
   Banknote, 
   CreditCard, 
-  Receipt, 
-  Users, 
-  CalendarDays,
+  Receipt,
   TrendingUp,
   Clock,
   Printer,
@@ -25,33 +24,34 @@ interface VentaAnulable {
   pedido?: { mesa?: { numero: number } | null } | null;
 }
 
+// Fila de GET /api/caja (montos en pesos) y su resumen neto.
+interface VentaCaja extends VentaAnulable {
+  fechaCobro: string;
+  metodoPago: string;
+  propina: number;
+  esAnulacion?: boolean;
+  anulada?: boolean;
+}
+
+interface CajaData {
+  ventas: VentaCaja[];
+  resumen: {
+    totalRecaudado: number;
+    totalPropinas: number;
+    cantidadVentas: number;
+    porMetodo: Record<string, { count: number; total: number }>;
+    periodo: string;
+  };
+}
+
 export default function CajaPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState('1'); // days
+  const { data, cargando: loading, recargar: fetchCaja } = useApi<CajaData | null>(`/api/caja?days=${periodo}`, null);
   // Venta a anular (modal abierto) y estado del formulario
   const [anulando, setAnulando] = useState<VentaAnulable | null>(null);
   const [motivo, setMotivo] = useState('');
   const [errorAnular, setErrorAnular] = useState('');
   const [enviando, setEnviando] = useState(false);
-
-  const fetchCaja = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/caja?days=${periodo}`);
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchCaja();
-  }, [periodo]);
 
   const abrirAnular = (venta: VentaAnulable) => {
     setAnulando(venta);
@@ -110,7 +110,7 @@ export default function CajaPage() {
     w.document.write(`<div class="sep"></div>`);
     w.document.write(`<div class="bold">DESGLOSE POR M\u00c9TODO</div>`);
     w.document.write(`<table>`);
-    Object.entries(data.resumen.porMetodo).forEach(([metodo, stats]: [string, any]) => {
+    Object.entries(data.resumen.porMetodo).forEach(([metodo, stats]) => {
       w.document.write(`<tr><td>${metodo.toUpperCase()} (${stats.count})</td><td class="right">$${stats.total.toLocaleString()}</td></tr>`);
     });
     w.document.write(`</table>`);
@@ -218,7 +218,7 @@ export default function CajaPage() {
                       <td colSpan={7} className="p-8 text-center text-[var(--muted)]">No hay ventas en este periodo</td>
                     </tr>
                   ) : (
-                    data.ventas.map((v: any) => (
+                    data.ventas.map((v) => (
                       <tr
                         key={v.id}
                         className={`hover:bg-[var(--background)] transition-colors ${v.esAnulacion ? 'bg-red-500/5' : ''} ${v.anulada ? 'opacity-60' : ''}`}

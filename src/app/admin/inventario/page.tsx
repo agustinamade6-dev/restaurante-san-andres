@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
 import {
   Package,
   AlertTriangle,
@@ -31,7 +32,6 @@ const UNIDADES = ['kg', 'litro', 'unidad', 'paquete'];
 const insumoVacio = { nombre: '', unidad: 'kg', stockActual: '', stockMinimo: '', precioUnitario: '', proveedorId: '' };
 
 export default function InventarioPage() {
-  const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<'todos' | 'bajo' | 'ok'>('todos');
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -41,14 +41,7 @@ export default function InventarioPage() {
   const [errorNuevo, setErrorNuevo] = useState('');
   const [errorTabla, setErrorTabla] = useState('');
 
-  const fetchInsumos = useCallback(async () => {
-    const res = await fetch('/api/inventario');
-    setInsumos(await res.json());
-  }, []);
-
-  useEffect(() => {
-    fetchInsumos();
-  }, [fetchInsumos]);
+  const { data: insumos, recargar: fetchInsumos } = useApi<Insumo[]>('/api/inventario', []);
 
   const actualizarStock = async (insumo: Insumo) => {
     setErrorTabla('');
