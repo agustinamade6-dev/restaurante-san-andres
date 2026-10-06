@@ -4,7 +4,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
 import { enPesos, subtotalCentavos } from '@/lib/money';
-import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
+import { ApiError, cantidadItem } from '@/lib/api-error';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -38,7 +38,7 @@ const crearPedidoSchema = z.object({
     .array(
       z.object({
         productoId: z.coerce.number().int().positive(),
-        cantidad: z.coerce.number().int().min(1).max(MAX_CANTIDAD_ITEM),
+        cantidad: cantidadItem,
         notas: z.string().max(500).nullish(),
       })
     )

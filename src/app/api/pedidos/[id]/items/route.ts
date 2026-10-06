@@ -4,11 +4,11 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
 import { enPesos, subtotalCentavos } from '@/lib/money';
-import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
+import { ApiError, cantidadItem } from '@/lib/api-error';
 
 
 const idPositivo = z.coerce.number().int().positive();
-const cantidad = z.coerce.number().int().min(1).max(MAX_CANTIDAD_ITEM);
+const cantidad = cantidadItem;
 const texto = z.string().max(500).nullish();
 
 // El precio NO se acepta del cliente: ADD_ITEM usa siempre Producto.precio.

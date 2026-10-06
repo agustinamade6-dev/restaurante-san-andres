@@ -141,6 +141,17 @@ describe('POST /api/pedidos — validación', () => {
     expect(emit).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [0, 'items.0.cantidad: debe ser al menos 1'],
+    [1.5, 'items.0.cantidad: debe ser un número entero'],
+    [101, 'items.0.cantidad: no puede superar 100'],
+    ['abc', 'items.0.cantidad: debe ser un número'],
+  ])('crear: el error de cantidad %s está en español', async (cantidad, mensaje) => {
+    const res = await crear({ mesaId: 10, items: [{ productoId: 1, cantidad }] });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(mensaje);
+  });
+
   it('400 ante JSON inválido (antes era 500)', async () => {
     expect((await crear('{roto')).status).toBe(400);
   });
@@ -226,6 +237,15 @@ describe('PATCH /api/pedidos/[id]/items — precios y totales del servidor', () 
     const res = await modificar(1, { action: 'UPDATE_QUANTITY', itemId: 501, cantidad });
     expect(res.status).toBe(400);
     expect(db.state.items[0].cantidad).toBe(2);
+  });
+
+  it.each([
+    [0, 'cantidad: debe ser al menos 1'],
+    [101, 'cantidad: no puede superar 100'],
+    ['abc', 'cantidad: debe ser un número'],
+  ])('UPDATE_QUANTITY: el error de cantidad %s está en español', async (cantidad, mensaje) => {
+    const res = await modificar(1, { action: 'UPDATE_QUANTITY', itemId: 501, cantidad });
+    expect((await res.json()).error).toBe(mensaje);
   });
 
   it('REMOVE_ITEM quita el ítem y deja el total en 0 si era el último', async () => {
