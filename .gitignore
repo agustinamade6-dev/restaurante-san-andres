@@ -51,3 +51,4 @@ next-env.d.ts
 /public/uploads/
 startup-stdout.txt
 debug-startup.log
+!.env.example
