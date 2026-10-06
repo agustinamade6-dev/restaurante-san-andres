@@ -7,9 +7,12 @@
 //                                                        (requiere `npm run build && npm run desktop:prepare`)
 //   npx electron scripts/test-sse-comandas.js http://127.0.0.1:3000
 //                                                      -> prueba contra una app ya corriendo (p. ej. el .exe instalado).
-//                                                         OJO: escribe un pedido y una venta en la base de esa app.
+//                                                         OJO: escribe un producto, un pedido y una venta en la base de esa app.
+//                                                         Firma la sesión con SESSION_SECRET, o si no está, con la
+//                                                         session.key de la app de escritorio (%APPDATA%/restaurante-san-andres).
 const { app, BrowserWindow, session } = require('electron');
 const { spawn } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -25,6 +28,16 @@ if (!EXTERNAL) {
   fs.copyFileSync(path.join(repo, 'desktop-build', 'template.db'), db);
 }
 
+// La sesión va firmada (HMAC-SHA256, mismo formato que src/lib/session.ts).
+const SECRET = process.env.SESSION_SECRET
+  || (EXTERNAL ? fs.readFileSync(path.join(process.env.APPDATA || '', 'restaurante-san-andres', 'session.key'), 'utf8').trim()
+               : crypto.randomBytes(32).toString('hex'));
+function signSession(user) {
+  const body = Buffer.from(JSON.stringify({ ...user, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
+  return `${body}.${crypto.createHmac('sha256', SECRET).update(body).digest('base64url')}`;
+}
+const COOKIE = signSession({ id: 1, nombre: 'Test', rol: 'ADMIN' });
+
 const PORT = 3198;
 const BASE = EXTERNAL || `http://127.0.0.1:${PORT}`;
 const serverDir = path.join(repo, 'desktop-build', 'server');
@@ -35,7 +48,7 @@ const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'OK  ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); };
 
 async function api(method, url, body) {
-  const r = await fetch(BASE + url, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+  const r = await fetch(BASE + url, { method, headers: { 'Content-Type': 'application/json', Cookie: `session=${COOKIE}` }, body: body && JSON.stringify(body) });
   const j = await r.json().catch(() => null);
   if (!r.ok) throw new Error(`${method} ${url} -> ${r.status} ${JSON.stringify(j)}`);
   return j;
@@ -65,7 +78,7 @@ async function main() {
     srv = spawn(process.execPath, [path.join(serverDir, 'server.js')], {
       cwd: serverDir,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_ENV: 'production', PORT: String(PORT), HOSTNAME: '127.0.0.1',
-        DATABASE_URL: `file:${db.replace(/\\/g, '/')}`, UPLOADS_DIR: path.join(work, 'uploads'), NEXT_TELEMETRY_DISABLED: '1' },
+        DATABASE_URL: `file:${db.replace(/\\/g, '/')}`, SESSION_SECRET: SECRET, UPLOADS_DIR: path.join(work, 'uploads'), NEXT_TELEMETRY_DISABLED: '1' },
     });
     srv.stdout.on('data', (d) => (srvLog += d));
     srv.stderr.on('data', (d) => (srvLog += d));
@@ -74,11 +87,15 @@ async function main() {
     try { await fetch(`${BASE}/api/mesas`); break; } catch { if (i > 120) throw new Error('server no arrancó'); await sleep(500); }
   }
 
-  await session.defaultSession.cookies.set({ url: BASE, name: 'session', value: JSON.stringify({ id: 1, nombre: 'Test', rol: 'ADMIN' }) });
+  await session.defaultSession.cookies.set({ url: BASE, name: 'session', value: COOKIE });
 
   const mesas = await api('GET', '/api/mesas');
   const mesa = mesas.find((m) => m.estado === 'libre');
   if (!mesa) throw new Error('no hay mesas libres para probar');
+  // El cobro rechaza pedidos sin ítems: crear un producto de prueba.
+  const categorias = await api('GET', '/api/categorias');
+  if (!categorias.length) throw new Error('no hay categorías para crear el producto de prueba');
+  const producto = await api('POST', '/api/productos', { nombre: 'Producto test SSE', precio: 1000, categoriaId: categorias[0].id });
 
   const A = new BrowserWindow({ show: false, width: 1280, height: 800 });
   const B = new BrowserWindow({ show: false, width: 1280, height: 800 });
@@ -95,7 +112,7 @@ async function main() {
   check('Estado inicial en B', base !== null, JSON.stringify(ready.c));
 
   // 1) Ventana A abre un pedido -> B debería ver la mesa ocupada (evento pedido:nuevo, ya existía)
-  const pedido = await A.webContents.executeJavaScript(`fetch('/api/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mesaId: ${mesa.id}, items: [] }) }).then(r => r.json())`);
+  const pedido = await A.webContents.executeJavaScript(`fetch('/api/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mesaId: ${mesa.id}, items: [{ productoId: ${producto.id}, cantidad: 1 }] }) }).then(r => r.json())`);
   let r = await waitFor(B, (c) => c.ocupadas === base + 1);
   check('A abre pedido → B ve 1 ocupada sin recargar', r.ok && r.c.marker, `${JSON.stringify(r.c)} en ${r.ms}ms`);
 
