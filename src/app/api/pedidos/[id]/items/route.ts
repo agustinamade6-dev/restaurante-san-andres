@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
 import { roundMoney } from '@/lib/money';
 import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
 
-import { cookies } from 'next/headers';
 
 const idPositivo = z.coerce.number().int().positive();
 const cantidad = z.coerce.number().int().min(1).max(MAX_CANTIDAD_ITEM);
@@ -30,14 +30,11 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(['ADMIN', 'COCINERO']);
+  if (!auth.ok) return auth.response;
+
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    let sessionData = null;
-    if (sessionCookie) {
-      try { sessionData = JSON.parse(sessionCookie.value); } catch(e){}
-    }
-    const usuarioId = sessionData?.id;
+    const usuarioId = auth.session.id;
 
     const { id } = await params;
     const pedidoId = Number(id);

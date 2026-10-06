@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { loginAs, logout, resetCookies } from './helpers/session';
 
 const prismaMock = vi.hoisted(() => ({
   pedido: { update: vi.fn(), count: vi.fn() },
@@ -9,7 +10,7 @@ const prismaMock = vi.hoisted(() => ({
 
 vi.mock('@/lib/prisma', () => ({ default: prismaMock }));
 vi.mock('@/lib/events', () => ({ default: { emit: vi.fn() } }));
-vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
 
 import { PATCH } from '@/app/api/pedidos/route';
 
@@ -22,8 +23,10 @@ const patch = (body: unknown) =>
     })
   );
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  resetCookies();
+  await loginAs('COCINERO', 3);
   prismaMock.pedido.update.mockResolvedValue({
     id: 1,
     mesaId: 10,
@@ -63,5 +66,31 @@ describe('PATCH /api/pedidos — no duplica ventas', () => {
     expect(res.status).toBe(200);
     expect(prismaMock.historialPedido.create).toHaveBeenCalled();
     expect(prismaMock.venta.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/pedidos — autenticación y roles', () => {
+  it('401 sin sesión y no toca la base', async () => {
+    logout();
+    const res = await patch({ id: 1, estado: 'preparando' });
+
+    expect(res.status).toBe(401);
+    expect(prismaMock.pedido.update).not.toHaveBeenCalled();
+  });
+
+  it('403 para MOZO (la cocina cambia los estados)', async () => {
+    await loginAs('MOZO', 3);
+    const res = await patch({ id: 1, estado: 'preparando' });
+
+    expect(res.status).toBe(403);
+    expect(prismaMock.pedido.update).not.toHaveBeenCalled();
+  });
+
+  it('registra el usuario de la sesión en el historial', async () => {
+    await patch({ id: 1, estado: 'preparando' });
+
+    expect(prismaMock.historialPedido.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ usuarioId: 3 }) })
+    );
   });
 });

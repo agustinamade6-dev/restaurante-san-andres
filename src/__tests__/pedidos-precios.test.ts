@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeDb } from './helpers/fakeDb';
+import { loginAs, resetCookies } from './helpers/session';
 
 let db: ReturnType<typeof createFakeDb>;
 const emit = vi.hoisted(() => vi.fn());
@@ -9,7 +10,7 @@ vi.mock('@/lib/prisma', () => ({
   default: new Proxy({}, { get: (_t, prop) => (db.prisma as any)[prop] }),
 }));
 vi.mock('@/lib/events', () => ({ default: { emit } }));
-vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
 
 import { POST } from '@/app/api/pedidos/route';
 import { PATCH as PATCH_ITEMS } from '@/app/api/pedidos/[id]/items/route';
@@ -36,9 +37,11 @@ const crear = (body: unknown) =>
     })
   );
 
-beforeEach(() => {
+beforeEach(async () => {
   db = seed();
   emit.mockClear();
+  resetCookies();
+  await loginAs('MOZO', 4);
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -70,6 +73,11 @@ describe('POST /api/pedidos — precios del servidor', () => {
     expect(pedido.mesa.numero).toBe(5);
     expect(pedido.items[0]).toMatchObject({ productoId: 1, cantidad: 1, notas: 'sin sal' });
     expect(pedido.items[0].producto.nombre).toBe('Milanesa');
+  });
+
+  it('el creador del pedido es el usuario de la sesión firmada', async () => {
+    const pedido = await (await crear({ mesaId: 10, items: [{ productoId: 1, cantidad: 1 }] })).json();
+    expect(pedido.creadoPorId).toBe(4);
   });
 
   it('ocupa la mesa y emite pedido:nuevo', async () => {
@@ -157,7 +165,8 @@ describe('PATCH /api/pedidos/[id]/items — precios y totales del servidor', () 
       { params: Promise.resolve({ id: String(id) }) }
     );
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loginAs('COCINERO', 5); // la cocina edita ítems
     db.addPedido(pedidoAbierto());
   });
 

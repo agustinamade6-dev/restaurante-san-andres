@@ -12,6 +12,7 @@ const { app, BrowserWindow, Menu, dialog, shell, utilityProcess } = require('ele
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const crypto = require('crypto');
 
 const DEFAULT_CONFIG = {
   port: 3000,
@@ -38,6 +39,22 @@ const dbPath = path.join(dataDir, 'pos.db');
 const uploadsDir = path.join(dataDir, 'uploads');
 
 fs.mkdirSync(logsDir, { recursive: true });
+
+// Secreto para firmar las sesiones. Se genera una vez por instalación y se conserva en la carpeta
+// de datos del usuario (nunca viaja en el repositorio). Sin él, el servidor no emite sesiones.
+function getSessionSecret() {
+  const file = path.join(dataDir, 'session.key');
+  try {
+    const existing = fs.readFileSync(file, 'utf8').trim();
+    if (existing.length >= 32) return existing;
+  } catch {
+    /* no existe todavía: se crea abajo */
+  }
+  const secret = crypto.randomBytes(32).toString('hex');
+  fs.writeFileSync(file, secret, { mode: 0o600 });
+  return secret;
+}
+
 const logStream = fs.createWriteStream(path.join(logsDir, 'main.log'), { flags: 'a' });
 
 function log(msg) {
@@ -109,6 +126,7 @@ function startServer(config) {
       HOSTNAME: config.lan ? '0.0.0.0' : '127.0.0.1',
       DATABASE_URL: `file:${dbPath.replace(/\\/g, '/')}`,
       UPLOADS_DIR: uploadsDir,
+      SESSION_SECRET: getSessionSecret(),
       NEXT_TELEMETRY_DISABLED: '1',
     },
   });

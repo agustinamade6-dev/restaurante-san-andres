@@ -1,21 +1,18 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
 
-import { cookies } from 'next/headers';
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
+  const auth = await requireAuth(['ADMIN', 'COCINERO']);
+  if (!auth.ok) return auth.response;
+
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    let sessionData = null;
-    if (sessionCookie) {
-      try { sessionData = JSON.parse(sessionCookie.value); } catch(e){}
-    }
-    const usuarioId = sessionData?.id;
+    const usuarioId = auth.session.id;
 
     const resolvedParams = await params;
     const pedidoId = parseInt(resolvedParams.id);

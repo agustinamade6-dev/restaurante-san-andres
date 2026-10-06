@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { roundMoney } from '@/lib/money';
@@ -10,11 +11,7 @@ const bodySchema = z.object({
   mesaId: z.coerce.number().int().positive(),
   metodoPago: z.enum(METODOS_PAGO).default('efectivo'),
   propina: z.coerce.number().finite().min(0).default(0),
-  // El frontend puede mandar null/undefined si no hay sesión cargada.
-  cajeroId: z.preprocess(
-    (v) => (v === null || v === '' ? undefined : v),
-    z.coerce.number().int().positive().optional()
-  ),
+  // cajeroId del body se ignora: el cajero es siempre el usuario de la sesión firmada.
 });
 
 /** Error de negocio con status HTTP asociado. Hace rollback de la transacción al lanzarse. */
@@ -27,6 +24,9 @@ class CobroError extends Error {
 const ESTADOS_ACTIVOS = ['pendiente', 'preparando', 'listo'];
 
 export async function POST(request: Request) {
+  const auth = await requireAuth(['ADMIN', 'MOZO']);
+  if (!auth.ok) return auth.response;
+
   try {
     let raw: unknown;
     try {
@@ -45,7 +45,8 @@ export async function POST(request: Request) {
           : `${field}: ${issue.message}`;
       return NextResponse.json({ success: false, error }, { status: 400 });
     }
-    const { pedidoId, mesaId, metodoPago, propina, cajeroId } = parsed.data;
+    const { pedidoId, mesaId, metodoPago, propina } = parsed.data;
+    const cajeroId = auth.session.id;
 
     const today = new Date();
     const datePrefix = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
@@ -73,10 +74,8 @@ export async function POST(request: Request) {
         if (pedido.mesaId !== mesaId) throw new CobroError(400, 'La mesa no corresponde al pedido');
         if (pedido.items.length === 0) throw new CobroError(400, 'El pedido no tiene ítems para cobrar');
 
-        if (cajeroId !== undefined) {
-          const cajero = await tx.usuario.findUnique({ where: { id: cajeroId }, select: { id: true } });
-          if (!cajero) throw new CobroError(400, 'Cajero inválido');
-        }
+        const cajero = await tx.usuario.findUnique({ where: { id: cajeroId }, select: { id: true } });
+        if (!cajero) throw new CobroError(400, 'Cajero inválido');
 
         // 2. El subtotal sale de los ítems persistidos (fuente de verdad), no del total acumulado.
         const subtotal = roundMoney(pedido.items.reduce((sum, i) => sum + i.precio * i.cantidad, 0));
@@ -104,7 +103,7 @@ export async function POST(request: Request) {
             numeroTicket,
             numeroControlInterno,
             mesaNumero: pedido.mesa.numero,
-            cajeroId: cajeroId ?? null,
+            cajeroId,
           },
         });
 
@@ -121,7 +120,7 @@ export async function POST(request: Request) {
             pedidoId,
             accion: 'COBRADO',
             detalle: `Cobro registrado por $${total.toLocaleString()} — ${metodoPago.toUpperCase()}`,
-            usuarioId: cajeroId ?? null,
+            usuarioId: cajeroId,
           },
         });
 
@@ -164,7 +163,7 @@ export async function POST(request: Request) {
       total,
       metodoPago,
       ventaId: venta.id,
-      operadorId: cajeroId ?? null,
+      operadorId: cajeroId,
     };
 
     return NextResponse.json({ success: true, venta, ticketCliente, ticketInterno });

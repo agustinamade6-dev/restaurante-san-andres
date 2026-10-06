@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
@@ -6,6 +7,9 @@ import { roundMoney } from '@/lib/money';
 import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const pedidos = await prisma.pedido.findMany({
       where: {
@@ -25,7 +29,6 @@ export async function GET() {
   }
 }
 
-import { cookies } from 'next/headers';
 
 // El precio NO se acepta del cliente: se toma siempre de Producto.precio.
 // Si el frontend envía "precio", zod lo descarta (no es error, para no romper el contrato).
@@ -45,14 +48,11 @@ const crearPedidoSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const auth = await requireAuth(['ADMIN', 'MOZO']);
+  if (!auth.ok) return auth.response;
+
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    let sessionData = null;
-    if (sessionCookie) {
-      try { sessionData = JSON.parse(sessionCookie.value); } catch(e){}
-    }
-    const usuarioId = sessionData?.id;
+    const usuarioId = auth.session.id;
 
     let raw: unknown;
     try {
@@ -126,14 +126,11 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const auth = await requireAuth(['ADMIN', 'COCINERO']);
+  if (!auth.ok) return auth.response;
+
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    let sessionData = null;
-    if (sessionCookie) {
-      try { sessionData = JSON.parse(sessionCookie.value); } catch(e){}
-    }
-    const usuarioId = sessionData?.id;
+    const usuarioId = auth.session.id;
 
     const body = await request.json();
     const { id, estado, motivo } = body;

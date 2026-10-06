@@ -148,6 +148,13 @@ export function createFakeDb(seed: Seed = {}) {
     },
     usuario: {
       findUnique: async ({ where }: any) => state.usuarios.find((r) => matches(r, where)) ?? null,
+      findMany: async ({ where }: any = {}) => state.usuarios.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+      update: async ({ where, data }: any) => {
+        const row = state.usuarios.find((r) => matches(r, where));
+        if (!row) throw new Error('Usuario no existe');
+        Object.assign(row, data);
+        return row;
+      },
     },
     historialPedido: {
       create: async ({ data }: any) => {

@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeDb } from './helpers/fakeDb';
+import { loginAs, logout, resetCookies } from './helpers/session';
 
 let db: ReturnType<typeof createFakeDb>;
 
 vi.mock('@/lib/prisma', () => ({
   default: new Proxy({}, { get: (_t, prop) => (db.prisma as any)[prop] }),
 }));
+
+vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
 
 import { POST } from '@/app/api/checkout/pay/route';
 
@@ -31,7 +34,10 @@ const seed = () =>
   createFakeDb({
     pedidos: [pedidoBase()],
     mesas: [{ id: 10, numero: 5, sector: 'salon', estado: 'ocupada' }],
-    usuarios: [{ id: 7, nombre: 'Cajero' }],
+    usuarios: [
+      { id: 7, nombre: 'Cajero' },
+      { id: 8, nombre: 'Otro mozo' },
+    ],
   });
 
 const pagar = (body: unknown) =>
@@ -45,8 +51,10 @@ const pagar = (body: unknown) =>
 
 const valido = { pedidoId: 1, mesaId: 10, metodoPago: 'efectivo', propina: 100, cajeroId: 7 };
 
-beforeEach(() => {
+beforeEach(async () => {
   db = seed();
+  resetCookies();
+  await loginAs('MOZO', 7, 'Cajero');
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -81,12 +89,20 @@ describe('POST /api/checkout/pay — camino feliz', () => {
     expect(data.ticketInterno).toMatchObject({ tipo: 'INTERNO', sector: 'salon', operadorId: 7 });
   });
 
-  it('usa efectivo y propina 0 por defecto y acepta cajeroId null', async () => {
+  it('usa efectivo y propina 0 por defecto; el cajero es el de la sesión', async () => {
     const res = await pagar({ pedidoId: 1, mesaId: 10, cajeroId: null });
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.venta).toMatchObject({ metodoPago: 'efectivo', propina: 0, cajeroId: null });
+    expect(data.venta).toMatchObject({ metodoPago: 'efectivo', propina: 0, cajeroId: 7 });
+  });
+
+  it('ignora el cajeroId del body: no se puede cobrar a nombre de otro usuario', async () => {
+    const data = await (await pagar({ ...valido, cajeroId: 8 })).json();
+
+    expect(data.venta.cajeroId).toBe(7);
+    expect(data.ticketInterno.operadorId).toBe(7);
+    expect(db.state.historial.find((h) => h.accion === 'COBRADO')?.usuarioId).toBe(7);
   });
 
   it('no libera la mesa si hay otro pedido activo en ella', async () => {
@@ -162,7 +178,6 @@ describe('POST /api/checkout/pay — validación', () => {
     ['método de pago inexistente', { ...valido, metodoPago: 'bitcoin' }],
     ['propina negativa', { ...valido, propina: -50 }],
     ['propina NaN', { ...valido, propina: 'mucho' }],
-    ['cajeroId negativo', { ...valido, cajeroId: -3 }],
   ])('400: %s', async (_n, body) => {
     const res = await pagar(body);
     expect(res.status).toBe(400);
@@ -197,8 +212,9 @@ describe('POST /api/checkout/pay — reglas de negocio y rollback', () => {
     expect(db.state.ventas).toHaveLength(0);
   });
 
-  it('400 si el cajero no existe y hace rollback', async () => {
-    const res = await pagar({ ...valido, cajeroId: 999 });
+  it('400 si el usuario de la sesión ya no existe y hace rollback', async () => {
+    await loginAs('MOZO', 999);
+    const res = await pagar(valido);
     expect(res.status).toBe(400);
     expect(db.state.pedidos[0].estado).toBe('entregado');
   });
@@ -221,5 +237,29 @@ describe('POST /api/checkout/pay — reglas de negocio y rollback', () => {
     expect(db.state.pedidos[0].estado).toBe('entregado');
     expect(db.state.mesas[0].estado).toBe('ocupada');
     expect(db.state.historial).toHaveLength(0);
+  });
+});
+
+describe('POST /api/checkout/pay — autenticación y roles', () => {
+  it('401 sin sesión y no cobra', async () => {
+    logout();
+    const res = await pagar(valido);
+
+    expect(res.status).toBe(401);
+    expect(db.state.ventas).toHaveLength(0);
+    expect(db.state.pedidos[0].estado).toBe('entregado');
+  });
+
+  it('403 para COCINERO y no cobra', async () => {
+    await loginAs('COCINERO', 7);
+    const res = await pagar(valido);
+
+    expect(res.status).toBe(403);
+    expect(db.state.ventas).toHaveLength(0);
+  });
+
+  it('ADMIN también puede cobrar', async () => {
+    await loginAs('ADMIN', 7);
+    expect((await pagar(valido)).status).toBe(200);
   });
 });

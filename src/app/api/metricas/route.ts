@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 
 export async function GET() {
+  const auth = await requireAuth(['ADMIN']);
+  if (!auth.ok) return auth.response;
+
   try {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
