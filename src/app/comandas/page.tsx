@@ -11,7 +11,6 @@ import {
   MessageSquare,
   X,
   Users,
-  Clock,
   CheckCircle2,
   AlertCircle,
   Utensils,
@@ -136,7 +135,6 @@ export default function ComandasPage() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinAdmin, setPinAdmin] = useState('');
   const [mesasBackup, setMesasBackup] = useState<Mesa[]>([]);
-  const [draggedMesaId, setDraggedMesaId] = useState<number | null>(null);
   const [mesaEditorOpen, setMesaEditorOpen] = useState<Partial<Mesa> | null>(null);
 
   // Performance: direct DOM manipulation during drag instead of React state
@@ -154,7 +152,6 @@ export default function ComandasPage() {
   const [procesandoCobro, setProcesandoCobro] = useState(false);
   const [ticketData, setTicketData] = useState<{ ticketCliente: Ticket; ticketInterno: Ticket } | null>(null);
 
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   // Las mesas se piden acá y se guardan en estado local, porque el editor del plano las modifica
   // (arrastre, deshacer, eliminar) antes de guardar.
@@ -169,14 +166,6 @@ export default function ComandasPage() {
     pedirMesas()
       .then((data) => {
         if (vigente) setMesas(data);
-      })
-      .catch(() => {});
-    fetch('/api/auth/session')
-      .then(res => res.json())
-      .then(data => {
-        if (vigente && data.user) {
-          setCurrentUserRole(data.user.rol);
-        }
       })
       .catch(() => {});
     return () => {
@@ -280,19 +269,6 @@ export default function ComandasPage() {
     }
   };
 
-  const mesaIconEstado = (estado: string) => {
-    switch (estado) {
-      case 'libre':
-        return <CheckCircle2 className="w-5 h-5 text-[var(--success)]" />;
-      case 'ocupada':
-        return <Users className="w-5 h-5 text-[var(--danger)]" />;
-      case 'esperando':
-        return <Clock className="w-5 h-5 text-[var(--warning)]" />;
-      default:
-        return null;
-    }
-  };
-
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, id: number) => {
     if (!isEditorMode) return;
     // Don't start drag if the click originated from a button (edit/delete toolbar)
@@ -317,8 +293,6 @@ export default function ComandasPage() {
     el.style.willChange = 'left, top';
     el.style.zIndex = '100';
     el.style.filter = 'drop-shadow(0 10px 20px rgba(0,0,0,0.6))';
-    
-    setDraggedMesaId(id);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -357,7 +331,6 @@ export default function ComandasPage() {
     }
     
     dragRef.current = { element: null, containerRect: null, mesaId: null };
-    setDraggedMesaId(null);
   };
 
   const handleVerifyPin = async () => {
