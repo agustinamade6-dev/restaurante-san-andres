@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { crearProveedorSchema, editarProveedorSchema } from '@/lib/catalogo';
+import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
+
+const error = (mensaje: string, status: number) => NextResponse.json({ error: mensaje }, { status });
 
 export async function GET() {
   const auth = await requireAuth(['ADMIN']);
@@ -12,9 +16,9 @@ export async function GET() {
       orderBy: { nombre: 'asc' },
     });
     return NextResponse.json(proveedores);
-  } catch (error) {
-    console.error('Error fetching proveedores:', error);
-    return NextResponse.json({ error: 'Error al obtener proveedores' }, { status: 500 });
+  } catch (e) {
+    console.error('Error fetching proveedores:', e);
+    return error('Error al obtener proveedores', 500);
   }
 }
 
@@ -23,7 +27,12 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const body = await request.json();
+    const raw = await leerJson(request);
+    if (raw === JSON_INVALIDO) return error('Cuerpo JSON inválido', 400);
+    const parsed = crearProveedorSchema.safeParse(raw);
+    if (!parsed.success) return error(mensajeZod(parsed.error), 400);
+    const body = parsed.data;
+
     const proveedor = await prisma.proveedor.create({
       data: {
         nombre: body.nombre,
@@ -35,9 +44,9 @@ export async function POST(request: Request) {
       },
     });
     return NextResponse.json(proveedor, { status: 201 });
-  } catch (error) {
-    console.error('Error creating proveedor:', error);
-    return NextResponse.json({ error: 'Error al crear proveedor' }, { status: 500 });
+  } catch (e) {
+    console.error('Error creating proveedor:', e);
+    return error('Error al crear proveedor', 500);
   }
 }
 
@@ -46,22 +55,18 @@ export async function PUT(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const body = await request.json();
-    const proveedor = await prisma.proveedor.update({
-      where: { id: body.id },
-      data: {
-        nombre: body.nombre,
-        contacto: body.contacto,
-        telefono: body.telefono,
-        email: body.email,
-        direccion: body.direccion,
-        notas: body.notas,
-      },
-    });
+    const raw = await leerJson(request);
+    if (raw === JSON_INVALIDO) return error('Cuerpo JSON inválido', 400);
+    const parsed = editarProveedorSchema.safeParse(raw);
+    if (!parsed.success) return error(mensajeZod(parsed.error), 400);
+    const { id, ...datos } = parsed.data;
+
+    const proveedor = await prisma.proveedor.update({ where: { id }, data: datos });
     return NextResponse.json(proveedor);
-  } catch (error) {
-    console.error('Error updating proveedor:', error);
-    return NextResponse.json({ error: 'Error al actualizar proveedor' }, { status: 500 });
+  } catch (e) {
+    if (codigoPrisma(e) === 'P2025') return error('Proveedor no encontrado', 404);
+    console.error('Error updating proveedor:', e);
+    return error('Error al actualizar proveedor', 500);
   }
 }
 
@@ -70,13 +75,15 @@ export async function DELETE(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
-    await prisma.proveedor.delete({ where: { id: parseInt(id) } });
+    const id = idDeQuery(request);
+    if (id === undefined) return error('ID requerido', 400);
+    if (id === null) return error('ID inválido', 400);
+
+    await prisma.proveedor.delete({ where: { id } });
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting proveedor:', error);
-    return NextResponse.json({ error: 'Error al eliminar proveedor' }, { status: 500 });
+  } catch (e) {
+    if (codigoPrisma(e) === 'P2025') return error('Proveedor no encontrado', 404);
+    console.error('Error deleting proveedor:', e);
+    return error('Error al eliminar proveedor', 500);
   }
 }

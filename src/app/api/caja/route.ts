@@ -2,16 +2,19 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { marcarAnuladas, resumirVentas } from '@/lib/ventas';
+import { enteroDeQuery } from '@/lib/validacion';
 
 export async function GET(request: Request) {
   const auth = await requireAuth(['ADMIN']);
   if (!auth.ok) return auth.response;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const daysStr = searchParams.get('days') || '1';
-    const days = parseInt(daysStr);
-    
+    const dias = enteroDeQuery(request, 'days', 1, 366);
+    if (dias === null) {
+      return NextResponse.json({ error: 'El parámetro days debe ser un entero entre 1 y 366' }, { status: 400 });
+    }
+    const days = dias ?? 1;
+
     const since = new Date();
     since.setDate(since.getDate() - days);
     since.setHours(0, 0, 0, 0);

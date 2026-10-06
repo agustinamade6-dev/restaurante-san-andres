@@ -13,6 +13,7 @@ y qué debe tener en cuenta.
 | 3 | `feat(seguridad): sesión firmada, roles en toda la API y PIN con hash` | [commit-03-autenticacion.md](commit-03-autenticacion.md) | AT-01, AT-02, AT-07, AT-15, AT-10/11/14 (parcial) |
 | 4 | `fix(pedidos): estados finales, cancelación segura y anulación de ventas` | [commit-04-estados-anulacion.md](commit-04-estados-anulacion.md) | AT-18, AT-09, AT-06 (completo), AT-14 (parcial) |
 | 5 | `fix(mesas): reglas de negocio, SSE sin fugas y subida de imágenes validada` | [commit-05-mesas-sse-uploads.md](commit-05-mesas-sse-uploads.md) | AT-14 (completo), AT-10, AT-11 |
+| 6 | `fix(validacion): productos, costos, proveedores, inventario y consultas con entrada validada` | [commit-06-validacion-catalogo.md](commit-06-validacion-catalogo.md) | AT-08 (completo), AT-19 (hallado) |
 
 ## Estado de los hallazgos
 
@@ -25,7 +26,7 @@ y qué debe tener en cuenta.
 | AT-05 | Carreras en el cobro (doble cobro, ticket repetido) | Alto | ✅ Commit 1 |
 | AT-06 | Operaciones multi-paso sin transacción | Alto | ✅ Commits 1, 2 y 4 |
 | AT-07 | PIN en texto plano y sin límite de intentos | Alto | ✅ Commit 3 |
-| AT-08 | Sin validación de entrada | Alto | 🟡 Resuelto en cobro, pedidos, estados, cancelación, anulación, ítems, auth, mesas y subidas. Pendiente: productos, categorías, costos, proveedores e inventario |
+| AT-08 | Sin validación de entrada | Alto | ✅ Commits 1, 2, 4, 5 y 6 |
 | AT-09 | Cancelación sin controles (pedido pagado, stock, venta) | Alto | 🟡 Commit 4 (estado y transacción). Pendiente: reintegro de stock (AT-12) |
 | AT-10 | SSE sin autenticación y fuga de temporizadores | Medio | ✅ Commits 3 y 5 |
 | AT-11 | Subida de archivos débil | Medio | ✅ Commits 3 y 5 |
@@ -36,6 +37,7 @@ y qué debe tener en cuenta.
 | AT-16 | Datos del comercio fijos en el ticket | Bajo | ⏳ Pendiente |
 | AT-17 | Residuos (`temp.tsx`, README genérico, UTF-16) | Bajo | ⏳ Pendiente |
 | AT-18 | Pedido cobrado reabrible y sin anulación de ventas (hallado en prueba manual) | Muy Alto | ✅ Commit 4 (falta el botón en el frontend) |
+| AT-19 | "Hoy" en Caja incluye las ventas de ayer (período desplazado un día) | Medio | ⏳ Pendiente de confirmar el criterio |
 
 ## Convenciones
 

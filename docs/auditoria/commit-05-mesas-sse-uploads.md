@@ -126,7 +126,7 @@ const filename = `prod-${Date.now()}.${extension}`;     // sin tamaño máximo; 
 | **Mensajes de error al editar una mesa** | La pantalla de Sala muestra siempre "Error al actualizar" en el `PATCH`. **Recomendado:** mostrar `data.error`, como ya hace al crear. |
 | **Eliminar mesa** | Con un pedido entregado sin cobrar responde `400` "No se puede eliminar una mesa con pedidos activos o pendientes de cobro". |
 | **Validaciones de mesas** | Número entero entre 1 y 9999 (los negativos están reservados), capacidad 1–50, sector `salon`/`barra`, forma `round`/`square`/`tall-bar`. Fuera de eso: `400` con `error`. |
-| **Subida de imágenes** | Mismo formato de respuesta (`{ success, url }`). Nuevos errores: `413` por tamaño y `400 "Formato no permitido (solo PNG, JPG o WebP)"` por contenido. **Recomendado:** mostrar `data.error` y avisar del límite de 5 MB. |
+| **Subida de imágenes** | Mismo formato de respuesta (`{ success, url }`). Nuevos errores: `413` por tamaño y `400 "Formato no permitido (solo PNG, JPG o WebP)"` por contenido. La pantalla de Menú ya muestra `data.error` en un `alert`, así que no requiere cambios; conviene avisar del límite de 5 MB. |
 | **Historial de ventas** | Las ventas de una mesa archivada siguen guardando el número original en `mesaNumero`. **Recomendado:** que Caja muestre `v.mesaNumero` antes que `v.mesa.numero`; de lo contrario esas ventas viejas mostrarían la mesa con número negativo. |
 | Respuestas exitosas | Sin cambios de forma. Sin cambios de esquema. |
 

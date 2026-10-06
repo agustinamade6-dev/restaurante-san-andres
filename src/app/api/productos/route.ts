@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { crearProductoSchema, editarProductoSchema } from '@/lib/catalogo';
+import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
+
+const error = (mensaje: string, status: number) => NextResponse.json({ error: mensaje }, { status });
 
 export async function GET(request: Request) {
   const auth = await requireAuth();
@@ -8,22 +12,23 @@ export async function GET(request: Request) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const categoriaId = searchParams.get('categoriaId');
+    const categoriaId = idDeQuery(request, 'categoriaId');
+    if (categoriaId === null) return error('categoriaId inválido', 400);
     const busqueda = searchParams.get('q');
+    if (busqueda && busqueda.length > 100) return error('La búsqueda es demasiado larga', 400);
 
     const where: Record<string, unknown> = {};
-    if (categoriaId) where.categoriaId = parseInt(categoriaId);
+    if (categoriaId) where.categoriaId = categoriaId;
     if (busqueda) where.nombre = { contains: busqueda };
-
     const productos = await prisma.producto.findMany({
       where,
       include: { categoria: true },
       orderBy: [{ categoria: { orden: 'asc' } }, { nombre: 'asc' }],
     });
     return NextResponse.json(productos);
-  } catch (error) {
-    console.error('Error fetching productos:', error);
-    return NextResponse.json({ error: 'Error al obtener productos' }, { status: 500 });
+  } catch (e) {
+    console.error('Error fetching productos:', e);
+    return error('Error al obtener productos', 500);
   }
 }
 
@@ -32,7 +37,15 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const body = await request.json();
+    const raw = await leerJson(request);
+    if (raw === JSON_INVALIDO) return error('Cuerpo JSON inválido', 400);
+    const parsed = crearProductoSchema.safeParse(raw);
+    if (!parsed.success) return error(mensajeZod(parsed.error), 400);
+    const body = parsed.data;
+
+    const categoria = await prisma.categoria.findUnique({ where: { id: body.categoriaId } });
+    if (!categoria) return error('La categoría no existe', 400);
+
     const producto = await prisma.producto.create({
       data: {
         nombre: body.nombre,
@@ -45,9 +58,9 @@ export async function POST(request: Request) {
       include: { categoria: true },
     });
     return NextResponse.json(producto, { status: 201 });
-  } catch (error) {
-    console.error('Error creating producto:', error);
-    return NextResponse.json({ error: 'Error al crear producto' }, { status: 500 });
+  } catch (e) {
+    console.error('Error creating producto:', e);
+    return error('Error al crear producto', 500);
   }
 }
 
@@ -56,23 +69,30 @@ export async function PUT(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const body = await request.json();
+    const raw = await leerJson(request);
+    if (raw === JSON_INVALIDO) return error('Cuerpo JSON inválido', 400);
+    const parsed = editarProductoSchema.safeParse(raw);
+    if (!parsed.success) return error(mensajeZod(parsed.error), 400);
+    const { id, ...datos } = parsed.data;
+
+    const existente = await prisma.producto.findUnique({ where: { id } });
+    if (!existente) return error('Producto no encontrado', 404);
+
+    if (datos.categoriaId !== undefined) {
+      const categoria = await prisma.categoria.findUnique({ where: { id: datos.categoriaId } });
+      if (!categoria) return error('La categoría no existe', 400);
+    }
+
     const producto = await prisma.producto.update({
-      where: { id: body.id },
-      data: {
-        nombre: body.nombre,
-        descripcion: body.descripcion,
-        precio: body.precio,
-        categoriaId: body.categoriaId,
-        disponible: body.disponible,
-        imagen: body.imagen,
-      },
+      where: { id },
+      data: datos,
       include: { categoria: true },
     });
     return NextResponse.json(producto);
-  } catch (error) {
-    console.error('Error updating producto:', error);
-    return NextResponse.json({ error: 'Error al actualizar producto' }, { status: 500 });
+  } catch (e) {
+    if (codigoPrisma(e) === 'P2025') return error('Producto no encontrado', 404);
+    console.error('Error updating producto:', e);
+    return error('Error al actualizar producto', 500);
   }
 }
 
@@ -81,13 +101,27 @@ export async function DELETE(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
-    await prisma.producto.delete({ where: { id: parseInt(id) } });
+    const id = idDeQuery(request);
+    if (id === undefined) return error('ID requerido', 400);
+    if (id === null) return error('ID inválido', 400);
+
+    const existente = await prisma.producto.findUnique({ where: { id } });
+    if (!existente) return error('Producto no encontrado', 404);
+
+    // Un producto que ya se vendió no se puede borrar sin romper el historial de pedidos.
+    const pedidos = await prisma.itemPedido.count({ where: { productoId: id } });
+    if (pedidos > 0) {
+      return error('No se puede eliminar un producto con pedidos registrados. Marcalo como no disponible.', 400);
+    }
+
+    await prisma.producto.delete({ where: { id } });
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting producto:', error);
-    return NextResponse.json({ error: 'Error al eliminar producto' }, { status: 500 });
+  } catch (e) {
+    if (codigoPrisma(e) === 'P2025') return error('Producto no encontrado', 404);
+    if (codigoPrisma(e) === 'P2003') {
+      return error('No se puede eliminar un producto con pedidos registrados. Marcalo como no disponible.', 400);
+    }
+    console.error('Error deleting producto:', e);
+    return error('Error al eliminar producto', 500);
   }
 }

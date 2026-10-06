@@ -48,8 +48,4 @@ export const layoutSchema = z.object({
     .max(500),
 });
 
-export function mensajeZod(error: z.ZodError): string {
-  const issue = error.issues[0];
-  const campo = issue.path.join('.');
-  return campo ? `${campo}: ${issue.message}` : issue.message;
-}
+export { mensajeZod } from '@/lib/validacion';

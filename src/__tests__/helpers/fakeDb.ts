@@ -10,7 +10,12 @@
  * se normalizan a las tablas `items` y `productos`.
  */
 type Row = Record<string, any>;
-type Seed = Partial<Record<'pedidos' | 'mesas' | 'usuarios' | 'ventas' | 'historial' | 'productos' | 'items', Row[]>>;
+type Seed = Partial<
+  Record<
+    'pedidos' | 'mesas' | 'usuarios' | 'ventas' | 'historial' | 'productos' | 'items' | 'categorias' | 'costos' | 'proveedores' | 'insumos',
+    Row[]
+  >
+>;
 
 function matches(row: Row, where: Row = {}): boolean {
   return Object.entries(where).every(([key, cond]) => {
@@ -21,6 +26,7 @@ function matches(row: Row, where: Row = {}): boolean {
       if ('not' in cond) return value !== cond.not;
       if ('startsWith' in cond) return typeof value === 'string' && value.startsWith(cond.startsWith);
       if ('gte' in cond) return value >= cond.gte;
+      if ('contains' in cond) return typeof value === 'string' && value.toLowerCase().includes(String(cond.contains).toLowerCase());
     }
     return value === cond;
   });
@@ -35,6 +41,10 @@ export function createFakeDb(seed: Seed = {}) {
     historial: [...(seed.historial ?? [])] as Row[],
     productos: [...(seed.productos ?? [])] as Row[],
     items: [...(seed.items ?? [])] as Row[],
+    categorias: [...(seed.categorias ?? [])] as Row[],
+    costos: [...(seed.costos ?? [])] as Row[],
+    proveedores: [...(seed.proveedores ?? [])] as Row[],
+    insumos: [...(seed.insumos ?? [])] as Row[],
   };
   let nextId = 1000;
   const failOn = new Set<string>();
@@ -64,6 +74,24 @@ export function createFakeDb(seed: Seed = {}) {
       throw Object.assign(new Error('Unique constraint failed on numero'), { code: 'P2002' });
     }
   };
+
+  const noExiste = (que: string) => Object.assign(new Error(`${que} no existe`), { code: 'P2025' });
+  const buscar = (tabla: Row[], where: Row) => tabla.find((r) => matches(r, where));
+  const sinUndefined = (data: Row) => Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  const productoConRel = (p: Row | undefined, include?: Row) =>
+    p
+      ? {
+          ...p,
+          ...(include?.categoria ? { categoria: state.categorias.find((c) => c.id === p.categoriaId) ?? null } : {}),
+        }
+      : null;
+  const insumoConRel = (i: Row | undefined, include?: Row) =>
+    i
+      ? {
+          ...i,
+          ...(include?.proveedor ? { proveedor: state.proveedores.find((p) => p.id === i.proveedorId) ?? null } : {}),
+        }
+      : null;
 
   const guard = (name: string) => {
     if (failOn.has(name)) throw new Error(`fallo simulado en ${name}`);
@@ -114,6 +142,13 @@ export function createFakeDb(seed: Seed = {}) {
         return withRelations(row, include);
       },
       count: async ({ where }: any) => state.pedidos.filter((r) => matches(r, where)).length,
+      findMany: async ({ where, include }: any = {}) => {
+        const { mesa, ...resto } = where ?? {};
+        return state.pedidos
+          .filter((r) => matches(r, resto))
+          .filter((r) => !mesa || state.mesas.find((m) => m.id === r.mesaId)?.numero === mesa.numero)
+          .map((r) => withRelations(r, include));
+      },
     },
     itemPedido: {
       create: async ({ data }: any) => {
@@ -127,6 +162,7 @@ export function createFakeDb(seed: Seed = {}) {
         return row ? itemWithRel(row, include) : null;
       },
       findMany: async ({ where }: any) => state.items.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+      count: async ({ where }: any = {}) => state.items.filter((r) => matches(r, where)).length,
       update: async ({ where, data }: any) => {
         const row = state.items.find((r) => matches(r, where));
         if (!row) throw new Error('Item no existe');
@@ -139,9 +175,74 @@ export function createFakeDb(seed: Seed = {}) {
         return state.items.splice(idx, 1)[0];
       },
     },
+    categoria: {
+      findUnique: async ({ where }: any) => buscar(state.categorias, where) ?? null,
+      findMany: async ({ where }: any = {}) => state.categorias.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+    },
     producto: {
-      findMany: async ({ where }: any) => state.productos.filter((r) => matches(r, where)).map((r) => ({ ...r })),
-      findUnique: async ({ where }: any) => state.productos.find((r) => matches(r, where)) ?? null,
+      findMany: async ({ where, include }: any = {}) =>
+        state.productos.filter((r) => matches(r, where)).map((r) => productoConRel(r, include)),
+      findUnique: async ({ where, include }: any) => productoConRel(buscar(state.productos, where), include),
+      create: async ({ data, include }: any) => {
+        guard('producto.create');
+        const row = { id: nextId++, disponible: true, descripcion: '', imagen: '', ...data };
+        state.productos.push(row);
+        return productoConRel(row, include);
+      },
+      update: async ({ where, data, include }: any) => {
+        const row = buscar(state.productos, where);
+        if (!row) throw noExiste('Producto');
+        Object.assign(row, sinUndefined(data));
+        return productoConRel(row, include);
+      },
+      delete: async ({ where }: any) => {
+        const idx = state.productos.findIndex((r) => matches(r, where));
+        if (idx < 0) throw noExiste('Producto');
+        return state.productos.splice(idx, 1)[0];
+      },
+    },
+    costoFijo: {
+      findMany: async () => state.costos.map((r) => ({ ...r })),
+      create: async ({ data }: any) => {
+        const row = { id: nextId++, ...data };
+        state.costos.push(row);
+        return { ...row };
+      },
+      delete: async ({ where }: any) => {
+        const idx = state.costos.findIndex((r) => matches(r, where));
+        if (idx < 0) throw noExiste('Costo');
+        return state.costos.splice(idx, 1)[0];
+      },
+    },
+    proveedor: {
+      findMany: async () => state.proveedores.map((r) => ({ ...r, _count: { insumos: 0 } })),
+      findUnique: async ({ where }: any) => buscar(state.proveedores, where) ?? null,
+      create: async ({ data }: any) => {
+        const row = { id: nextId++, ...data };
+        state.proveedores.push(row);
+        return { ...row };
+      },
+      update: async ({ where, data }: any) => {
+        const row = buscar(state.proveedores, where);
+        if (!row) throw noExiste('Proveedor');
+        Object.assign(row, sinUndefined(data));
+        return { ...row };
+      },
+      delete: async ({ where }: any) => {
+        const idx = state.proveedores.findIndex((r) => matches(r, where));
+        if (idx < 0) throw noExiste('Proveedor');
+        return state.proveedores.splice(idx, 1)[0];
+      },
+    },
+    insumo: {
+      findMany: async ({ include }: any = {}) => state.insumos.map((r) => insumoConRel(r, include)),
+      findUnique: async ({ where }: any) => buscar(state.insumos, where) ?? null,
+      update: async ({ where, data, include }: any) => {
+        const row = buscar(state.insumos, where);
+        if (!row) throw noExiste('Insumo');
+        Object.assign(row, sinUndefined(data));
+        return insumoConRel(row, include);
+      },
     },
     venta: {
       count: async ({ where }: any) => state.ventas.filter((r) => matches(r, where)).length,
@@ -204,6 +305,7 @@ export function createFakeDb(seed: Seed = {}) {
       },
     },
     historialPedido: {
+      findMany: async ({ where }: any = {}) => state.historial.filter((r) => matches(r, where)).map((r) => ({ ...r })),
       create: async ({ data }: any) => {
         const row = { id: nextId++, ...data };
         state.historial.push(row);
