@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
 }
 
 datasource db {
@@ -7,12 +8,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  pin       String   @unique
+  password  String   @default("")
+  rol       String   @default("MOZO") // ADMIN, COCINERO, MOZO
+  activo    Boolean  @default(true)
+  pedidos   Pedido[]
+  ventas    Venta[]
+  historial HistorialPedido[]
+  createdAt DateTime @default(now())
+}
+
 model Mesa {
   id        Int      @id @default(autoincrement())
   numero    Int      @unique
   capacidad Int      @default(4)
   estado    String   @default("libre") // libre, ocupada, esperando
+  sector    String   @default("salon") // salon, barra
+  forma     String   @default("round") // round, square, tall-bar
+  posX      Float    @default(0)
+  posY      Float    @default(0)
+  activa    Boolean  @default(true)
   pedidos   Pedido[]
+  ventas    Venta[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -47,10 +67,27 @@ model Pedido {
   mesa        Mesa         @relation(fields: [mesaId], references: [id])
   estado      String       @default("pendiente") // pendiente, preparando, listo, entregado, cancelado
   items       ItemPedido[]
+  historial   HistorialPedido[]
   total       Float        @default(0)
   notas       String       @default("")
   creadoEn    DateTime     @default(now())
   actualizadoEn DateTime   @updatedAt
+  entregadoEn DateTime?
+  creadoPorId Int?
+  creadoPor   Usuario?     @relation(fields: [creadoPorId], references: [id])
+  ventas      Venta[]
+}
+
+model HistorialPedido {
+  id        Int      @id @default(autoincrement())
+  pedidoId  Int
+  pedido    Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  accion    String
+  detalle   String
+  motivo    String   @default("")
+  usuarioId Int?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+  createdAt DateTime @default(now())
 }
 
 model ItemPedido {
@@ -102,10 +139,20 @@ model CostoFijo {
 }
 
 model Venta {
-  id        Int      @id @default(autoincrement())
-  fecha     DateTime @default(now())
-  total     Float
-  items     Int      @default(0)
-  mesa      Int
-  createdAt DateTime @default(now())
+  id                   Int      @id @default(autoincrement())
+  pedidoId             Int?
+  pedido               Pedido?  @relation(fields: [pedidoId], references: [id])
+  mesaId               Int?
+  mesa                 Mesa?    @relation(fields: [mesaId], references: [id])
+  mesaNumero           Int?
+  total                Float
+  propina              Float    @default(0)
+  metodoPago           String   @default("efectivo") // efectivo, tarjeta, transferencia, dividido
+  cajeroId             Int?
+  cajero               Usuario? @relation(fields: [cajeroId], references: [id])
+  numeroTicket         String   @default("")
+  numeroControlInterno String   @default("")
+  items                Int      @default(0)
+  fechaCobro           DateTime @default(now())
+  createdAt            DateTime @default(now())
 }

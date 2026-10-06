@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# desktop build
+/desktop-build/
+/release/
+/dist/
+
+# datos locales / runtime
+*.db
+*.db-journal
+/public/uploads/
+startup-stdout.txt
+debug-startup.log
