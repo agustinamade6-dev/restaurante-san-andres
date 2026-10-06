@@ -1,5 +1,5 @@
 /**
- * Sesión firmada (HMAC-SHA256) con Web Crypto: funciona tanto en el middleware como en las rutas.
+ * Sesión firmada (HMAC-SHA256) con Web Crypto: funciona tanto en el proxy como en las rutas.
  * Formato del token: base64url(payload JSON) + "." + base64url(firma).
  * Cualquier modificación del payload invalida la firma; el payload incluye expiración.
  */
