@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import AvisoError from '@/components/AvisoError';
+import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
   Plus,
   Trash2,
@@ -22,6 +24,9 @@ interface CostoFijo {
 export default function CostosPage() {
   const [costos, setCostos] = useState<CostoFijo[]>([]);
   const [modal, setModal] = useState(false);
+  // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
+  const [errorModal, setErrorModal] = useState('');
+  const [errorLista, setErrorLista] = useState('');
   const [form, setForm] = useState({
     concepto: '',
     monto: 0,
@@ -39,11 +44,9 @@ export default function CostosPage() {
   }, [fetchCostos]);
 
   const guardar = async () => {
-    await fetch('/api/costos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
+    setErrorModal('');
+    const error = await enviarJson('/api/costos', 'POST', form, 'No se pudo guardar el costo');
+    if (error) return setErrorModal(error);
     setModal(false);
     setForm({ concepto: '', monto: 0, tipo: 'fijo', periodicidad: 'mensual' });
     fetchCostos();
@@ -51,7 +54,9 @@ export default function CostosPage() {
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar este costo?')) return;
-    await fetch(`/api/costos?id=${id}`, { method: 'DELETE' });
+    setErrorLista('');
+    const error = await enviar(`/api/costos?id=${id}`, { method: 'DELETE' }, 'No se pudo eliminar el costo');
+    if (error) return setErrorLista(error);
     fetchCostos();
   };
 
@@ -72,7 +77,7 @@ export default function CostosPage() {
             Costos fijos y variables mensuales
           </p>
         </div>
-        <button onClick={() => setModal(true)} className="btn btn-primary">
+        <button onClick={() => { setErrorModal(''); setModal(true); }} className="btn btn-primary">
           <Plus className="w-4 h-4" />
           Agregar Costo
         </button>
@@ -122,6 +127,8 @@ export default function CostosPage() {
           </div>
         </div>
       </div>
+
+      <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
 
       {/* Cost list */}
       <div className="glass-card overflow-hidden">
@@ -291,6 +298,8 @@ export default function CostosPage() {
                 </div>
               </div>
             </div>
+
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger)] mt-4">{errorModal}</p>}
 
             <div className="flex gap-3 mt-6">
               <button

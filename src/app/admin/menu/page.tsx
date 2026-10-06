@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import AvisoError from '@/components/AvisoError';
+import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
   Plus,
   Pencil,
@@ -37,6 +39,9 @@ export default function MenuPage() {
   const [busqueda, setBusqueda] = useState('');
   const [catFiltro, setCatFiltro] = useState<number | null>(null);
   const [modal, setModal] = useState(false);
+  // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
+  const [errorModal, setErrorModal] = useState('');
+  const [errorLista, setErrorLista] = useState('');
   const [editando, setEditando] = useState<Producto | null>(null);
   const [form, setForm] = useState({
     nombre: '',
@@ -113,30 +118,25 @@ export default function MenuPage() {
         imagen: '🍽️',
       });
     }
+    setErrorModal('');
     setModal(true);
   };
 
   const guardar = async () => {
-    if (editando) {
-      await fetch('/api/productos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editando.id, ...form }),
-      });
-    } else {
-      await fetch('/api/productos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-    }
+    setErrorModal('');
+    const error = editando
+      ? await enviarJson('/api/productos', 'PUT', { id: editando.id, ...form }, 'No se pudo guardar el producto')
+      : await enviarJson('/api/productos', 'POST', form, 'No se pudo crear el producto');
+    if (error) return setErrorModal(error);
     setModal(false);
     fetchData();
   };
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar este producto?')) return;
-    await fetch(`/api/productos?id=${id}`, { method: 'DELETE' });
+    setErrorLista('');
+    const error = await enviar(`/api/productos?id=${id}`, { method: 'DELETE' }, 'No se pudo eliminar el producto');
+    if (error) return setErrorLista(error);
     fetchData();
   };
 
@@ -195,6 +195,8 @@ export default function MenuPage() {
           ))}
         </div>
       </div>
+
+      <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
 
       {/* Table */}
       <div className="glass-card overflow-hidden">
@@ -449,6 +451,8 @@ export default function MenuPage() {
                 </div>
               </div>
             </div>
+
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger)] mt-4">{errorModal}</p>}
 
             <div className="flex gap-3 mt-6">
               <button

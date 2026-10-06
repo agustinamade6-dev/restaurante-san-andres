@@ -12,6 +12,8 @@ import {
   X,
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
+import AvisoError from '@/components/AvisoError';
+import { enviarJson } from '@/lib/api-cliente';
 
 interface Insumo {
   id: number;
@@ -49,11 +51,9 @@ export default function InventarioPage() {
   }, [fetchInsumos]);
 
   const actualizarStock = async (insumo: Insumo) => {
-    await fetch('/api/inventario', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...insumo, stockActual: stockEdit }),
-    });
+    setErrorTabla('');
+    const error = await enviarJson('/api/inventario', 'PUT', { ...insumo, stockActual: stockEdit }, 'No se pudo actualizar el stock');
+    if (error) return setErrorTabla(error);
     setEditandoId(null);
     fetchInsumos();
   };
@@ -178,15 +178,7 @@ export default function InventarioPage() {
         </div>
       </div>
 
-      {errorTabla && (
-        <div className="glass-card p-4 mb-4 flex items-center gap-3 border-red-500/30">
-          <AlertTriangle className="w-5 h-5 text-[var(--danger)] shrink-0" />
-          <p className="text-sm flex-1">{errorTabla}</p>
-          <button onClick={() => setErrorTabla('')} className="btn btn-sm btn-secondary" aria-label="Cerrar aviso">
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      )}
+      <AvisoError mensaje={errorTabla} onCerrar={() => setErrorTabla('')} />
 
       {/* Table */}
       <div className="glass-card overflow-hidden">

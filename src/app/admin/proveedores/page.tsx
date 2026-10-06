@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import AvisoError from '@/components/AvisoError';
+import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
   Plus,
   Pencil,
@@ -28,6 +30,9 @@ interface Proveedor {
 export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [modal, setModal] = useState(false);
+  // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
+  const [errorModal, setErrorModal] = useState('');
+  const [errorLista, setErrorLista] = useState('');
   const [editando, setEditando] = useState<Proveedor | null>(null);
   const [form, setForm] = useState({
     nombre: '',
@@ -69,30 +74,25 @@ export default function ProveedoresPage() {
         notas: '',
       });
     }
+    setErrorModal('');
     setModal(true);
   };
 
   const guardar = async () => {
-    if (editando) {
-      await fetch('/api/proveedores', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editando.id, ...form }),
-      });
-    } else {
-      await fetch('/api/proveedores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-    }
+    setErrorModal('');
+    const error = editando
+      ? await enviarJson('/api/proveedores', 'PUT', { id: editando.id, ...form }, 'No se pudo guardar el proveedor')
+      : await enviarJson('/api/proveedores', 'POST', form, 'No se pudo crear el proveedor');
+    if (error) return setErrorModal(error);
     setModal(false);
     fetchProveedores();
   };
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar este proveedor?')) return;
-    await fetch(`/api/proveedores?id=${id}`, { method: 'DELETE' });
+    setErrorLista('');
+    const error = await enviar(`/api/proveedores?id=${id}`, { method: 'DELETE' }, 'No se pudo eliminar el proveedor');
+    if (error) return setErrorLista(error);
     fetchProveedores();
   };
 
@@ -110,6 +110,8 @@ export default function ProveedoresPage() {
           Nuevo Proveedor
         </button>
       </div>
+
+      <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
 
       {/* Cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -280,6 +282,8 @@ export default function ProveedoresPage() {
                 />
               </div>
             </div>
+
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger)] mt-4">{errorModal}</p>}
 
             <div className="flex gap-3 mt-6">
               <button
