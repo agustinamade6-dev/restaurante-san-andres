@@ -1,122 +1,152 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
+import { roundMoney } from '@/lib/money';
+import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
 
-import { cookies } from 'next/headers';
+
+const idPositivo = z.coerce.number().int().positive();
+const cantidad = z.coerce.number().int().min(1).max(MAX_CANTIDAD_ITEM);
+const texto = z.string().max(500).nullish();
+
+// El precio NO se acepta del cliente: ADD_ITEM usa siempre Producto.precio.
+const accionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('ADD_ITEM'),
+    productoId: idPositivo,
+    cantidad: cantidad.default(1),
+    notas: texto,
+    motivo: texto,
+  }),
+  z.object({ action: z.literal('REMOVE_ITEM'), itemId: idPositivo, motivo: texto }),
+  z.object({ action: z.literal('UPDATE_QUANTITY'), itemId: idPositivo, cantidad, motivo: texto }),
+]);
+
+const ESTADOS_CERRADOS = ['pagado', 'cancelado'];
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(['ADMIN', 'COCINERO']);
+  if (!auth.ok) return auth.response;
+
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    let sessionData = null;
-    if (sessionCookie) {
-      try { sessionData = JSON.parse(sessionCookie.value); } catch(e){}
-    }
-    const usuarioId = sessionData?.id;
+    const usuarioId = auth.session.id;
 
     const { id } = await params;
-    const pedidoId = parseInt(id, 10);
-    const body = await request.json();
-    const { action, itemId, productoId, cantidad, precio, notas, motivo } = body;
-
-    const pedido = await prisma.pedido.findUnique({
-      where: { id: pedidoId },
-      include: { items: { include: { producto: true } }, mesa: true },
-    });
-
-    if (!pedido) {
-      return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
+    const pedidoId = Number(id);
+    if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+      return NextResponse.json({ error: 'ID de pedido inválido' }, { status: 400 });
     }
 
-    let detalleLog = '';
-    let updatedTotal = pedido.total;
-    let finalAction = action;
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Cuerpo JSON inválido' }, { status: 400 });
+    }
+    const parsed = accionSchema.safeParse(raw);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const campo = issue.path.join('.');
+      const error = campo === 'action' ? 'Acción no soportada' : `${campo}: ${issue.message}`;
+      return NextResponse.json({ error }, { status: 400 });
+    }
+    const data = parsed.data;
 
-    if (action === 'ADD_ITEM') {
-      const producto = await prisma.producto.findUnique({ where: { id: productoId } });
-      if (!producto) throw new Error('Producto no existe');
+    const updatedPedido = await prisma.$transaction(async (tx) => {
+      // Guard: toma el lock de escritura y rechaza pedidos cerrados de forma atómica.
+      const claimed = await tx.pedido.updateMany({
+        where: { id: pedidoId, estado: { notIn: ESTADOS_CERRADOS } },
+        data: { actualizadoEn: new Date() },
+      });
+      if (claimed.count === 0) {
+        const existe = await tx.pedido.findUnique({ where: { id: pedidoId }, select: { id: true } });
+        throw existe
+          ? new ApiError(400, 'No se puede modificar un pedido cerrado')
+          : new ApiError(404, 'Pedido no encontrado');
+      }
 
-      await prisma.itemPedido.create({
-        data: {
-          pedidoId,
-          productoId,
-          cantidad: cantidad || 1,
-          precio: precio || producto.precio,
-          notas: notas || '',
+      let detalleLog = '';
+      let finalAction = '';
+
+      if (data.action === 'ADD_ITEM') {
+        const producto = await tx.producto.findUnique({ where: { id: data.productoId } });
+        if (!producto) throw new ApiError(400, 'Producto no existe');
+        if (!producto.disponible) throw new ApiError(400, `"${producto.nombre}" no está disponible`);
+
+        await tx.itemPedido.create({
+          data: {
+            pedidoId,
+            productoId: producto.id,
+            cantidad: data.cantidad,
+            precio: producto.precio,
+            notas: data.notas || '',
+          },
+        });
+        detalleLog = `Se agregó ${data.cantidad}x ${producto.nombre}`;
+        finalAction = 'ITEM_AGREGADO';
+      } else {
+        const item = await tx.itemPedido.findUnique({
+          where: { id: data.itemId },
+          include: { producto: true },
+        });
+        if (!item || item.pedidoId !== pedidoId) throw new ApiError(400, 'Item inválido');
+
+        if (data.action === 'REMOVE_ITEM') {
+          await tx.itemPedido.delete({ where: { id: item.id } });
+          detalleLog = `Se removió ${item.cantidad}x ${item.producto.nombre}`;
+          finalAction = 'ITEM_REMOVIDO';
+        } else {
+          if (data.cantidad === item.cantidad) return null; // sin cambios
+          await tx.itemPedido.update({ where: { id: item.id }, data: { cantidad: data.cantidad } });
+          detalleLog = `Se modificó la cantidad de ${item.producto.nombre} de ${item.cantidad} a ${data.cantidad}`;
+          finalAction = 'CANTIDAD_MODIFICADA';
+        }
+      }
+
+      // El total se recalcula desde los ítems persistidos (no de forma incremental).
+      const lineas = await tx.itemPedido.findMany({
+        where: { pedidoId },
+        select: { precio: true, cantidad: true },
+      });
+      const total = roundMoney(lineas.reduce((sum, l) => sum + l.precio * l.cantidad, 0));
+
+      const actualizado = await tx.pedido.update({
+        where: { id: pedidoId },
+        data: { total },
+        include: {
+          mesa: true,
+          items: { include: { producto: true } },
         },
       });
-      
-      const subtotal = (precio || producto.precio) * (cantidad || 1);
-      updatedTotal += subtotal;
-      detalleLog = `Se agregó ${cantidad || 1}x ${producto.nombre}`;
-      finalAction = 'ITEM_AGREGADO';
 
-    } else if (action === 'REMOVE_ITEM') {
-      const itemToRemove = await prisma.itemPedido.findUnique({
-        where: { id: itemId },
-        include: { producto: true },
-      });
-      if (!itemToRemove || itemToRemove.pedidoId !== pedidoId) throw new Error('Item inválido');
-
-      await prisma.itemPedido.delete({ where: { id: itemId } });
-      
-      const subtotal = itemToRemove.precio * itemToRemove.cantidad;
-      updatedTotal -= subtotal;
-      detalleLog = `Se removió ${itemToRemove.cantidad}x ${itemToRemove.producto.nombre}`;
-      finalAction = 'ITEM_REMOVIDO';
-
-    } else if (action === 'UPDATE_QUANTITY') {
-      const itemToUpdate = await prisma.itemPedido.findUnique({
-        where: { id: itemId },
-        include: { producto: true },
-      });
-      if (!itemToUpdate || itemToUpdate.pedidoId !== pedidoId) throw new Error('Item inválido');
-
-      const diff = cantidad - itemToUpdate.cantidad;
-      if (diff === 0) return NextResponse.json({ success: true });
-
-      await prisma.itemPedido.update({
-        where: { id: itemId },
-        data: { cantidad },
+      await tx.historialPedido.create({
+        data: {
+          pedidoId,
+          accion: finalAction,
+          detalle: detalleLog,
+          motivo: data.motivo || '',
+          usuarioId: usuarioId || null,
+        },
       });
 
-      updatedTotal += itemToUpdate.precio * diff;
-      detalleLog = `Se modificó la cantidad de ${itemToUpdate.producto.nombre} de ${itemToUpdate.cantidad} a ${cantidad}`;
-      finalAction = 'CANTIDAD_MODIFICADA';
-
-    } else {
-      return NextResponse.json({ error: 'Acción no soportada' }, { status: 400 });
-    }
-
-    // Actualizar total del pedido
-    const updatedPedido = await prisma.pedido.update({
-      where: { id: pedidoId },
-      data: { total: Math.max(0, updatedTotal) },
-      include: {
-        mesa: true,
-        items: { include: { producto: true } },
-      },
+      return actualizado;
     });
 
-    // Registrar historial
-    await prisma.historialPedido.create({
-      data: {
-        pedidoId,
-        accion: finalAction,
-        detalle: detalleLog,
-        motivo: motivo || '',
-        usuarioId: usuarioId || null,
-      },
-    });
+    if (!updatedPedido) return NextResponse.json({ success: true });
 
     // Emitir evento para actualizar frontend (KDS y Comandas)
     eventEmitter.emit('pedido:actualizado', updatedPedido);
 
     return NextResponse.json(updatedPedido);
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error modifying pedido items:', error);
     return NextResponse.json({ error: 'Error al modificar ítems' }, { status: 500 });
   }

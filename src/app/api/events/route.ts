@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import eventEmitter from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   const encoder = new TextEncoder();
   let unsubscribe: (() => void) | null = null;
 

@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
+import { roundMoney } from '@/lib/money';
+import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const pedidos = await prisma.pedido.findMany({
       where: {
@@ -22,61 +29,87 @@ export async function GET() {
   }
 }
 
-import { cookies } from 'next/headers';
+
+// El precio NO se acepta del cliente: se toma siempre de Producto.precio.
+// Si el frontend envía "precio", zod lo descarta (no es error, para no romper el contrato).
+const crearPedidoSchema = z.object({
+  mesaId: z.coerce.number().int().positive(),
+  items: z
+    .array(
+      z.object({
+        productoId: z.coerce.number().int().positive(),
+        cantidad: z.coerce.number().int().min(1).max(MAX_CANTIDAD_ITEM),
+        notas: z.string().max(500).nullish(),
+      })
+    )
+    .min(1, 'El pedido debe tener al menos un ítem')
+    .max(100),
+  notas: z.string().max(500).nullish(),
+});
 
 export async function POST(request: Request) {
+  const auth = await requireAuth(['ADMIN', 'MOZO']);
+  if (!auth.ok) return auth.response;
+
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    let sessionData = null;
-    if (sessionCookie) {
-      try { sessionData = JSON.parse(sessionCookie.value); } catch(e){}
+    const usuarioId = auth.session.id;
+
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Cuerpo JSON inválido' }, { status: 400 });
     }
-    const usuarioId = sessionData?.id;
+    const parsed = crearPedidoSchema.safeParse(raw);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const campo = issue.path.join('.');
+      return NextResponse.json(
+        { success: false, error: campo ? `${campo}: ${issue.message}` : issue.message },
+        { status: 400 }
+      );
+    }
+    const { mesaId, items, notas } = parsed.data;
 
-    const body = await request.json();
-    const { mesaId, items, notas } = body;
+    const pedido = await prisma.$transaction(async (tx) => {
+      const mesa = await tx.mesa.findUnique({ where: { id: mesaId }, select: { id: true, activa: true } });
+      if (!mesa) throw new ApiError(404, 'Mesa no encontrada');
+      if (!mesa.activa) throw new ApiError(400, 'La mesa no está activa');
 
-    // Calculate total
-    const total = items.reduce(
-      (sum: number, item: { precio: number; cantidad: number }) =>
-        sum + item.precio * item.cantidad,
-      0
-    );
+      const ids = [...new Set(items.map((i) => i.productoId))];
+      const productos = await tx.producto.findMany({ where: { id: { in: ids } } });
+      const porId = new Map(productos.map((p) => [p.id, p]));
+      for (const id of ids) {
+        const producto = porId.get(id);
+        if (!producto) throw new ApiError(400, `El producto ${id} no existe`);
+        if (!producto.disponible) throw new ApiError(400, `"${producto.nombre}" no está disponible`);
+      }
 
-    const pedido = await prisma.pedido.create({
-      data: {
-        mesaId,
-        creadoPorId: usuarioId || null,
-        estado: 'pendiente',
-        total,
-        notas: notas || '',
-        items: {
-          create: items.map(
-            (item: {
-              productoId: number;
-              cantidad: number;
-              precio: number;
-              notas?: string;
-            }) => ({
-              productoId: item.productoId,
-              cantidad: item.cantidad,
-              precio: item.precio,
-              notas: item.notas || '',
-            })
-          ),
+      const lineas = items.map((item) => ({
+        productoId: item.productoId,
+        cantidad: item.cantidad,
+        precio: porId.get(item.productoId)!.precio,
+        notas: item.notas || '',
+      }));
+      const total = roundMoney(lineas.reduce((sum, l) => sum + l.precio * l.cantidad, 0));
+
+      const creado = await tx.pedido.create({
+        data: {
+          mesaId,
+          creadoPorId: usuarioId || null,
+          estado: 'pendiente',
+          total,
+          notas: notas || '',
+          items: { create: lineas },
         },
-      },
-      include: {
-        mesa: true,
-        items: { include: { producto: true } },
-      },
-    });
+        include: {
+          mesa: true,
+          items: { include: { producto: true } },
+        },
+      });
 
-    // Update mesa status
-    await prisma.mesa.update({
-      where: { id: mesaId },
-      data: { estado: 'ocupada' },
+      await tx.mesa.update({ where: { id: mesaId }, data: { estado: 'ocupada' } });
+      return creado;
     });
 
     // Emit real-time event
@@ -84,94 +117,138 @@ export async function POST(request: Request) {
 
     return NextResponse.json(pedido, { status: 201 });
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error('Error creating pedido:', error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al crear pedido' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Error al crear pedido' }, { status: 500 });
   }
 }
 
+// Estados finales: un pedido "pagado" o "cancelado" no vuelve a abrirse.
+// Corregir un cobro se hace anulando la venta (POST /api/ventas/[id]/anular), no reabriendo el pedido.
+const ESTADOS_FINALES = ['pagado', 'cancelado'];
+const ESTADOS_ABIERTOS = ['pendiente', 'preparando', 'listo', 'entregado'];
+const ESTADOS_DE_MESA_OCUPADA = ['pendiente', 'preparando', 'listo'];
+
+const cambiarEstadoSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  estado: z.string(),
+  motivo: z.string().max(500).nullish(),
+});
+
 export async function PATCH(request: Request) {
+  const auth = await requireAuth(['ADMIN', 'COCINERO']);
+  if (!auth.ok) return auth.response;
+
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    let sessionData = null;
-    if (sessionCookie) {
-      try { sessionData = JSON.parse(sessionCookie.value); } catch(e){}
+    const usuarioId = auth.session.id;
+
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Cuerpo JSON inválido' }, { status: 400 });
     }
-    const usuarioId = sessionData?.id;
+    const parsed = cambiarEstadoSchema.safeParse(raw);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      return NextResponse.json(
+        { success: false, error: `${issue.path.join('.') || 'datos'}: ${issue.message}` },
+        { status: 400 }
+      );
+    }
+    const { id, estado, motivo } = parsed.data;
 
-    const body = await request.json();
-    const { id, estado, motivo } = body;
-
-    const updateData: any = { estado };
-    if (estado === 'entregado' || estado === 'pagado') {
-      updateData.entregadoEn = new Date();
-    } else {
-      updateData.entregadoEn = null; // Reset if returning to previous states
+    // El cobro (Venta + ticket) se registra únicamente en /api/checkout/pay.
+    if (estado === 'pagado') {
+      return NextResponse.json(
+        { success: false, error: 'Para cobrar un pedido usá /api/checkout/pay' },
+        { status: 400 }
+      );
+    }
+    if (estado === 'cancelado') {
+      return NextResponse.json(
+        { success: false, error: 'Para cancelar un pedido usá /api/pedidos/[id]/cancel' },
+        { status: 400 }
+      );
+    }
+    if (!ESTADOS_ABIERTOS.includes(estado)) {
+      return NextResponse.json({ success: false, error: 'Estado inválido' }, { status: 400 });
     }
 
-    const pedido = await prisma.pedido.update({
-      where: { id },
-      data: updateData,
-      include: {
+    const resultado = await prisma.$transaction(async (tx) => {
+      const incluir = {
         mesa: true,
         items: { include: { producto: true } },
         historial: true,
-      },
-    });
+      } as const;
 
-    if (estado !== 'entregado' && estado !== 'pagado' && estado !== 'cancelado' && estado !== 'listo') {
-      await prisma.historialPedido.create({
-        data: {
-          pedidoId: id,
-          accion: `ESTADO_CAMBIADO_${estado.toUpperCase()}`,
-          detalle: `El pedido pasó a estado ${estado}`,
-          motivo: motivo || '',
-          usuarioId: usuarioId || null,
-        }
-      });
-    }
-
-    // Update mesa status based on order status
-    if (estado === 'entregado' || estado === 'pagado' || estado === 'cancelado') {
-      // Check if there are other active orders for this mesa
-      const activeOrders = await prisma.pedido.count({
-        where: {
-          mesaId: pedido.mesaId,
-          estado: { in: ['pendiente', 'preparando', 'listo'] },
-        },
-      });
-      if (activeOrders === 0) {
-        await prisma.mesa.update({
-          where: { id: pedido.mesaId },
-          data: { estado: 'libre' },
-        });
+      const anterior = await tx.pedido.findUnique({ where: { id }, select: { id: true, estado: true } });
+      if (!anterior) throw new ApiError(404, 'Pedido no encontrado');
+      if (ESTADOS_FINALES.includes(anterior.estado)) {
+        throw new ApiError(
+          400,
+          anterior.estado === 'pagado'
+            ? 'El pedido ya fue cobrado y no puede reabrirse. Para corregir el cobro, anulá la venta.'
+            : 'El pedido está cancelado y no puede cambiar de estado'
+        );
       }
 
-      // Record as a venta if delivered or paid
-      if (estado === 'entregado' || estado === 'pagado') {
-        await prisma.venta.create({
+      // Mismo estado: no hay nada que hacer (evita historial duplicado por doble clic).
+      if (anterior.estado === estado) {
+        return { pedido: await tx.pedido.findUnique({ where: { id }, include: incluir }), cambio: false };
+      }
+
+      // Guard atómico: si un cobro o una cancelación se coló entre la lectura y la escritura, no pisa el estado final.
+      const claimed = await tx.pedido.updateMany({
+        where: { id, estado: { notIn: ESTADOS_FINALES } },
+        data: { estado, entregadoEn: estado === 'entregado' ? new Date() : null },
+      });
+      if (claimed.count === 0) throw new ApiError(400, 'El pedido ya fue cerrado y no puede cambiar de estado');
+
+      const pedido = await tx.pedido.findUnique({ where: { id }, include: incluir });
+      if (!pedido) throw new ApiError(404, 'Pedido no encontrado');
+
+      if (estado !== 'entregado' && estado !== 'listo') {
+        await tx.historialPedido.create({
           data: {
-            total: pedido.total,
-            items: pedido.items.length,
-            mesaNumero: pedido.mesa.numero,
-            pedido: { connect: { id: pedido.id } },
-            mesa: { connect: { id: pedido.mesaId } },
+            pedidoId: id,
+            accion: `ESTADO_CAMBIADO_${estado.toUpperCase()}`,
+            detalle: `El pedido pasó a estado ${estado}`,
+            motivo: motivo || '',
+            usuarioId: usuarioId || null,
           },
         });
       }
-    } else if (estado === 'listo') {
-      await prisma.mesa.update({
-        where: { id: pedido.mesaId },
-        data: { estado: 'esperando' },
-      });
-    }
+
+      // Estado de la mesa según el estado del pedido.
+      if (estado === 'entregado') {
+        const activos = await tx.pedido.count({
+          where: { mesaId: pedido.mesaId, estado: { in: ESTADOS_DE_MESA_OCUPADA } },
+        });
+        if (activos === 0) {
+          await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'libre' } });
+        }
+      } else if (estado === 'listo') {
+        await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'esperando' } });
+      } else {
+        // pendiente / preparando (p. ej. al reabrir un pedido entregado): la mesa vuelve a estar ocupada.
+        await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'ocupada' } });
+      }
+
+      return { pedido, cambio: true };
+    });
 
     // Emit real-time event
-    eventEmitter.emit('pedido:actualizado', pedido);
+    if (resultado.cambio) eventEmitter.emit('pedido:actualizado', resultado.pedido);
 
-    return NextResponse.json(pedido);
+    return NextResponse.json(resultado.pedido);
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error('Error updating pedido:', error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al actualizar pedido' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Error al actualizar pedido' }, { status: 500 });
   }
 }

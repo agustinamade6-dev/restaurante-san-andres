@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { SESSION_COOKIE, verifySession } from '@/lib/session';
 
 export async function GET() {
   try {
     const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    
-    if (!sessionCookie || !sessionCookie.value) {
-      return NextResponse.json({ user: null });
-    }
-
-    const sessionData = JSON.parse(sessionCookie.value);
-    return NextResponse.json({ user: sessionData });
-  } catch (error) {
+    const user = await verifySession(cookieStore.get(SESSION_COOKIE)?.value);
+    return NextResponse.json({ user });
+  } catch {
     return NextResponse.json({ user: null });
   }
 }

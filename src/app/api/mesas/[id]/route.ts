@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAuth(['ADMIN', 'MOZO']);
+  if (!auth.ok) return auth.response;
+
   try {
     const { id: idStr } = await params;
     const id = parseInt(idStr);
@@ -30,6 +34,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAuth(['ADMIN']);
+  if (!auth.ok) return auth.response;
+
   try {
     const { id: idStr } = await params;
     const id = parseInt(idStr);

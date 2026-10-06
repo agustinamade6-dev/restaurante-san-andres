@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const { searchParams } = new URL(request.url);
     const categoriaId = searchParams.get('categoriaId');
@@ -24,6 +28,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth(['ADMIN']);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const producto = await prisma.producto.create({
@@ -45,6 +52,9 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const auth = await requireAuth(['ADMIN']);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const producto = await prisma.producto.update({
@@ -67,6 +77,9 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const auth = await requireAuth(['ADMIN']);
+  if (!auth.ok) return auth.response;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

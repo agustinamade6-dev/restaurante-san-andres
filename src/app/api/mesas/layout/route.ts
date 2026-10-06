@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
 
 export async function PUT(request: Request) {
+  const auth = await requireAuth(['ADMIN']);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { mesas } = body;

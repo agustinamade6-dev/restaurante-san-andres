@@ -1,31 +1,26 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { SESSION_COOKIE, verifySession } from '@/lib/session';
 
-export function middleware(request: NextRequest) {
-  const sessionCookie = request.cookies.get('session');
-  
-  if (!sessionCookie) {
+export async function middleware(request: NextRequest) {
+  // La cookie está firmada: una cookie fabricada o alterada no pasa verifySession.
+  const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
+
+  if (!session) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  try {
-    const session = JSON.parse(sessionCookie.value);
-    const pathname = request.nextUrl.pathname;
+  const pathname = request.nextUrl.pathname;
 
-    if (pathname.startsWith('/admin') && session.rol !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-    
-    if (pathname.startsWith('/cocina') && !['ADMIN', 'COCINERO'].includes(session.rol)) {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-    
-    if (pathname.startsWith('/comandas') && !['ADMIN', 'MOZO'].includes(session.rol)) {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
+  if (pathname.startsWith('/admin') && session.rol !== 'ADMIN') {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
 
-  } catch {
-    // Si la cookie es inválida
+  if (pathname.startsWith('/cocina') && !['ADMIN', 'COCINERO'].includes(session.rol)) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  if (pathname.startsWith('/comandas') && !['ADMIN', 'MOZO'].includes(session.rol)) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

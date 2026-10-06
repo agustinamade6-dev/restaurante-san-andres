@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const mesas = await prisma.mesa.findMany({
       where: { activa: true },
@@ -29,6 +33,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const auth = await requireAuth(['ADMIN', 'MOZO']);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { id, estado } = body;
@@ -45,6 +52,9 @@ export async function PATCH(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth(['ADMIN']);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { numero, capacidad, sector, forma, posX, posY } = body;
