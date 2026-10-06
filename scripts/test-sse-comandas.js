@@ -87,7 +87,11 @@ async function main() {
     try { await fetch(`${BASE}/api/mesas`); break; } catch { if (i > 120) throw new Error('server no arrancó'); await sleep(500); }
   }
 
-  await session.defaultSession.cookies.set({ url: BASE, name: 'session', value: COOKIE });
+  // El perfil de Electron se comparte entre ejecuciones y las cookies van por host (no por puerto): una sesión
+  // HttpOnly que dejó un login real anterior no se puede pisar con una cookie común. Se limpia y se escribe
+  // HttpOnly, igual que la que emite el servidor.
+  await session.defaultSession.clearStorageData({ storages: ['cookies'] });
+  await session.defaultSession.cookies.set({ url: BASE, name: 'session', value: COOKIE, httpOnly: true, sameSite: 'lax' });
 
   const mesas = await api('GET', '/api/mesas');
   const mesa = mesas.find((m) => m.estado === 'libre');
