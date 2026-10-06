@@ -52,6 +52,19 @@ export function createFakeDb(seed: Seed = {}) {
   };
   (seed.pedidos ?? []).forEach(addPedido);
 
+  const aplicar = (row: Row, data: Row) => {
+    for (const [k, v] of Object.entries(data)) {
+      row[k] = v && typeof v === 'object' && 'increment' in (v as any) ? row[k] + (v as any).increment : v;
+    }
+  };
+
+  // Restricción única de Mesa.numero (la base real devuelve el error P2002).
+  const verificarNumeroUnico = (id: number | undefined, numero: unknown) => {
+    if (numero !== undefined && state.mesas.some((m) => m.id !== id && m.numero === numero)) {
+      throw Object.assign(new Error('Unique constraint failed on numero'), { code: 'P2002' });
+    }
+  };
+
   const guard = (name: string) => {
     if (failOn.has(name)) throw new Error(`fallo simulado en ${name}`);
   };
@@ -139,11 +152,7 @@ export function createFakeDb(seed: Seed = {}) {
       },
       updateMany: async ({ where, data }: any) => {
         const rows = state.ventas.filter((r) => matches(r, where));
-        rows.forEach((r) => {
-          for (const [k, v] of Object.entries(data)) {
-            r[k] = v && typeof v === 'object' && 'increment' in (v as any) ? r[k] + (v as any).increment : v;
-          }
-        });
+        rows.forEach((r) => aplicar(r, data));
         return { count: rows.length };
       },
       create: async ({ data }: any) => {
@@ -154,12 +163,34 @@ export function createFakeDb(seed: Seed = {}) {
       },
     },
     mesa: {
-      findUnique: async ({ where }: any) => state.mesas.find((r) => matches(r, where)) ?? null,
+      findUnique: async ({ where }: any) => {
+        const row = state.mesas.find((r) => matches(r, where));
+        return row ? { ...row } : null;
+      },
+      findMany: async ({ where }: any = {}) => state.mesas.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+      create: async ({ data }: any) => {
+        guard('mesa.create');
+        verificarNumeroUnico(undefined, data.numero);
+        const row = { id: nextId++, estado: 'libre', activa: true, ...data };
+        state.mesas.push(row);
+        return { ...row };
+      },
       update: async ({ where, data }: any) => {
         const row = state.mesas.find((r) => matches(r, where));
         if (!row) throw new Error('Mesa no existe');
-        Object.assign(row, data);
-        return row;
+        verificarNumeroUnico(row.id, data.numero);
+        Object.assign(row, Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)));
+        return { ...row };
+      },
+      updateMany: async ({ where, data }: any) => {
+        const rows = state.mesas.filter((r) => matches(r, where));
+        rows.forEach((r) => aplicar(r, data));
+        return { count: rows.length };
+      },
+      delete: async ({ where }: any) => {
+        const idx = state.mesas.findIndex((r) => matches(r, where));
+        if (idx < 0) throw new Error('Mesa no existe');
+        return state.mesas.splice(idx, 1)[0];
       },
     },
     usuario: {
