@@ -15,6 +15,7 @@ y qué debe tener en cuenta.
 | 5 | `fix(mesas): reglas de negocio, SSE sin fugas y subida de imágenes validada` | [commit-05-mesas-sse-uploads.md](commit-05-mesas-sse-uploads.md) | AT-14 (completo), AT-10, AT-11 |
 | 6 | `fix(validacion): productos, costos, proveedores, inventario y consultas con entrada validada` | [commit-06-validacion-catalogo.md](commit-06-validacion-catalogo.md) | AT-08 (completo), AT-19 (hallado) |
 | 7 | `fix(caja): período "Hoy" correcto, datos del comercio configurables y limpieza del repositorio` | [commit-07-periodo-caja-y-limpieza.md](commit-07-periodo-caja-y-limpieza.md) | AT-19, AT-16, AT-17 (parcial) |
+| 8 | `chore(repo): eliminar temp.tsx, copia sin uso de la pantalla de Comandas` | [commit-08-borrar-temp.md](commit-08-borrar-temp.md) | AT-17 (completo) |
 
 ## Estado de los hallazgos
 
@@ -36,7 +37,7 @@ y qué debe tener en cuenta.
 | AT-14 | Mesas: estado libre y borrado sin validar | Medio | ✅ Commits 3, 4 y 5 |
 | AT-15 | Múltiples instancias de `PrismaClient` | Medio | ✅ Commit 3 |
 | AT-16 | Datos del comercio fijos en el ticket | Bajo | ✅ Commit 7 |
-| AT-17 | Residuos (`temp.tsx`, README genérico, UTF-16) | Bajo | 🟡 Commit 7 (README y `.gitattributes`). Pendiente: decidir sobre `temp.tsx` |
+| AT-17 | Residuos (`temp.tsx`, README genérico, UTF-16) | Bajo | ✅ Commits 7 y 8 |
 | AT-18 | Pedido cobrado reabrible y sin anulación de ventas (hallado en prueba manual) | Muy Alto | ✅ Commit 4 (falta el botón en el frontend) |
 | AT-19 | "Hoy" en Caja incluye las ventas de ayer (período desplazado un día) | Medio | ✅ Commit 7 |
 

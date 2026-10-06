@@ -122,7 +122,7 @@ Pruebas manuales:
 3. **Fines de línea:** `git status` debe seguir limpio.
 
 ## Pendiente
-- **`temp.tsx`:** decisión de borrarlo o conservarlo.
+- ~~**`temp.tsx`:** decisión de borrarlo o conservarlo.~~ Eliminado en el [commit 8](commit-08-borrar-temp.md).
 - **Avisos de arranque** (`middleware` → `proxy`, `prisma.config.ts`).
 - **AT-12** (inventario conectado a los productos) y **AT-13** (dinero con tipo decimal): requieren cambios en el esquema de la base de datos; necesitan aprobación y coordinación antes de empezar.
 - **Productos repetidos y precios equivocados** (conversación posterior): bloqueo de duplicados, confirmación de cambios de precio y registro de cambios; y que las pantallas de administración muestren los errores del servidor.
