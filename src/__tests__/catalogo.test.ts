@@ -29,13 +29,13 @@ beforeEach(async () => {
       { id: 2, nombre: 'Bebidas', orden: 2 },
     ],
     productos: [
-      { id: 10, nombre: 'Milanesa', descripcion: 'x', precio: 7200, categoriaId: 1, disponible: true, imagen: '' },
-      { id: 11, nombre: 'Gaseosa', descripcion: '', precio: 1800, categoriaId: 2, disponible: true, imagen: '' },
+      { id: 10, nombre: 'Milanesa', descripcion: 'x', precio: 720000, categoriaId: 1, disponible: true, imagen: '' },
+      { id: 11, nombre: 'Gaseosa', descripcion: '', precio: 180000, categoriaId: 2, disponible: true, imagen: '' },
     ],
-    items: [{ id: 1, pedidoId: 1, productoId: 11, cantidad: 1, precio: 1800 }],
-    costos: [{ id: 5, concepto: 'Alquiler', monto: 500000, tipo: 'fijo', periodicidad: 'mensual' }],
+    items: [{ id: 1, pedidoId: 1, productoId: 11, cantidad: 1, precio: 180000 }],
+    costos: [{ id: 5, concepto: 'Alquiler', monto: 50000000, tipo: 'fijo', periodicidad: 'mensual' }],
     proveedores: [{ id: 3, nombre: 'Distribuidora Sur', contacto: '', telefono: '', email: '', direccion: '', notas: '' }],
-    insumos: [{ id: 7, nombre: 'Harina', unidad: 'kg', stockActual: 10, stockMinimo: 5, precioUnitario: 900, proveedorId: 3 }],
+    insumos: [{ id: 7, nombre: 'Harina', unidad: 'kg', stockActual: 10, stockMinimo: 5, precioUnitario: 90000, proveedorId: 3 }],
   });
   resetCookies();
   await loginAs('ADMIN', 1);
@@ -137,7 +137,7 @@ describe('PUT /api/productos', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(db.state.productos[0]).toMatchObject({ nombre: 'Milanesa XL', precio: 8000, disponible: false });
+    expect(db.state.productos[0]).toMatchObject({ nombre: 'Milanesa XL', precio: 800000, disponible: false });
   });
 
   it('REGRESIÓN: edita un producto que tiene el emoji como imagen sin rechazarlo', async () => {
@@ -145,12 +145,12 @@ describe('PUT /api/productos', () => {
     const res = await PRODUCTOS.PUT(pedir('PUT', { id: 10, nombre: 'Milanesa', descripcion: 'x', precio: 7500, categoriaId: 1, disponible: true, imagen: '🍽️' }));
 
     expect(res.status).toBe(200);
-    expect(db.state.productos[0]).toMatchObject({ precio: 7500, imagen: '🍽️' });
+    expect(db.state.productos[0]).toMatchObject({ precio: 750000, imagen: '🍽️' });
   });
 
   it('actualiza solo los campos presentes (parcial)', async () => {
     await PRODUCTOS.PUT(pedir('PUT', { id: 10, precio: 9000 }));
-    expect(db.state.productos[0]).toMatchObject({ nombre: 'Milanesa', precio: 9000, categoriaId: 1 });
+    expect(db.state.productos[0]).toMatchObject({ nombre: 'Milanesa', precio: 900000, categoriaId: 1 });
   });
 
   it('404 si el producto no existe; 400 si falta el id', async () => {
@@ -166,13 +166,13 @@ describe('PUT /api/productos', () => {
     ['categoría inexistente', { categoriaId: 99 }],
   ])('400 y no modifica nada: %s', async (_n, cambio) => {
     expect((await PRODUCTOS.PUT(pedir('PUT', { id: 10, ...cambio }))).status).toBe(400);
-    expect(db.state.productos[0]).toMatchObject({ nombre: 'Milanesa', precio: 7200, categoriaId: 1 });
+    expect(db.state.productos[0]).toMatchObject({ nombre: 'Milanesa', precio: 720000, categoriaId: 1 });
   });
 
   it('403 para MOZO', async () => {
     await loginAs('MOZO', 3);
     expect((await PRODUCTOS.PUT(pedir('PUT', { id: 10, precio: 1 }))).status).toBe(403);
-    expect(db.state.productos[0].precio).toBe(7200);
+    expect(db.state.productos[0].precio).toBe(720000);
   });
 });
 
@@ -387,5 +387,42 @@ describe('PUT /api/inventario', () => {
     logout();
     expect((await INVENTARIO.GET()).status).toBe(401);
     expect(db.state.insumos[0].stockActual).toBe(10);
+  });
+});
+
+/* ──────────────────────────── MONTOS EN CENTAVOS (AT-13) ──────────────────────────── */
+
+describe('montos: la API habla en pesos y la base guarda centavos enteros', () => {
+  beforeEach(() => loginAs('ADMIN'));
+
+  it('producto: $19,99 se guarda como 1999 y vuelve como 19.99 en POST, PUT y GET', async () => {
+    const creado = await (await PRODUCTOS.POST(pedir('POST', { nombre: 'Alfajor', precio: 19.99, categoriaId: 1 }))).json();
+    expect(creado.precio).toBe(19.99);
+    const fila = db.state.productos.find((p) => p.nombre === 'Alfajor')!;
+    expect(fila.precio).toBe(1999);
+
+    const editado = await (await PRODUCTOS.PUT(pedir('PUT', { id: fila.id, precio: 1.005 }))).json();
+    expect(fila.precio).toBe(101); // 1,005 redondea a 1,01 (sin el error binario de 1.005 * 100)
+    expect(editado.precio).toBe(1.01);
+
+    const lista = await (await PRODUCTOS.GET(pedir('GET'))).json();
+    expect(lista.find((p: any) => p.id === 10).precio).toBe(7200);
+  });
+
+  it('un precio que redondea a 0 centavos no es válido', async () => {
+    const res = await PRODUCTOS.POST(pedir('POST', { nombre: 'Gratis', precio: 0.001, categoriaId: 1 }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/precio: debe ser mayor que 0/);
+  });
+
+  it('costos e inventario responden en pesos y guardan centavos', async () => {
+    const costo = await (await COSTOS.POST(pedir('POST', { concepto: 'Luz', monto: 85000.5 }))).json();
+    expect(costo.monto).toBe(85000.5);
+    expect(db.state.costos.find((c) => c.concepto === 'Luz')!.monto).toBe(8500050);
+    expect((await (await COSTOS.GET()).json()).find((c: any) => c.id === 5).monto).toBe(500000);
+
+    const insumo = await (await INVENTARIO.PUT(pedir('PUT', { id: 7, precioUnitario: 950.25 }))).json();
+    expect(insumo.precioUnitario).toBe(950.25);
+    expect(db.state.insumos[0].precioUnitario).toBe(95025);
   });
 });

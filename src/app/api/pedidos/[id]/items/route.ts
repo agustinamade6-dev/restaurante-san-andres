@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
-import { roundMoney } from '@/lib/money';
+import { enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
 
 
@@ -113,7 +113,7 @@ export async function PATCH(
         where: { pedidoId },
         select: { precio: true, cantidad: true },
       });
-      const total = roundMoney(lineas.reduce((sum, l) => sum + l.precio * l.cantidad, 0));
+      const total = subtotalCentavos(lineas);
 
       const actualizado = await tx.pedido.update({
         where: { id: pedidoId },
@@ -140,9 +140,10 @@ export async function PATCH(
     if (!updatedPedido) return NextResponse.json({ success: true });
 
     // Emitir evento para actualizar frontend (KDS y Comandas)
-    eventEmitter.emit('pedido:actualizado', updatedPedido);
+    const respuesta = enPesos(updatedPedido);
+    eventEmitter.emit('pedido:actualizado', respuesta);
 
-    return NextResponse.json(updatedPedido);
+    return NextResponse.json(respuesta);
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

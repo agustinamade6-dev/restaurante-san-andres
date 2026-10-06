@@ -1,4 +1,4 @@
-import { roundMoney } from '@/lib/money';
+import { aPesos } from '@/lib/money';
 
 /**
  * Anulación de ventas por asiento inverso: la venta original nunca se modifica ni se borra.
@@ -32,16 +32,23 @@ export function contarVentasNetas(ventas: Pick<VentaMinima, 'numeroControlIntern
   return ventas.reduce((n, v) => n + (esAnulacion(v) ? -1 : 1), 0);
 }
 
+/**
+ * Resumen neto de Caja. Recibe las ventas como salen de la base (montos en centavos), suma en centavos
+ * (exacto) y devuelve los totales en PESOS, listos para responder.
+ */
 export function resumirVentas(ventas: VentaMinima[]) {
-  const porMetodo: Record<string, { count: number; total: number }> = {};
+  const centavosPorMetodo: Record<string, { count: number; total: number }> = {};
   for (const v of ventas) {
-    const m = (porMetodo[v.metodoPago] ??= { count: 0, total: 0 });
+    const m = (centavosPorMetodo[v.metodoPago] ??= { count: 0, total: 0 });
     m.count += esAnulacion(v) ? -1 : 1;
-    m.total = roundMoney(m.total + v.total);
+    m.total += v.total;
   }
+  const porMetodo = Object.fromEntries(
+    Object.entries(centavosPorMetodo).map(([metodo, m]) => [metodo, { count: m.count, total: aPesos(m.total) }])
+  );
   return {
-    totalRecaudado: roundMoney(ventas.reduce((s, v) => s + v.total, 0)),
-    totalPropinas: roundMoney(ventas.reduce((s, v) => s + v.propina, 0)),
+    totalRecaudado: aPesos(ventas.reduce((s, v) => s + v.total, 0)),
+    totalPropinas: aPesos(ventas.reduce((s, v) => s + v.propina, 0)),
     cantidadVentas: contarVentasNetas(ventas),
     porMetodo,
   };

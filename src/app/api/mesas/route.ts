@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { enPesos } from '@/lib/money';
 import { ApiError } from '@/lib/api-error';
 import {
   PEDIDOS_QUE_OCUPAN_MESA,
@@ -31,7 +32,7 @@ export async function GET() {
         },
       },
     });
-    return NextResponse.json(mesas || []);
+    return NextResponse.json(enPesos(mesas || []));
   } catch (error) {
     console.error('Error fetching mesas:', error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al obtener mesas' }, { status: 500 });

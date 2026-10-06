@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
-import { roundMoney } from '@/lib/money';
+import { aCentavos, aPesos, enPesos, subtotalCentavos } from '@/lib/money';
 import { datosNegocio } from '@/lib/negocio';
 
 const METODOS_PAGO = ['efectivo', 'tarjeta', 'transferencia', 'dividido'] as const;
@@ -11,7 +11,8 @@ const bodySchema = z.object({
   pedidoId: z.coerce.number().int().positive(),
   mesaId: z.coerce.number().int().positive(),
   metodoPago: z.enum(METODOS_PAGO).default('efectivo'),
-  propina: z.coerce.number().finite().min(0).default(0),
+  // En pesos, como la envía la pantalla; se convierte a centavos enteros.
+  propina: z.coerce.number().finite().min(0).max(1_000_000_000).default(0).transform(aCentavos),
   // cajeroId del body se ignora: el cajero es siempre el usuario de la sesión firmada.
 });
 
@@ -79,8 +80,9 @@ export async function POST(request: Request) {
         if (!cajero) throw new CobroError(400, 'Cajero inválido');
 
         // 2. El subtotal sale de los ítems persistidos (fuente de verdad), no del total acumulado.
-        const subtotal = roundMoney(pedido.items.reduce((sum, i) => sum + i.precio * i.cantidad, 0));
-        const total = roundMoney(subtotal + propina);
+        //    Todo en centavos enteros: la suma es exacta.
+        const subtotal = subtotalCentavos(pedido.items);
+        const total = subtotal + propina;
         if (pedido.total !== subtotal) {
           await tx.pedido.update({ where: { id: pedidoId }, data: { total: subtotal } });
         }
@@ -120,7 +122,7 @@ export async function POST(request: Request) {
           data: {
             pedidoId,
             accion: 'COBRADO',
-            detalle: `Cobro registrado por $${total.toLocaleString()} — ${metodoPago.toUpperCase()}`,
+            detalle: `Cobro registrado por $${aPesos(total).toLocaleString()} — ${metodoPago.toUpperCase()}`,
             usuarioId: cajeroId,
           },
         });
@@ -128,12 +130,14 @@ export async function POST(request: Request) {
         return { venta, pedido, subtotal, total, numeroTicket, numeroControlInterno };
       });
 
+    // Los tickets se arman en pesos (contrato con el frontend).
     const lineas = pedido.items.map((i) => ({
       nombre: i.producto.nombre,
       cantidad: i.cantidad,
-      precioUnit: i.precio,
-      subtotal: roundMoney(i.precio * i.cantidad),
+      precioUnit: aPesos(i.precio),
+      subtotal: aPesos(i.precio * i.cantidad),
     }));
+    const montos = { subtotal: aPesos(subtotal), propina: aPesos(propina), total: aPesos(total) };
 
     const ticketCliente = {
       tipo: 'CLIENTE',
@@ -142,9 +146,7 @@ export async function POST(request: Request) {
       fecha: today.toISOString(),
       mesa: pedido.mesa.numero,
       items: lineas,
-      subtotal,
-      propina,
-      total,
+      ...montos,
       metodoPago,
       mensaje: '¡Gracias por su visita! Esperamos verlo pronto.',
     };
@@ -157,15 +159,13 @@ export async function POST(request: Request) {
       mesa: pedido.mesa.numero,
       sector: pedido.mesa.sector,
       items: lineas,
-      subtotal,
-      propina,
-      total,
+      ...montos,
       metodoPago,
       ventaId: venta.id,
       operadorId: cajeroId,
     };
 
-    return NextResponse.json({ success: true, venta, ticketCliente, ticketInterno });
+    return NextResponse.json({ success: true, venta: enPesos(venta), ticketCliente, ticketInterno });
   } catch (error) {
     if (error instanceof CobroError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { enPesos } from '@/lib/money';
 import { editarInsumoSchema } from '@/lib/catalogo';
 import { JSON_INVALIDO, codigoPrisma, leerJson, mensajeZod } from '@/lib/validacion';
 
@@ -15,7 +16,7 @@ export async function GET() {
       include: { proveedor: true },
       orderBy: { nombre: 'asc' },
     });
-    return NextResponse.json(insumos);
+    return NextResponse.json(enPesos(insumos));
   } catch (e) {
     console.error('Error fetching insumos:', e);
     return error('Error al obtener insumos', 500);
@@ -46,7 +47,7 @@ export async function PUT(request: Request) {
       data: datos,
       include: { proveedor: true },
     });
-    return NextResponse.json(insumo);
+    return NextResponse.json(enPesos(insumo));
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Insumo no encontrado', 404);
     console.error('Error updating insumo:', e);

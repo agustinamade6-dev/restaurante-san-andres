@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { enPesos } from '@/lib/money';
 import { enteroDeQuery } from '@/lib/validacion';
 
 export async function GET(request: Request) {
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
       orderBy: { actualizadoEn: 'desc' },
     });
 
-    return NextResponse.json(pedidos);
+    return NextResponse.json(enPesos(pedidos));
   } catch (error) {
     console.error('Error fetching pedidos history:', error);
     return NextResponse.json({ error: 'Error al obtener historial de pedidos' }, { status: 500 });

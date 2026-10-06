@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { ApiError } from '@/lib/api-error';
-import { roundMoney } from '@/lib/money';
+import { aPesos, enPesos } from '@/lib/money';
 import { PREFIJO_ANULACION, esAnulacion } from '@/lib/ventas';
 
 const bodySchema = z.object({
@@ -70,8 +70,8 @@ export async function POST(
           pedidoId: original.pedidoId,
           mesaId: original.mesaId,
           mesaNumero: original.mesaNumero,
-          total: roundMoney(-original.total),
-          propina: roundMoney(-original.propina),
+          total: -original.total,
+          propina: -original.propina,
           metodoPago: original.metodoPago,
           cajeroId: usuarioId,
           numeroTicket,
@@ -85,7 +85,7 @@ export async function POST(
           data: {
             pedidoId: original.pedidoId,
             accion: 'VENTA_ANULADA',
-            detalle: `Venta ${original.numeroTicket || `#${original.id}`} anulada por $${original.total.toLocaleString()}`,
+            detalle: `Venta ${original.numeroTicket || `#${original.id}`} anulada por $${aPesos(original.total).toLocaleString()}`,
             motivo,
             usuarioId,
           },
@@ -97,8 +97,8 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      anulacion,
-      ventaOriginal: { id: original.id, numeroTicket: original.numeroTicket, total: original.total },
+      anulacion: enPesos(anulacion),
+      ventaOriginal: { id: original.id, numeroTicket: original.numeroTicket, total: aPesos(original.total) },
     });
   } catch (error) {
     if (error instanceof ApiError) {

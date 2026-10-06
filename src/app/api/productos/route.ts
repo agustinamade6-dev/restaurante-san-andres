@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { enPesos } from '@/lib/money';
 import { crearProductoSchema, editarProductoSchema } from '@/lib/catalogo';
 import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
 
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
       include: { categoria: true },
       orderBy: [{ categoria: { orden: 'asc' } }, { nombre: 'asc' }],
     });
-    return NextResponse.json(productos);
+    return NextResponse.json(enPesos(productos));
   } catch (e) {
     console.error('Error fetching productos:', e);
     return error('Error al obtener productos', 500);
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
       },
       include: { categoria: true },
     });
-    return NextResponse.json(producto, { status: 201 });
+    return NextResponse.json(enPesos(producto), { status: 201 });
   } catch (e) {
     console.error('Error creating producto:', e);
     return error('Error al crear producto', 500);
@@ -88,7 +89,7 @@ export async function PUT(request: Request) {
       data: datos,
       include: { categoria: true },
     });
-    return NextResponse.json(producto);
+    return NextResponse.json(enPesos(producto));
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Producto no encontrado', 404);
     console.error('Error updating producto:', e);

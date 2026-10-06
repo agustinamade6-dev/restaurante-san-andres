@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
-import { roundMoney } from '@/lib/money';
+import { enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
 
 export async function GET() {
@@ -22,7 +22,7 @@ export async function GET() {
       },
       orderBy: { creadoEn: 'asc' },
     });
-    return NextResponse.json(pedidos || []);
+    return NextResponse.json(enPesos(pedidos || []));
   } catch (error) {
     console.error('Error fetching pedidos:', error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al obtener pedidos' }, { status: 500 });
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         precio: porId.get(item.productoId)!.precio,
         notas: item.notas || '',
       }));
-      const total = roundMoney(lineas.reduce((sum, l) => sum + l.precio * l.cantidad, 0));
+      const total = subtotalCentavos(lineas);
 
       const creado = await tx.pedido.create({
         data: {
@@ -113,9 +113,10 @@ export async function POST(request: Request) {
     });
 
     // Emit real-time event
-    eventEmitter.emit('pedido:nuevo', pedido);
+    const respuesta = enPesos(pedido);
+    eventEmitter.emit('pedido:nuevo', respuesta);
 
-    return NextResponse.json(pedido, { status: 201 });
+    return NextResponse.json(respuesta, { status: 201 });
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });
@@ -241,9 +242,10 @@ export async function PATCH(request: Request) {
     });
 
     // Emit real-time event
-    if (resultado.cambio) eventEmitter.emit('pedido:actualizado', resultado.pedido);
+    const respuesta = enPesos(resultado.pedido);
+    if (resultado.cambio) eventEmitter.emit('pedido:actualizado', respuesta);
 
-    return NextResponse.json(resultado.pedido);
+    return NextResponse.json(respuesta);
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

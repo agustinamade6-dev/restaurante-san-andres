@@ -1,11 +1,25 @@
 import { z } from 'zod';
+import { aCentavos } from '@/lib/money';
 
 const vacioANulo = (v: unknown) => (v === '' || v === null ? undefined : v);
 
 const idPositivo = z.coerce.number().int().positive();
 const nombre = z.string().trim().min(1, 'es obligatorio').max(100);
 const texto = (max: number) => z.string().trim().max(max);
-const montoPositivo = z.coerce.number().finite().gt(0, 'debe ser mayor que 0').max(1_000_000_000);
+// Los montos llegan en PESOS desde el frontend y salen del esquema en CENTAVOS enteros (ver lib/money.ts).
+// El mínimo se controla sobre el valor ya convertido: 0,001 redondea a 0 centavos y no es un monto válido.
+const montoPositivo = z.coerce
+  .number()
+  .finite()
+  .max(1_000_000_000)
+  .transform(aCentavos)
+  .refine((c) => c > 0, 'debe ser mayor que 0');
+const montoNoNegativo = z.coerce
+  .number()
+  .finite()
+  .max(1_000_000_000)
+  .transform(aCentavos)
+  .refine((c) => c >= 0, 'no puede ser negativo');
 const cantidadStock = z.coerce.number().finite().min(0, 'no puede ser negativo').max(1_000_000_000);
 
 /**
@@ -93,6 +107,6 @@ export const editarInsumoSchema = z.object({
   unidad: z.string().trim().min(1, 'es obligatoria').max(20).optional(),
   stockActual: cantidadStock.optional(),
   stockMinimo: cantidadStock.optional(),
-  precioUnitario: cantidadStock.optional(),
+  precioUnitario: montoNoNegativo.optional(),
   proveedorId: idPositivo.nullish(),
 });

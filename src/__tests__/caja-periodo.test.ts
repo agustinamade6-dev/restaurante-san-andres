@@ -16,7 +16,7 @@ const AHORA = new Date(2026, 9, 6, 15, 0, 0);
 
 const venta = (id: number, fecha: Date) => ({
   id,
-  total: 100,
+  total: 10000, // centavos ($100)
   propina: 0,
   metodoPago: 'efectivo',
   numeroControlInterno: `CI-${id}`,

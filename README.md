@@ -58,3 +58,11 @@ reemplázalos por los reales.**
 `npm test` ejecuta la suite. Usa una base de datos simulada en memoria (un solo escritor con *rollback*): valida la
 lógica de las rutas, pero **no sustituye una prueba con SQLite real**; tras cambios importantes conviene correr
 también `npm run build` y recorrer el flujo Sala → Cocina → Cobro → Caja en desarrollo.
+La excepción es `migraciones.test.ts`, que sí usa SQLite real para probar las migraciones de esquema.
+
+## Base de datos: montos y migraciones
+- **Dinero en centavos enteros:** la base guarda $1.250,50 como `125050`; la API responde y recibe pesos
+  (conversión en `src/lib/money.ts`).
+- **Migraciones automáticas:** al arrancar, el servidor aplica los cambios de esquema pendientes
+  (`src/lib/migraciones.ts`, invocado desde `src/instrumentation.ts`). Con una `dev.db` vieja, arrancar `npm run dev`
+  **antes** de usar `npm run db:push`.

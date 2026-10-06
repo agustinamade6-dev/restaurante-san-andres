@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { aPesos } from '@/lib/money';
 import { contarVentasNetas } from '@/lib/ventas';
 
 export async function GET() {
@@ -60,7 +61,8 @@ export async function GET() {
     });
     const platosMasVendidos = Object.values(platosContador)
       .sort((a, b) => b.cantidad - a.cantidad)
-      .slice(0, 5);
+      .slice(0, 5)
+      .map((p) => ({ ...p, ingresos: aPesos(p.ingresos) }));
 
     // Ventas por día (últimos 7 días)
     const ventasPorDia = [];
@@ -74,7 +76,7 @@ export async function GET() {
       });
       ventasPorDia.push({
         dia: dia.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }),
-        total: ventasDia.reduce((sum, v) => sum + (v.total || 0), 0),
+        total: aPesos(ventasDia.reduce((sum, v) => sum + (v.total || 0), 0)),
         cantidad: contarVentasNetas(ventasDia),
       });
     }
@@ -91,7 +93,7 @@ export async function GET() {
       });
       ventasPorSemana.push({
         semana: `Sem ${4 - i}`,
-        total: ventasS.reduce((sum, v) => sum + (v.total || 0), 0),
+        total: aPesos(ventasS.reduce((sum, v) => sum + (v.total || 0), 0)),
         cantidad: contarVentasNetas(ventasS),
       });
     }
@@ -112,11 +114,12 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      ventasHoy: { total: totalHoy, cantidad: contarVentasNetas(ventasHoy) },
-      ventasSemana: { total: totalSemana, cantidad: contarVentasNetas(ventasSemana) },
-      ventasMes: { total: totalMes, cantidad: contarVentasNetas(ventasMes) },
-      costosMensuales: totalCostosMensuales,
-      balanceMes: totalMes - totalCostosMensuales,
+      // Los totales se suman en centavos (exacto) y se responden en pesos.
+      ventasHoy: { total: aPesos(totalHoy), cantidad: contarVentasNetas(ventasHoy) },
+      ventasSemana: { total: aPesos(totalSemana), cantidad: contarVentasNetas(ventasSemana) },
+      ventasMes: { total: aPesos(totalMes), cantidad: contarVentasNetas(ventasMes) },
+      costosMensuales: aPesos(totalCostosMensuales),
+      balanceMes: aPesos(totalMes - totalCostosMensuales),
       platosMasVendidos,
       ventasPorDia,
       ventasPorSemana,

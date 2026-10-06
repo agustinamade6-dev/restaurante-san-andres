@@ -22,10 +22,10 @@ const pedidoBase = (over: Record<string, unknown> = {}) => ({
   id: 1,
   mesaId: 10,
   estado: 'entregado',
-  total: 999, // total acumulado "desfasado" a propósito
+  total: 99900, // total acumulado "desfasado" a propósito (montos de la base en centavos)
   items: [
-    { id: 1, productoId: 1, cantidad: 2, precio: 1500, producto: { nombre: 'Milanesa' } },
-    { id: 2, productoId: 2, cantidad: 1, precio: 800.5, producto: { nombre: 'Gaseosa' } },
+    { id: 1, productoId: 1, cantidad: 2, precio: 150000, producto: { nombre: 'Milanesa' } },
+    { id: 2, productoId: 2, cantidad: 1, precio: 80050, producto: { nombre: 'Gaseosa' } },
   ],
   ...over,
 });
@@ -77,7 +77,8 @@ describe('POST /api/checkout/pay — camino feliz', () => {
     // 2 x 1500 + 800.5 = 3800.5 ; + propina 100 = 3900.5
     expect(data.ticketCliente.subtotal).toBe(3800.5);
     expect(data.venta.total).toBe(3900.5);
-    expect(db.state.pedidos[0].total).toBe(3800.5); // corrige el total desfasado
+    expect(db.state.pedidos[0].total).toBe(380050); // corrige el total desfasado (centavos)
+    expect(db.state.ventas[0]).toMatchObject({ total: 390050, propina: 10000 }); // la venta se guarda en centavos
   });
 
   it('mantiene el contrato de respuesta que consume el frontend', async () => {
@@ -127,7 +128,7 @@ describe('POST /api/checkout/pay — numeración de tickets', () => {
   });
 
   it('ignora ventas legadas sin ticket al numerar', async () => {
-    db.state.ventas.push({ id: 1, pedidoId: 99, total: 10, numeroTicket: '' });
+    db.state.ventas.push({ id: 1, pedidoId: 99, total: 1000, numeroTicket: '' });
 
     const data = await (await pagar(valido)).json();
 

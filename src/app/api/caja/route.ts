@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { enPesos } from '@/lib/money';
 import { marcarAnuladas, resumirVentas } from '@/lib/ventas';
 import { enteroDeQuery } from '@/lib/validacion';
 
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
     const { totalRecaudado, totalPropinas, cantidadVentas, porMetodo } = resumirVentas(ventas);
 
     return NextResponse.json({
-      ventas: marcarAnuladas(ventas),
+      ventas: enPesos(marcarAnuladas(ventas)),
       resumen: {
         totalRecaudado,
         totalPropinas,

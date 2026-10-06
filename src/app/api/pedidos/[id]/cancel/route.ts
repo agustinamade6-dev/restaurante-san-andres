@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { enPesos } from '@/lib/money';
 import eventEmitter from '@/lib/events';
 import { ApiError } from '@/lib/api-error';
 
@@ -84,11 +85,11 @@ export async function PATCH(
     });
 
     // Emitir eventos para la actualización en tiempo real
-    eventEmitter.emit('pedido:actualizado', pedido);
+    eventEmitter.emit('pedido:actualizado', enPesos(pedido));
     // Disparar un evento para refrescar las mesas (y que el plano se ponga verde)
     eventEmitter.emit('mesa:actualizada', pedido.mesa);
 
-    return NextResponse.json(pedido);
+    return NextResponse.json(enPesos(pedido));
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });
