@@ -1,0 +1,13 @@
+# Normaliza los fines de línea: en el repositorio siempre LF; en el equipo de cada persona,
+# lo que indique su configuración (en Windows, CRLF). Evita que archivos aparezcan "modificados"
+# solo por diferencias de saltos de línea.
+* text=auto
+
+# Binarios: nunca se tocan
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.ico  binary
+*.icns binary
+*.db   binary

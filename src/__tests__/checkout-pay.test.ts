@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeDb } from './helpers/fakeDb';
 import { loginAs, logout, resetCookies } from './helpers/session';
 
@@ -261,5 +261,52 @@ describe('POST /api/checkout/pay — autenticación y roles', () => {
   it('ADMIN también puede cobrar', async () => {
     await loginAs('ADMIN', 7);
     expect((await pagar(valido)).status).toBe(200);
+  });
+});
+
+describe('POST /api/checkout/pay — datos del comercio en el ticket (AT-16)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sin configuración usa los valores de ejemplo de siempre (no cambia nada hasta configurar)', async () => {
+    const { ticketCliente } = await (await pagar(valido)).json();
+
+    expect(ticketCliente).toMatchObject({
+      restaurante: 'Restaurante San Andrés',
+      cuit: '30-12345678-9',
+      direccion: 'Av. San Martín 1234, San Andrés',
+    });
+  });
+
+  it('usa los datos configurados del comercio', async () => {
+    vi.stubEnv('NEGOCIO_NOMBRE', 'La Parrilla de Tucumán');
+    vi.stubEnv('NEGOCIO_CUIT', '20-11222333-4');
+    vi.stubEnv('NEGOCIO_DIRECCION', 'Av. Mate de Luna 100, San Miguel de Tucumán');
+
+    const { ticketCliente } = await (await pagar(valido)).json();
+
+    expect(ticketCliente).toMatchObject({
+      restaurante: 'La Parrilla de Tucumán',
+      cuit: '20-11222333-4',
+      direccion: 'Av. Mate de Luna 100, San Miguel de Tucumán',
+    });
+  });
+
+  it('un valor vacío o solo espacios vuelve al de ejemplo; los espacios de los costados se recortan', async () => {
+    vi.stubEnv('NEGOCIO_NOMBRE', '   ');
+    vi.stubEnv('NEGOCIO_CUIT', '');
+    vi.stubEnv('NEGOCIO_DIRECCION', '  Calle 1  ');
+
+    const { ticketCliente } = await (await pagar(valido)).json();
+
+    expect(ticketCliente).toMatchObject({ restaurante: 'Restaurante San Andrés', cuit: '30-12345678-9', direccion: 'Calle 1' });
+  });
+
+  it('el ticket interno no cambia y conserva todos sus campos', async () => {
+    const { ticketInterno } = await (await pagar(valido)).json();
+    expect(Object.keys(ticketInterno)).toEqual(
+      expect.arrayContaining(['tipo', 'numeroControlInterno', 'numeroTicket', 'fecha', 'mesa', 'sector', 'items', 'subtotal', 'propina', 'total', 'metodoPago', 'ventaId', 'operadorId'])
+    );
   });
 });

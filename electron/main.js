@@ -19,6 +19,12 @@ const DEFAULT_CONFIG = {
   // true = acepta conexiones de tablets/comanderas en la red local (http://IP-de-esta-PC:3000).
   // Windows mostrará el aviso del firewall la primera vez.
   lan: false,
+  // Datos que se imprimen en los tickets. Editar con los datos reales del comercio y reiniciar la app.
+  negocio: {
+    nombre: 'Restaurante San Andrés',
+    cuit: '30-12345678-9',
+    direccion: 'Av. San Martín 1234, San Andrés',
+  },
 };
 const BACKUPS_TO_KEEP = 15;
 
@@ -127,6 +133,9 @@ function startServer(config) {
       DATABASE_URL: `file:${dbPath.replace(/\\/g, '/')}`,
       UPLOADS_DIR: uploadsDir,
       SESSION_SECRET: getSessionSecret(),
+      NEGOCIO_NOMBRE: (config.negocio && config.negocio.nombre) || '',
+      NEGOCIO_CUIT: (config.negocio && config.negocio.cuit) || '',
+      NEGOCIO_DIRECCION: (config.negocio && config.negocio.direccion) || '',
       NEXT_TELEMETRY_DISABLED: '1',
     },
   });

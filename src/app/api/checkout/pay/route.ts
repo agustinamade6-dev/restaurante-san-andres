@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { roundMoney } from '@/lib/money';
+import { datosNegocio } from '@/lib/negocio';
 
 const METODOS_PAGO = ['efectivo', 'tarjeta', 'transferencia', 'dividido'] as const;
 
@@ -136,9 +137,7 @@ export async function POST(request: Request) {
 
     const ticketCliente = {
       tipo: 'CLIENTE',
-      restaurante: 'Restaurante San Andrés',
-      cuit: '30-12345678-9',
-      direccion: 'Av. San Martín 1234, San Andrés',
+      ...datosNegocio(),
       numeroTicket,
       fecha: today.toISOString(),
       mesa: pedido.mesa.numero,

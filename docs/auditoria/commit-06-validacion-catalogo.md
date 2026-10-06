@@ -85,7 +85,7 @@ where.mesa = { numero: parseInt(mesaNumero, 10) };
 
 ---
 
-## Hallazgo AT-19 (nuevo, **pendiente**) — "Hoy" en Caja incluye las ventas de ayer
+## Hallazgo AT-19 (hallado aquí, **resuelto en el [commit 7](commit-07-periodo-caja-y-limpieza.md)**) — "Hoy" en Caja incluye las ventas de ayer
 
 **Ubicación:** API | Caja | `caja/route.ts`
 **Tipo:** Calidad (cálculo)
@@ -107,7 +107,7 @@ since.setHours(0, 0, 0, 0);              // desde las 00:00 de ayer
 **Principios afectados:**
 - Corrección de los cálculos de negocio.
 
-**Recomendación:** Calcular `since` con `days - 1` (así "Hoy" es desde las 00:00 de hoy y "Últimos 7 días" incluye hoy y los 6 anteriores). Se deja **sin corregir** hasta confirmar que ese es el criterio del restaurante: cambia los totales que ya se ven en pantalla.
+**Recomendación:** Calcular `since` con `days - 1` (así "Hoy" es desde las 00:00 de hoy y "Últimos 7 días" incluye hoy y los 6 anteriores). Se corrigió en el commit 7, tras confirmar el criterio (además, el dashboard ya usaba ese criterio).
 **Impacto:** Medio
 **Esfuerzo estimado:** Muy Bajo
 
@@ -139,7 +139,6 @@ Prueba manual (Admin):
 5. Terminal: `curl -s -b /tmp/cookies.txt "http://localhost:3000/api/caja?days=abc"` debe responder `400` (con sesión de admin).
 
 ## Pendiente y limitaciones
-- **AT-19** (arriba): decidir el criterio de "Hoy" y corregirlo.
 - Un producto con precio 0 ya existente en una base real no podría **editarse** sin corregir antes el precio (el formulario envía el precio actual).
 - Se siguen sin validar parámetros de rutas que no reciben entradas del usuario (p. ej. `hub-metrics`).
 - Los tests usan una base simulada; no sustituyen una prueba con SQLite real.

@@ -15,9 +15,11 @@ export async function GET(request: Request) {
     }
     const days = dias ?? 1;
 
+    // El período incluye HOY: days=1 es desde las 00:00 de hoy; days=7, hoy y los 6 días anteriores.
+    // (Antes se restaban `days` días enteros y "Hoy" arrancaba a las 00:00 de ayer.)
     const since = new Date();
-    since.setDate(since.getDate() - days);
     since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - (days - 1));
 
     const ventas = await prisma.venta.findMany({
       where: { fechaCobro: { gte: since } },
