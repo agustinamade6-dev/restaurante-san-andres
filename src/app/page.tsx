@@ -15,6 +15,7 @@ import {
   Utensils
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
+import { moduloDePagina } from '@/lib/sesion-vencida';
 
 export default function HomePage() {
   const router = useRouter();
@@ -63,6 +64,16 @@ export default function HomePage() {
     setError('');
     setModalOpen(true);
   }, []);
+
+  // Llegada desde una sesión vencida (lib/sesion-vencida.ts): reabrir el PIN del módulo donde estaba.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('sesion') !== 'vencida') return;
+    window.history.replaceState(null, '', '/');
+    const modulo = moduloDePagina(`/${params.get('modulo') ?? ''}`);
+    if (modulo) handleModuleClick(modulo);
+    setError('Tu sesión venció. Ingresá tu PIN de nuevo.');
+  }, [handleModuleClick]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
