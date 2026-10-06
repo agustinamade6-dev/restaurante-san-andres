@@ -1,21 +1,24 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { autenticarPin, PIN_REGEX } from '@/lib/pin';
-import { claveCliente, registrarExito, registrarFallo, segundosBloqueado } from '@/lib/rate-limit';
+import { claveCliente, liberarIntento, registrarExito, registrarFallo, reservarIntento } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
 
+  let reservado: string | null = null;
   try {
     const clave = claveCliente(req);
-    const espera = segundosBloqueado(clave);
+    const espera = reservarIntento(clave);
     if (espera > 0) {
       return NextResponse.json(
         { error: `Demasiados intentos fallidos. Reintentá en ${espera} segundos.` },
         { status: 429, headers: { 'Retry-After': String(espera) } }
       );
     }
+
+    reservado = clave;
 
     let body: { pin?: unknown };
     try {
@@ -47,5 +50,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Error in auth:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } finally {
+    if (reservado) liberarIntento(reservado);
   }
 }

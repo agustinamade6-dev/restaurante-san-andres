@@ -28,3 +28,14 @@ También: `src/proxy.ts`, `prisma/schema.prisma`, `eslint.config.mjs`, `src/__te
 
 ## Cómo probarlo
 `npm test` (792 tests; `integracion-sqlite` y `migraciones` usan SQLite real) · `npm run build` · `npx eslint .` (0 errores) · `npm run dev` y recorrer Sala → Cocina → Cobro → Caja.
+
+## Cierre de calidad (2026-10-06)
+Revisión `code-review` de `master..HEAD`. **Corregido (backend):** ráfaga concurrente saltaba el límite de PIN (`reservarIntento`/`liberarIntento` en `rate-limit.ts`, usado en `verify-pin` y `check-admin-pin`); SSE ahora cierra con error si el heartbeat falla (el cliente reconecta); `/api/auth/session` responde 500 ante error de base en vez de `user: null`; secreto de desarrollo en `globalThis`. Tests `REGRESIÓN:` para ráfaga y sesión. 794 tests, build y eslint (0 errores) OK.
+**Sin tocar (decidir/avisar):**
+- Frontend: `page.tsx:36` consulta `/api/hub-metrics` sin sesión → 401 y contador siempre en 0 (mostrarlo solo con sesión o endpoint público reducido). Inventario sigue usando `PUT` (ya listado arriba).
+- `PATCH /api/mesas/[id]` permite MOZO y puede renumerar/borrar mesas: probablemente debe ser solo ADMIN (cambio de contrato, avisar a Agus).
+- Escrituras fuera de `transaccion()` (insumo/producto/proveedor/costoFijo, `pin.ts:41`) compiten por el bloqueo de SQLite.
+- `metricas/route.ts`: ~11 consultas secuenciales con rangos solapados.
+- Duplicados: `datePrefix`/`prefijoFecha`, listas de estados finales; `toLocaleString()` sin locale guardado en historial.
+- Un login correcto de otro usuario borra la escala de bloqueo (clave compartida); `.env.example` aún dice "valor inseguro por defecto".
+- No hay backend Python: quick-gate-python no aplica.

@@ -170,6 +170,14 @@ describe('límite de intentos de PIN', () => {
     expect((await login({ pin: '3333' })).status).toBe(429);
   });
 
+  it('REGRESIÓN: una ráfaga simultánea de PIN erróneos no pasa de MAX_FALLOS verificaciones', async () => {
+    const respuestas = await Promise.all(Array.from({ length: 200 }, () => login({ pin: '0000' })));
+    const estados = respuestas.map((r) => r.status);
+
+    expect(estados.filter((s) => s === 401)).toHaveLength(MAX_FALLOS);
+    expect(estados.filter((s) => s === 429)).toHaveLength(200 - MAX_FALLOS);
+  });
+
   it('con TRUST_PROXY=1 los intentos se cuentan por la IP que informa el proxy', async () => {
     vi.stubEnv('TRUST_PROXY', '1');
     try {
@@ -203,6 +211,16 @@ describe('GET /api/auth/session y logout', () => {
     await loginAs('MOZO', 3, 'Mozo Sala');
     db.state.usuarios.find((u) => u.id === 3)!.activo = false;
     expect(await (await getSession()).json()).toEqual({ user: null });
+  });
+
+  it('REGRESIÓN: un error de la base responde 500, no "user: null" (el cliente lo tomaría por sesión vencida)', async () => {
+    await loginAs('MOZO', 3, 'Mozo Sala');
+    vi.spyOn((db.prisma as any).usuario, 'findUnique').mockRejectedValueOnce(new Error('SQLITE_BUSY'));
+
+    const res = await getSession();
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).not.toHaveProperty('user');
   });
 
   it('el rol y el nombre salen de la base, no del token', async () => {

@@ -43,6 +43,28 @@ export function segundosBloqueado(clave: string, ahora: number = Date.now()): nu
   return Math.ceil((e.bloqueadoHasta - ahora) / 1000);
 }
 
+const enCurso = new Map<string, number>();
+
+/**
+ * Reserva un intento ANTES de verificar el PIN. Sin esto, una ráfaga de peticiones simultáneas pasa todas la
+ * comprobación de bloqueo (los fallos se registran recién después de `await`) y recorre los 10.000 PIN de una vez.
+ * Devuelve los segundos de espera (0 = intento reservado; hay que llamar a `liberarIntento` al terminar).
+ */
+export function reservarIntento(clave: string, ahora: number = Date.now()): number {
+  const espera = segundosBloqueado(clave, ahora);
+  if (espera > 0) return espera;
+  const activos = enCurso.get(clave) ?? 0;
+  if ((intentos.get(clave)?.fallos ?? 0) + activos >= MAX_FALLOS) return 1;
+  enCurso.set(clave, activos + 1);
+  return 0;
+}
+
+export function liberarIntento(clave: string): void {
+  const n = (enCurso.get(clave) ?? 0) - 1;
+  if (n > 0) enCurso.set(clave, n);
+  else enCurso.delete(clave);
+}
+
 export function registrarFallo(clave: string, ahora: number = Date.now()): void {
   if (intentos.size > 1000) {
     for (const [k, v] of intentos) if (v.bloqueadoHasta <= ahora && ahora - v.ultimoFallo > OLVIDO_MS) intentos.delete(k);
@@ -69,4 +91,5 @@ export function registrarExito(clave: string): void {
 /** Solo para tests. */
 export function reiniciarLimites(): void {
   intentos.clear();
+  enCurso.clear();
 }

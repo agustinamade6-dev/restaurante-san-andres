@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { autenticarPin, PIN_REGEX } from '@/lib/pin';
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from '@/lib/session';
-import { claveCliente, registrarExito, registrarFallo, segundosBloqueado } from '@/lib/rate-limit';
+import { claveCliente, liberarIntento, registrarExito, registrarFallo, reservarIntento } from '@/lib/rate-limit';
 import { origenPermitido } from '@/lib/origen';
 
 export async function POST(req: Request) {
@@ -11,15 +11,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Origen de la petición no permitido' }, { status: 403 });
   }
 
+  let reservado: string | null = null;
   try {
     const clave = claveCliente(req);
-    const espera = segundosBloqueado(clave);
+    const espera = reservarIntento(clave);
     if (espera > 0) {
       return NextResponse.json(
         { error: `Demasiados intentos fallidos. Reintentá en ${espera} segundos.` },
         { status: 429, headers: { 'Retry-After': String(espera) } }
       );
     }
+
+    reservado = clave;
 
     let body: { pin?: unknown; module?: unknown };
     try {
@@ -70,5 +73,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Error in auth:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } finally {
+    if (reservado) liberarIntento(reservado);
   }
 }

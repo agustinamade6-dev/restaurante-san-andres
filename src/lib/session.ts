@@ -19,7 +19,12 @@ const buf = (u: Uint8Array) => u as unknown as BufferSource;
 // Sin SESSION_SECRET fuera de producción: secreto ALEATORIO por proceso (antes era un texto fijo publicado en el
 // repositorio, con el que cualquiera podía firmar una sesión de ADMIN en un servidor de desarrollo en la red).
 // Consecuencia aceptable: al reiniciar `npm run dev` hay que volver a ingresar el PIN.
-const DEV_SECRET = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join('');
+// Se guarda en globalThis: el proxy y las rutas son bundles distintos y las recargas en caliente reevalúan el módulo;
+// con una constante por módulo cada uno tendría un secreto diferente y la sesión no validaría.
+const gs = globalThis as unknown as { __devSessionSecret?: string };
+const DEV_SECRET = (gs.__devSessionSecret ??= Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) =>
+  b.toString(16).padStart(2, '0')
+).join(''));
 let warnedDevSecret = false;
 
 function getSecret(): string {

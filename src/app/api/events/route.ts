@@ -49,8 +49,15 @@ export async function GET(request: Request) {
             return;
           }
           controller.enqueue(encoder.encode('data: {"type":"heartbeat"}\n\n'));
-        } catch {
+        } catch (error) {
+          // Error transitorio (p. ej. base ocupada): se cierra con error para que el cliente reconecte
+          // en vez de quedar con un stream abierto que ya no recibe eventos.
           limpiar();
+          try {
+            controller.error(error);
+          } catch {
+            /* ya cerrado */
+          }
         }
       }, 30000);
 
