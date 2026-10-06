@@ -19,8 +19,10 @@ import {
   X,
   CheckCheck,
   LogOut,
+  AlertCircle,
 } from 'lucide-react';
 import { useSSE } from '@/hooks/useSSE';
+import { enviarJson } from '@/lib/api-cliente';
 
 interface HistorialPedido {
   id: number;
@@ -64,6 +66,14 @@ export default function CocinaPage() {
   const [motivoCambio, setMotivoCambio] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
   const [historialTab, setHistorialTab] = useState<'entregados' | 'cancelados'>('entregados');
+  // Errores de la API: aviso flotante para acciones sobre la grilla; el de cancelar va en su modal.
+  const [aviso, setAviso] = useState('');
+  const [errorCancelar, setErrorCancelar] = useState('');
+
+  const mostrarError = useCallback((mensaje: string) => {
+    setAviso(mensaje);
+    setTimeout(() => setAviso((actual) => (actual === mensaje ? '' : actual)), 5000);
+  }, []);
 
   const fetchPedidos = useCallback(async () => {
     const res = await fetch('/api/pedidos');
@@ -106,26 +116,28 @@ export default function CocinaPage() {
   );
 
   const handleModifyItem = async (pedidoId: number, action: string, data: any) => {
-    await fetch(`/api/pedidos/${pedidoId}/items`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, motivo: motivoCambio || 'Modificado desde cocina', ...data }),
-    });
+    const error = await enviarJson(
+      `/api/pedidos/${pedidoId}/items`,
+      'PATCH',
+      { action, motivo: motivoCambio || 'Modificado desde cocina', ...data },
+      'No se pudo modificar el pedido'
+    );
+    if (error) mostrarError(error);
     setMotivoCambio('');
     fetchPedidos();
   };
 
-  const cambiarEstado = async (pedidoId: number, nuevoEstado: string) => {
-    await fetch('/api/pedidos', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: pedidoId, estado: nuevoEstado }),
-    });
+  /** Devuelve true si el servidor aceptó el cambio; si no, muestra su error. */
+  const cambiarEstado = async (pedidoId: number, nuevoEstado: string): Promise<boolean> => {
+    const error = await enviarJson('/api/pedidos', 'PATCH', { id: pedidoId, estado: nuevoEstado }, 'No se pudo cambiar el estado del pedido');
+    if (error) mostrarError(error);
     fetchPedidos();
+    return !error;
   };
 
   const handleCancelarPedido = async (pedidoId: number) => {
     setIsCancelling(true);
+    setErrorCancelar('');
     try {
       const res = await fetch(`/api/pedidos/${pedidoId}/cancel`, {
         method: 'PATCH',
@@ -138,10 +150,11 @@ export default function CocinaPage() {
         setModalCancelarOpen(null);
         fetchPedidos();
       } else {
-        console.error('Error al cancelar pedido:', await res.text());
+        const data = await res.json().catch(() => null);
+        setErrorCancelar(data?.error || 'No se pudo cancelar el pedido');
       }
-    } catch (error) {
-      console.error('Error de red al cancelar pedido:', error);
+    } catch {
+      setErrorCancelar('No se pudo conectar con el servidor');
     } finally {
       setIsCancelling(false);
     }
@@ -295,6 +308,17 @@ export default function CocinaPage() {
         <div className="fixed top-4 right-4 z-50 px-6 py-4 rounded-xl bg-amber-500 text-black font-bold animate-shake shadow-lg shadow-amber-500/30 flex items-center gap-3">
           <Bell className="w-5 h-5 animate-bounce" />
           ¡Nuevo pedido recibido!
+        </div>
+      )}
+
+      {/* Error de la API (debajo del aviso de nuevo pedido para que no se tapen) */}
+      {aviso && (
+        <div role="alert" className="fixed top-20 right-4 z-50 max-w-sm px-6 py-4 rounded-xl bg-[var(--danger)] text-white text-sm font-bold shadow-2xl animate-slide-in flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <span className="flex-1">{aviso}</span>
+          <button onClick={() => setAviso('')} aria-label="Cerrar aviso" className="p-1 rounded hover:bg-white/20">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -607,7 +631,8 @@ export default function CocinaPage() {
                         <span className={`badge px-3 py-1 text-[10px] font-black uppercase ${pedido.estado === 'pagado' ? 'bg-blue-500/20 text-blue-400' : pedido.estado === 'cancelado' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                           {pedido.estado}
                         </span>
-                        {pedido.estado !== 'cancelado' && (
+                        {/* Un pedido pagado no se reabre (para corregir un cobro se anula la venta en Caja) */}
+                        {pedido.estado === 'entregado' && (
                           <button 
                             onClick={async () => {
                               if (confirm('¿Estás seguro de reactivar este pedido y enviarlo a Preparando?')) {
@@ -651,7 +676,7 @@ export default function CocinaPage() {
                 <Trash2 className="w-6 h-6" />
                 Cancelar Pedido Mesa {modalCancelarOpen.mesa.numero}
               </h3>
-              <button onClick={() => { setModalCancelarOpen(null); setMotivoCambio(''); }} className="p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)]">
+              <button onClick={() => { setModalCancelarOpen(null); setMotivoCambio(''); setErrorCancelar(''); }} className="p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)]">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -674,9 +699,12 @@ export default function CocinaPage() {
                 onChange={(e) => setMotivoCambio(e.target.value)} 
                 className="w-full h-11 bg-[var(--background)] border border-[var(--border)] rounded-xl text-[var(--foreground)] text-sm focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none transition-all px-4 mb-6" 
               />
+              {errorCancelar && (
+                <p role="alert" className="text-sm text-red-400 font-bold mb-4 text-center">{errorCancelar}</p>
+              )}
               <div className="flex gap-3">
                 <button 
-                  onClick={() => { setModalCancelarOpen(null); setMotivoCambio(''); }} 
+                  onClick={() => { setModalCancelarOpen(null); setMotivoCambio(''); setErrorCancelar(''); }} 
                   className="flex-1 btn bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] py-3 font-bold hover:bg-[var(--card-hover)]"
                 >
                   Conservar
