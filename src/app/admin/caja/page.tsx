@@ -224,7 +224,8 @@ export default function CajaPage() {
                         className={`hover:bg-[var(--background)] transition-colors ${v.esAnulacion ? 'bg-red-500/5' : ''} ${v.anulada ? 'opacity-60' : ''}`}
                       >
                         <td className="p-4 whitespace-nowrap">{formatDate(v.fechaCobro)}</td>
-                        <td className="p-4 font-bold">Mesa {v.mesa?.numero ?? v.pedido?.mesa?.numero ?? v.mesaNumero ?? 'S/N'}</td>
+                        {/* mesaNumero es el número al momento del cobro: no cambia si la mesa se renumera o se archiva */}
+                        <td className="p-4 font-bold">Mesa {v.mesaNumero ?? v.mesa?.numero ?? v.pedido?.mesa?.numero ?? 'S/N'}</td>
                         <td className={`p-4 text-[var(--muted)] font-mono ${v.anulada ? 'line-through' : ''}`}>{v.numeroTicket || `#T-${v.id.toString().padStart(5, '0')}`}</td>
                         <td className="p-4">
                           <span className="bg-neutral-800 px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider">
@@ -279,7 +280,7 @@ export default function CajaPage() {
 
             <div className="bg-[var(--background)] rounded-lg p-3 mb-4 text-sm space-y-1">
               <p><span className="text-[var(--muted)]">Ticket:</span> <span className="font-mono">{anulando.numeroTicket || `#${anulando.id}`}</span></p>
-              <p><span className="text-[var(--muted)]">Mesa:</span> {anulando.mesa?.numero ?? anulando.pedido?.mesa?.numero ?? anulando.mesaNumero ?? 'S/N'}</p>
+              <p><span className="text-[var(--muted)]">Mesa:</span> {anulando.mesaNumero ?? anulando.mesa?.numero ?? anulando.pedido?.mesa?.numero ?? 'S/N'}</p>
               <p><span className="text-[var(--muted)]">Total:</span> <span className="font-bold">${anulando.total.toLocaleString()}</span></p>
             </div>
 

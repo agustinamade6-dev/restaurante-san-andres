@@ -164,7 +164,8 @@ export default function AdminHistorialPage() {
                     <td className="p-4 font-black">#{pedido.id}</td>
                     <td className="p-4">
                       <span className="bg-neutral-800 text-white px-3 py-1 rounded-md font-bold text-sm">
-                        Mesa {pedido.mesa.numero}
+                        {/* Una mesa eliminada con historial queda archivada con número negativo */}
+                        {pedido.mesa.numero < 0 ? 'Mesa eliminada' : `Mesa ${pedido.mesa.numero}`}
                       </span>
                     </td>
                     <td className="p-4 text-sm text-[var(--muted)]">
