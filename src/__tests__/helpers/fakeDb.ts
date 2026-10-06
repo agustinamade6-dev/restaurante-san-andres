@@ -20,6 +20,7 @@ function matches(row: Row, where: Row = {}): boolean {
       if ('notIn' in cond) return !cond.notIn.includes(value);
       if ('not' in cond) return value !== cond.not;
       if ('startsWith' in cond) return typeof value === 'string' && value.startsWith(cond.startsWith);
+      if ('gte' in cond) return value >= cond.gte;
     }
     return value === cond;
   });
@@ -64,6 +65,7 @@ export function createFakeDb(seed: Seed = {}) {
     if (!p) return null;
     const out: Row = { ...p };
     if (include?.mesa) out.mesa = state.mesas.find((m) => m.id === p.mesaId);
+    if (include?.historial) out.historial = state.historial.filter((h) => h.pedidoId === p.id).map((h) => ({ ...h }));
     if (include?.items) {
       out.items = state.items
         .filter((i) => i.pedidoId === p.id)
@@ -130,9 +132,23 @@ export function createFakeDb(seed: Seed = {}) {
     },
     venta: {
       count: async ({ where }: any) => state.ventas.filter((r) => matches(r, where)).length,
+      findMany: async ({ where }: any = {}) => state.ventas.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+      findUnique: async ({ where }: any) => {
+        const row = state.ventas.find((r) => matches(r, where));
+        return row ? { ...row } : null;
+      },
+      updateMany: async ({ where, data }: any) => {
+        const rows = state.ventas.filter((r) => matches(r, where));
+        rows.forEach((r) => {
+          for (const [k, v] of Object.entries(data)) {
+            r[k] = v && typeof v === 'object' && 'increment' in (v as any) ? r[k] + (v as any).increment : v;
+          }
+        });
+        return { count: rows.length };
+      },
       create: async ({ data }: any) => {
         guard('venta.create');
-        const row = { id: nextId++, ...data };
+        const row = { id: nextId++, fechaCobro: new Date(), ...data };
         state.ventas.push(row);
         return row;
       },
@@ -169,7 +185,7 @@ export function createFakeDb(seed: Seed = {}) {
   let lock: Promise<unknown> = Promise.resolve();
   api.$transaction = (cb: (tx: any) => Promise<unknown>) => {
     const run = async () => {
-      const snapshot = JSON.parse(JSON.stringify(state));
+      const snapshot = structuredClone(state);
       try {
         return await cb(api);
       } catch (e) {

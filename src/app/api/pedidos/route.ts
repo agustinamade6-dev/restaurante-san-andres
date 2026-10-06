@@ -125,6 +125,18 @@ export async function POST(request: Request) {
   }
 }
 
+// Estados finales: un pedido "pagado" o "cancelado" no vuelve a abrirse.
+// Corregir un cobro se hace anulando la venta (POST /api/ventas/[id]/anular), no reabriendo el pedido.
+const ESTADOS_FINALES = ['pagado', 'cancelado'];
+const ESTADOS_ABIERTOS = ['pendiente', 'preparando', 'listo', 'entregado'];
+const ESTADOS_DE_MESA_OCUPADA = ['pendiente', 'preparando', 'listo'];
+
+const cambiarEstadoSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  estado: z.string(),
+  motivo: z.string().max(500).nullish(),
+});
+
 export async function PATCH(request: Request) {
   const auth = await requireAuth(['ADMIN', 'COCINERO']);
   if (!auth.ok) return auth.response;
@@ -132,75 +144,111 @@ export async function PATCH(request: Request) {
   try {
     const usuarioId = auth.session.id;
 
-    const body = await request.json();
-    const { id, estado, motivo } = body;
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Cuerpo JSON inválido' }, { status: 400 });
+    }
+    const parsed = cambiarEstadoSchema.safeParse(raw);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      return NextResponse.json(
+        { success: false, error: `${issue.path.join('.') || 'datos'}: ${issue.message}` },
+        { status: 400 }
+      );
+    }
+    const { id, estado, motivo } = parsed.data;
 
     // El cobro (Venta + ticket) se registra únicamente en /api/checkout/pay.
-    // Permitir "pagado" por acá dejaría pedidos pagados sin Venta.
     if (estado === 'pagado') {
       return NextResponse.json(
         { success: false, error: 'Para cobrar un pedido usá /api/checkout/pay' },
         { status: 400 }
       );
     }
-
-    const updateData: any = { estado };
-    if (estado === 'entregado' || estado === 'pagado') {
-      updateData.entregadoEn = new Date();
-    } else {
-      updateData.entregadoEn = null; // Reset if returning to previous states
+    if (estado === 'cancelado') {
+      return NextResponse.json(
+        { success: false, error: 'Para cancelar un pedido usá /api/pedidos/[id]/cancel' },
+        { status: 400 }
+      );
+    }
+    if (!ESTADOS_ABIERTOS.includes(estado)) {
+      return NextResponse.json({ success: false, error: 'Estado inválido' }, { status: 400 });
     }
 
-    const pedido = await prisma.pedido.update({
-      where: { id },
-      data: updateData,
-      include: {
+    const resultado = await prisma.$transaction(async (tx) => {
+      const incluir = {
         mesa: true,
         items: { include: { producto: true } },
         historial: true,
-      },
-    });
+      } as const;
 
-    if (estado !== 'entregado' && estado !== 'pagado' && estado !== 'cancelado' && estado !== 'listo') {
-      await prisma.historialPedido.create({
-        data: {
-          pedidoId: id,
-          accion: `ESTADO_CAMBIADO_${estado.toUpperCase()}`,
-          detalle: `El pedido pasó a estado ${estado}`,
-          motivo: motivo || '',
-          usuarioId: usuarioId || null,
-        }
-      });
-    }
+      const anterior = await tx.pedido.findUnique({ where: { id }, select: { id: true, estado: true } });
+      if (!anterior) throw new ApiError(404, 'Pedido no encontrado');
+      if (ESTADOS_FINALES.includes(anterior.estado)) {
+        throw new ApiError(
+          400,
+          anterior.estado === 'pagado'
+            ? 'El pedido ya fue cobrado y no puede reabrirse. Para corregir el cobro, anulá la venta.'
+            : 'El pedido está cancelado y no puede cambiar de estado'
+        );
+      }
 
-    // Update mesa status based on order status
-    if (estado === 'entregado' || estado === 'pagado' || estado === 'cancelado') {
-      // Check if there are other active orders for this mesa
-      const activeOrders = await prisma.pedido.count({
-        where: {
-          mesaId: pedido.mesaId,
-          estado: { in: ['pendiente', 'preparando', 'listo'] },
-        },
+      // Mismo estado: no hay nada que hacer (evita historial duplicado por doble clic).
+      if (anterior.estado === estado) {
+        return { pedido: await tx.pedido.findUnique({ where: { id }, include: incluir }), cambio: false };
+      }
+
+      // Guard atómico: si un cobro o una cancelación se coló entre la lectura y la escritura, no pisa el estado final.
+      const claimed = await tx.pedido.updateMany({
+        where: { id, estado: { notIn: ESTADOS_FINALES } },
+        data: { estado, entregadoEn: estado === 'entregado' ? new Date() : null },
       });
-      if (activeOrders === 0) {
-        await prisma.mesa.update({
-          where: { id: pedido.mesaId },
-          data: { estado: 'libre' },
+      if (claimed.count === 0) throw new ApiError(400, 'El pedido ya fue cerrado y no puede cambiar de estado');
+
+      const pedido = await tx.pedido.findUnique({ where: { id }, include: incluir });
+      if (!pedido) throw new ApiError(404, 'Pedido no encontrado');
+
+      if (estado !== 'entregado' && estado !== 'listo') {
+        await tx.historialPedido.create({
+          data: {
+            pedidoId: id,
+            accion: `ESTADO_CAMBIADO_${estado.toUpperCase()}`,
+            detalle: `El pedido pasó a estado ${estado}`,
+            motivo: motivo || '',
+            usuarioId: usuarioId || null,
+          },
         });
       }
-    } else if (estado === 'listo') {
-      await prisma.mesa.update({
-        where: { id: pedido.mesaId },
-        data: { estado: 'esperando' },
-      });
-    }
+
+      // Estado de la mesa según el estado del pedido.
+      if (estado === 'entregado') {
+        const activos = await tx.pedido.count({
+          where: { mesaId: pedido.mesaId, estado: { in: ESTADOS_DE_MESA_OCUPADA } },
+        });
+        if (activos === 0) {
+          await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'libre' } });
+        }
+      } else if (estado === 'listo') {
+        await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'esperando' } });
+      } else {
+        // pendiente / preparando (p. ej. al reabrir un pedido entregado): la mesa vuelve a estar ocupada.
+        await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'ocupada' } });
+      }
+
+      return { pedido, cambio: true };
+    });
 
     // Emit real-time event
-    eventEmitter.emit('pedido:actualizado', pedido);
+    if (resultado.cambio) eventEmitter.emit('pedido:actualizado', resultado.pedido);
 
-    return NextResponse.json(pedido);
+    return NextResponse.json(resultado.pedido);
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error('Error updating pedido:', error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al actualizar pedido' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Error al actualizar pedido' }, { status: 500 });
   }
 }

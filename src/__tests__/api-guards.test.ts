@@ -55,6 +55,7 @@ const CASOS: Caso[] = [
   ['/api/proveedores', 'PUT', ADMIN, () => import('@/app/api/proveedores/route')],
   ['/api/proveedores', 'DELETE', ADMIN, () => import('@/app/api/proveedores/route')],
   ['/api/upload', 'POST', ADMIN, () => import('@/app/api/upload/route')],
+  ['/api/ventas/[id]/anular', 'POST', ADMIN, () => import('@/app/api/ventas/[id]/anular/route')],
 ];
 
 /** Invoca el handler; si lanza (Prisma sin simular) significa que SÍ pasó el guard. */

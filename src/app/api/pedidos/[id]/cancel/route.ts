@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
+import { ApiError } from '@/lib/api-error';
 
+const bodySchema = z.object({ motivo: z.string().max(500).nullish() });
+
+const ESTADOS_FINALES = ['pagado', 'cancelado'];
 
 export async function PATCH(
   request: Request,
@@ -15,60 +20,68 @@ export async function PATCH(
     const usuarioId = auth.session.id;
 
     const resolvedParams = await params;
-    const pedidoId = parseInt(resolvedParams.id);
-    const body = await request.json();
-    const { motivo } = body;
-
-    // Obtener pedido actual para los ítems
-    const pedidoActual = await prisma.pedido.findUnique({
-      where: { id: pedidoId },
-      include: { items: { include: { producto: true } }, mesa: true },
-    });
-
-    if (!pedidoActual) {
-      return NextResponse.json({ success: false, error: 'Pedido no encontrado' }, { status: 404 });
+    const pedidoId = Number(resolvedParams.id);
+    if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+      return NextResponse.json({ success: false, error: 'ID de pedido inválido' }, { status: 400 });
     }
 
-    // Wrap the operations in a transaction
-    const [pedido] = await prisma.$transaction([
-      // 1. Actualizar estado a cancelado
-      prisma.pedido.update({
-        where: { id: pedidoId },
+    let raw: unknown = {};
+    try {
+      raw = await request.json();
+    } catch {
+      // Sin cuerpo: se cancela con el motivo por defecto.
+    }
+    const parsed = bodySchema.safeParse(raw ?? {});
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: `motivo: ${parsed.error.issues[0].message}` }, { status: 400 });
+    }
+    const motivo = parsed.data.motivo?.trim() || 'Cancelado sin motivo especificado';
+
+    const pedido = await prisma.$transaction(async (tx) => {
+      // Guard atómico: solo se cancela un pedido que no esté ya pagado ni cancelado.
+      const claimed = await tx.pedido.updateMany({
+        where: { id: pedidoId, estado: { notIn: ESTADOS_FINALES } },
         data: { estado: 'cancelado' },
-        include: {
-          mesa: true,
-          items: { include: { producto: true } },
-        },
-      }),
-      // 2. Registrar en el historial
-      prisma.historialPedido.create({
+      });
+      if (claimed.count === 0) {
+        const actual = await tx.pedido.findUnique({ where: { id: pedidoId }, select: { id: true, estado: true } });
+        if (!actual) throw new ApiError(404, 'Pedido no encontrado');
+        throw new ApiError(
+          400,
+          actual.estado === 'pagado'
+            ? 'El pedido ya fue cobrado y no puede cancelarse. Para corregir el cobro, anulá la venta.'
+            : 'El pedido ya está cancelado'
+        );
+      }
+
+      const cancelado = await tx.pedido.findUnique({
+        where: { id: pedidoId },
+        include: { mesa: true, items: { include: { producto: true } } },
+      });
+      if (!cancelado) throw new ApiError(404, 'Pedido no encontrado');
+
+      await tx.historialPedido.create({
         data: {
           pedidoId,
           accion: 'PEDIDO_CANCELADO',
-          detalle: motivo || 'Cancelado sin motivo especificado',
-          motivo: motivo || 'Cancelado sin motivo especificado',
+          detalle: motivo,
+          motivo,
           usuarioId: usuarioId || null,
         },
-      }),
-    ]);
-
-    // Liberar mesa si no hay más pedidos activos
-    const activeOrders = await prisma.pedido.count({
-      where: {
-        mesaId: pedido.mesaId,
-        estado: { in: ['pendiente', 'preparando', 'listo'] },
-      },
-    });
-
-    if (activeOrders === 0) {
-      await prisma.mesa.update({
-        where: { id: pedido.mesaId },
-        data: { estado: 'libre' },
       });
-    }
 
-    // Nota: Lógica de reintegro de stock de insumos iría aquí si Producto tuviera
-    // mapeada su receta/insumos asociados.
+      // Liberar mesa si no hay más pedidos activos
+      const activeOrders = await tx.pedido.count({
+        where: { mesaId: cancelado.mesaId, estado: { in: ['pendiente', 'preparando', 'listo'] } },
+      });
+      if (activeOrders === 0) {
+        await tx.mesa.update({ where: { id: cancelado.mesaId }, data: { estado: 'libre' } });
+      }
+
+      // Nota: Lógica de reintegro de stock de insumos iría aquí si Producto tuviera
+      // mapeada su receta/insumos asociados.
+      return cancelado;
+    });
 
     // Emitir eventos para la actualización en tiempo real
     eventEmitter.emit('pedido:actualizado', pedido);
@@ -77,10 +90,10 @@ export async function PATCH(
 
     return NextResponse.json(pedido);
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error('Error al cancelar pedido:', error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor al cancelar' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Error interno del servidor al cancelar' }, { status: 500 });
   }
 }

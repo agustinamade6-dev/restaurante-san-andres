@@ -127,6 +127,14 @@ curl -s -X POST http://localhost:3000/api/checkout/pay -H "Content-Type: applica
 # {"success":false,"error":"Este pedido ya fue cerrado o cancelado"}  (HTTP 400)
 ```
 
+## Corrección posterior (importante)
+
+La garantía "un pedido no se puede cobrar dos veces" de este commit **solo valía mientras el pedido seguía
+en estado `pagado`**. Una prueba manual mostró que `PATCH /api/pedidos` permitía sacar un pedido de `pagado`
+(por ejemplo desde el historial de Cocina), editarlo y volver a cobrarlo, generando una segunda venta.
+Este caso no estaba cubierto por los tests y se resuelve en el [commit 4](commit-04-estados-anulacion.md)
+(AT-18): `pagado` y `cancelado` pasan a ser estados finales y las correcciones se hacen anulando la venta.
+
 ## Pendiente y limitaciones
 - **Ventas fantasma históricas:** las bases que ya usaron el sistema tienen ventas duplicadas con `numeroTicket` vacío. No se borraron automáticamente (datos financieros); requieren una revisión manual.
 - El cobro no emite eventos SSE (igual que antes), por lo que otras pantallas se actualizan al refrescar.

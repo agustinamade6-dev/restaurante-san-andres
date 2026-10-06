@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { marcarAnuladas, resumirVentas } from '@/lib/ventas';
 
 export async function GET(request: Request) {
   const auth = await requireAuth(['ADMIN']);
@@ -30,20 +31,11 @@ export async function GET(request: Request) {
       orderBy: { fechaCobro: 'desc' },
     });
 
-    // Summary calculations
-    const totalRecaudado = ventas.reduce((sum, v) => sum + v.total, 0);
-    const totalPropinas = ventas.reduce((sum, v) => sum + v.propina, 0);
-    const cantidadVentas = ventas.length;
-
-    const porMetodo: Record<string, { count: number; total: number }> = {};
-    ventas.forEach(v => {
-      if (!porMetodo[v.metodoPago]) porMetodo[v.metodoPago] = { count: 0, total: 0 };
-      porMetodo[v.metodoPago].count++;
-      porMetodo[v.metodoPago].total += v.total;
-    });
+    // Resumen neto: las anulaciones (asientos con importe negativo) restan de los totales y de la cantidad.
+    const { totalRecaudado, totalPropinas, cantidadVentas, porMetodo } = resumirVentas(ventas);
 
     return NextResponse.json({
-      ventas,
+      ventas: marcarAnuladas(ventas),
       resumen: {
         totalRecaudado,
         totalPropinas,

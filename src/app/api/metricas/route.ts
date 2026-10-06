@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { contarVentasNetas } from '@/lib/ventas';
 
 export async function GET() {
   const auth = await requireAuth(['ADMIN']);
@@ -74,7 +75,7 @@ export async function GET() {
       ventasPorDia.push({
         dia: dia.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }),
         total: ventasDia.reduce((sum, v) => sum + (v.total || 0), 0),
-        cantidad: ventasDia.length,
+        cantidad: contarVentasNetas(ventasDia),
       });
     }
 
@@ -91,7 +92,7 @@ export async function GET() {
       ventasPorSemana.push({
         semana: `Sem ${4 - i}`,
         total: ventasS.reduce((sum, v) => sum + (v.total || 0), 0),
-        cantidad: ventasS.length,
+        cantidad: contarVentasNetas(ventasS),
       });
     }
 
@@ -111,9 +112,9 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      ventasHoy: { total: totalHoy, cantidad: ventasHoy.length },
-      ventasSemana: { total: totalSemana, cantidad: ventasSemana.length },
-      ventasMes: { total: totalMes, cantidad: ventasMes.length },
+      ventasHoy: { total: totalHoy, cantidad: contarVentasNetas(ventasHoy) },
+      ventasSemana: { total: totalSemana, cantidad: contarVentasNetas(ventasSemana) },
+      ventasMes: { total: totalMes, cantidad: contarVentasNetas(ventasMes) },
       costosMensuales: totalCostosMensuales,
       balanceMes: totalMes - totalCostosMensuales,
       platosMasVendidos,

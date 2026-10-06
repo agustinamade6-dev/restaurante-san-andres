@@ -103,16 +103,16 @@ describe('POST /api/auth/verify-pin', () => {
     ['admin', '3333'],
     ['cocina', '3333'],
     ['comandas', '2222'],
-  ])('403 si el rol no corresponde al módulo %s y no deja sesión', async (module, pin) => {
-    const res = await login({ pin, module });
+  ])('403 si el rol no corresponde al módulo %s y no deja sesión', async (modulo, pin) => {
+    const res = await login({ pin, module: modulo });
 
     expect(res.status).toBe(403);
     expect(cookieJar.sets).toHaveLength(0);
   });
 
   it('el ADMIN entra a todos los módulos', async () => {
-    for (const module of ['admin', 'cocina', 'comandas']) {
-      expect((await login({ pin: '1111', module })).status).toBe(200);
+    for (const modulo of ['admin', 'cocina', 'comandas']) {
+      expect((await login({ pin: '1111', module: modulo })).status).toBe(200);
     }
   });
 });
