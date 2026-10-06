@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import eventEmitter from '@/lib/events';
 import { ApiError } from '@/lib/api-error';
 import { layoutSchema } from '@/lib/mesas';
@@ -23,7 +23,7 @@ export async function PUT(request: Request) {
     const { mesas } = parsed.data;
 
     // Todo o nada: si una mesa no existe no se mueve ninguna.
-    await prisma.$transaction(async (tx) => {
+    await transaccion(async (tx) => {
       const ids = [...new Set(mesas.map((m) => m.id))];
       const existentes = await tx.mesa.findMany({ where: { id: { in: ids } }, select: { id: true } });
       const encontrados = new Set(existentes.map((m) => m.id));

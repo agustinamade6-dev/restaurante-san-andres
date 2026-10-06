@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import type { Prisma } from '@prisma/client';
 import { PREFIJO_ANULACION } from '@/lib/ventas';
 import eventEmitter from '@/lib/events';
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     const hoy = new Date();
     const datePrefix = `${hoy.getFullYear()}${(hoy.getMonth() + 1).toString().padStart(2, '0')}${hoy.getDate().toString().padStart(2, '0')}`;
 
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await transaccion(async (tx) => {
       // 1. Guard atómico: solo UNA petición puede pasar el pedido a "pagado".
       //    Hacerlo primero (una escritura) evita que dos cobros simultáneos lean el mismo estado.
       const claimed = await tx.pedido.updateMany({

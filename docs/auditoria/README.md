@@ -21,6 +21,7 @@ y qué debe tener en cuenta.
 | 11 | `fix(seguridad): límite de PIN no evadible, sesiones revocables, CSRF y endpoints sin datos de más` (rama `fix/revision-pr1`) | [commit-11-seguridad-revision-pr1.md](commit-11-seguridad-revision-pr1.md) | AT-21 a AT-27 |
 | 12 | `fix(metricas): propinas fuera del ingreso, costos por periodicidad y montos dentro del rango de la base` | [commit-12-propinas-costos-rango.md](commit-12-propinas-costos-rango.md) | AT-28 a AT-30 |
 | 13 | `fix(pedidos): transiciones de estado explícitas, eventos de mesa correctos, cobro idempotente y ajuste de stock` | [commit-13-estados-eventos-cobro-stock.md](commit-13-estados-eventos-cobro-stock.md) | AT-31 a AT-34 |
+| 14 | `fix(concurrencia): transacciones de escritura en fila para SQLite y tests de integración contra la base real` | [commit-14-sqlite-concurrencia.md](commit-14-sqlite-concurrencia.md) | AT-35 |
 
 ## Estado de los hallazgos
 
@@ -60,6 +61,7 @@ y qué debe tener en cuenta.
 | AT-32 | Eventos `mesa:actualizada` ausentes o con el estado viejo | Bajo | ✅ Commit 13 |
 | AT-33 | El reintento de un cobro exitoso respondía error | Medio | ✅ Commit 13 |
 | AT-34 | Editar el stock pisaba las ventas y no dejaba registro | Medio | ✅ Commit 13 (falta la pantalla) |
+| AT-35 | Cobros simultáneos fallaban con 500 en SQLite real (hallado por el test de integración) | Alto | ✅ Commit 14 |
 
 ## Convenciones
 

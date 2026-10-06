@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import eventEmitter from '@/lib/events';
 import { ApiError } from '@/lib/api-error';
 import { PEDIDOS_QUE_BLOQUEAN_BORRADO, editarMesaSchema, mensajeZod } from '@/lib/mesas';
@@ -32,7 +32,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     const { numero, capacidad, sector, forma } = parsed.data;
 
-    const mesa = await prisma.$transaction(async (tx) => {
+    const mesa = await transaccion(async (tx) => {
       // Escritura neutra inicial: toma el lock de escritura y comprueba que la mesa exista y esté activa.
       const claimed = await tx.mesa.updateMany({
         where: { id, activa: true },
@@ -93,7 +93,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ success: false, error: 'ID de mesa inválido' }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await transaccion(async (tx) => {
       const mesa = await tx.mesa.findUnique({ where: { id }, select: { id: true, activa: true } });
       if (!mesa) throw new ApiError(404, 'Mesa no encontrada');
       if (!mesa.activa) return; // ya estaba eliminada: DELETE es idempotente

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import { enPesos } from '@/lib/money';
 import { PEDIDOS_QUE_OCUPAN_MESA } from '@/lib/mesas';
 import eventEmitter from '@/lib/events';
@@ -39,7 +39,7 @@ export async function PATCH(
     }
     const motivo = parsed.data.motivo?.trim() || 'Cancelado sin motivo especificado';
 
-    const { cancelado: pedido, mesa: mesaLiberada } = await prisma.$transaction(async (tx) => {
+    const { cancelado: pedido, mesa: mesaLiberada } = await transaccion(async (tx) => {
       // Guard atómico: solo se cancela un pedido que no esté ya pagado ni cancelado.
       const claimed = await tx.pedido.updateMany({
         where: { id: pedidoId, estado: { notIn: ESTADOS_FINALES } },

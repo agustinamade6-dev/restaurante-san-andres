@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import eventEmitter from '@/lib/events';
 import { dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, cantidadItem } from '@/lib/api-error';
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
     }
     const { mesaId, items, notas } = parsed.data;
 
-    const { creado: pedido, mesa: mesaOcupada } = await prisma.$transaction(async (tx) => {
+    const { creado: pedido, mesa: mesaOcupada } = await transaccion(async (tx) => {
       const mesa = await tx.mesa.findUnique({ where: { id: mesaId }, select: { id: true, activa: true } });
       if (!mesa) throw new ApiError(404, 'Mesa no encontrada');
       if (!mesa.activa) throw new ApiError(400, 'La mesa no está activa');
@@ -181,7 +182,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: false, error: 'Estado inválido' }, { status: 400 });
     }
 
-    const resultado = await prisma.$transaction(async (tx) => {
+    const resultado = await transaccion(async (tx) => {
       const incluir = {
         mesa: true,
         items: { include: { producto: true } },

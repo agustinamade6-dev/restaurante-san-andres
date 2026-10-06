@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import { ajusteStockSchema } from '@/lib/catalogo';
 import { enPesos } from '@/lib/money';
 import { ajustarStock } from '@/lib/stock';
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     if (!parsed.success) return error(mensajeZod(parsed.error), 400);
     const { insumoId, delta, motivo } = parsed.data;
 
-    const insumo = await prisma.$transaction(async (tx) => {
+    const insumo = await transaccion(async (tx) => {
       const existe = await tx.insumo.findUnique({ where: { id: insumoId }, select: { id: true } });
       if (!existe) return null;
       return ajustarStock(tx, { insumoId, delta, detalle: motivo, usuarioId: auth.session.id });

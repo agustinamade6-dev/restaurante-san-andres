@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import eventEmitter from '@/lib/events';
 import { dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, cantidadItem } from '@/lib/api-error';
@@ -57,7 +57,7 @@ export async function PATCH(
     }
     const data = parsed.data;
 
-    const updatedPedido = await prisma.$transaction(async (tx) => {
+    const updatedPedido = await transaccion(async (tx) => {
       // Guard: toma el lock de escritura y rechaza pedidos cerrados de forma atómica.
       const claimed = await tx.pedido.updateMany({
         where: { id: pedidoId, estado: { notIn: ESTADOS_CERRADOS } },
