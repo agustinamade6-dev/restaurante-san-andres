@@ -52,3 +52,6 @@ next-env.d.ts
 startup-stdout.txt
 debug-startup.log
 !.env.example
+
+# graphify (grafo de conocimiento local)
+/graphify-out/

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import eventEmitter from '@/lib/events';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,6 +21,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       where: { id },
       data: { numero, capacidad, sector, forma },
     });
+    eventEmitter.emit('mesa:actualizada', mesa);
     return NextResponse.json(mesa);
   } catch (error) {
     console.error('Error updating mesa:', error);
@@ -42,10 +44,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
 
     // Soft delete
-    await prisma.mesa.update({
+    const mesaEliminada = await prisma.mesa.update({
       where: { id },
       data: { activa: false }
     });
+    eventEmitter.emit('mesa:actualizada', mesaEliminada);
 
     return NextResponse.json({ success: true, tableId: id });
   } catch (error) {
