@@ -2,12 +2,22 @@
 /**
  * Matriz de permisos de TODA la API. Es a la vez prueba y documentación del modelo de roles:
  *   sin sesión -> 401 | rol no permitido -> 403 | rol permitido -> pasa el guard (no 401/403).
- * El guard se ejecuta antes que cualquier acceso a datos, por eso Prisma queda sin simular.
+ * El guard se ejecuta antes que cualquier acceso a datos, por eso Prisma queda sin simular, salvo la búsqueda del
+ * usuario de la sesión que hace el propio guard (requireAuth verifica en la base que siga activo).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loginAs, logout, resetCookies } from './helpers/session';
 
-vi.mock('@/lib/prisma', () => ({ default: {}, prisma: {} }));
+vi.mock('@/lib/prisma', async () => {
+  const { usuarioDeLaCookie } = await import('./helpers/session');
+  const usuario = {
+    findUnique: async ({ where }: any) => {
+      const u = usuarioDeLaCookie();
+      return u && u.id === where.id ? { ...u, activo: true } : null;
+    },
+  };
+  return { default: { usuario }, prisma: { usuario } };
+});
 vi.mock('@/lib/events', () => ({ default: { emit: vi.fn(), on: vi.fn(() => () => {}) } }));
 vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
 
@@ -30,6 +40,7 @@ const CASOS: Caso[] = [
   ['/api/costos', 'POST', ADMIN, () => import('@/app/api/costos/route')],
   ['/api/costos', 'DELETE', ADMIN, () => import('@/app/api/costos/route')],
   ['/api/events', 'GET', TODOS, () => import('@/app/api/events/route')],
+  ['/api/hub-metrics', 'GET', TODOS, () => import('@/app/api/hub-metrics/route')],
   ['/api/inventario', 'GET', ADMIN, () => import('@/app/api/inventario/route')],
   ['/api/inventario', 'POST', ADMIN, () => import('@/app/api/inventario/route')],
   ['/api/inventario', 'PUT', ADMIN, () => import('@/app/api/inventario/route')],
@@ -104,8 +115,8 @@ describe('matriz de permisos de la API', () => {
     };
     recorrer(raiz);
 
-    // Rutas deliberadamente públicas (login, sesión, logout y la portada del hub).
-    const PUBLICAS = ['POST /api/auth/verify-pin', 'GET /api/auth/session', 'POST /api/auth/logout', 'GET /api/hub-metrics'];
+    // Rutas deliberadamente públicas (login, sesión y logout). /api/hub-metrics dejó de serlo.
+    const PUBLICAS = ['POST /api/auth/verify-pin', 'GET /api/auth/session', 'POST /api/auth/logout'];
     const cubiertas = CASOS.map(([r, m]) => `${m} ${r}`);
     const sinCubrir = rutas.filter((r) => !cubiertas.includes(r) && !PUBLICAS.includes(r));
 

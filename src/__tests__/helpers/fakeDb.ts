@@ -9,6 +9,8 @@
  * Los pedidos del seed pueden traer `items` embebidos (cada uno con `producto: { nombre }` opcional);
  * se normalizan a las tablas `items` y `productos`.
  */
+import { usuarioDeLaCookie } from './session';
+
 type Row = Record<string, any>;
 type Seed = Partial<
   Record<
@@ -48,7 +50,8 @@ export function createFakeDb(seed: Seed = {}) {
   const state = {
     pedidos: [] as Row[],
     mesas: [...(seed.mesas ?? [])] as Row[],
-    usuarios: [...(seed.usuarios ?? [])] as Row[],
+    // Usuarios sembrados: activos salvo que el test diga lo contrario (como el default de Prisma).
+    usuarios: (seed.usuarios ?? []).map((u) => ({ activo: true, ...u })) as Row[],
     ventas: [...(seed.ventas ?? [])] as Row[],
     historial: [...(seed.historial ?? [])] as Row[],
     productos: [...(seed.productos ?? [])] as Row[],
@@ -356,7 +359,19 @@ export function createFakeDb(seed: Seed = {}) {
       },
     },
     usuario: {
-      findUnique: async ({ where }: any) => state.usuarios.find((r) => matches(r, where)) ?? null,
+      findUnique: async ({ where }: any) => {
+        const row = state.usuarios.find((r) => matches(r, where));
+        if (row) {
+          // Un usuario sembrado sin rol toma el de la sesión (tests anteriores a que requireAuth leyera la base).
+          const sesion = usuarioDeLaCookie();
+          return { ...row, rol: row.rol ?? (sesion?.id === row.id ? sesion.rol : undefined) };
+        }
+        // Tests que no siembran usuarios: el usuario con el que se inició sesión existe y está activo.
+        // Si el test siembra usuarios, solo existen esos (así se puede probar un usuario desactivado o borrado).
+        const sesion = usuarioDeLaCookie();
+        if (!seed.usuarios && sesion && where?.id === sesion.id) return { ...sesion, activo: true };
+        return null;
+      },
       findMany: async ({ where }: any = {}) => state.usuarios.filter((r) => matches(r, where)).map((r) => ({ ...r })),
       update: async ({ where, data }: any) => {
         const row = state.usuarios.find((r) => matches(r, where));

@@ -1,25 +1,37 @@
 /**
  * Límite de intentos fallidos de PIN, en memoria (se reinicia al reiniciar el servidor).
- * Con PIN de 4 dígitos (10.000 combinaciones) y 10 fallos / 5 min, probarlos todos llevaría días.
  *
- * Clave = IP indicada por un proxy (x-forwarded-for) o "local". Sin proxy, en modo LAN todos los
- * equipos comparten la clave "local": un atacante podría bloquear temporalmente el login de todos.
- * Es una compensación aceptada y documentada.
+ * Clave del cliente: NO se confía en `x-forwarded-for`. Next completa ese encabezado con la IP real solo si el
+ * cliente no lo mandó; si lo manda, respeta el valor recibido. Confiar en él permitía evadir el límite inventando
+ * una IP distinta en cada intento. Sin un proxy de confianza no hay forma fiable de distinguir equipos, así que
+ * todos comparten la clave "local". Con `TRUST_PROXY=1` (solo si hay un proxy que reescribe el encabezado) se usa
+ * la IP que informa el proxy.
+ *
+ * Bloqueo escalonado: cada MAX_FALLOS fallos seguidos se bloquea, y cada bloqueo dura el doble que el anterior
+ * (1, 2, 4, 8 y hasta 15 minutos). Con un PIN de 4 dígitos eso deja unos 10 intentos cada 15 minutos (~1.000 por
+ * día): recorrer las 10.000 combinaciones lleva días. Un login correcto, o una hora sin fallos, reinicia la escala.
+ *
+ * Compensación aceptada: como la clave es compartida, alguien en la red podría mantener bloqueado el login de todos
+ * fallando a propósito. Es preferible a un límite que se evade con un encabezado.
  */
 export const MAX_FALLOS = 10;
-export const VENTANA_MS = 5 * 60 * 1000;
-export const BLOQUEO_MS = 60 * 1000;
+export const BLOQUEO_INICIAL_MS = 60 * 1000;
+export const BLOQUEO_MAXIMO_MS = 15 * 60 * 1000;
+/** Sin fallos durante este tiempo, la escala de bloqueos vuelve a empezar. */
+export const OLVIDO_MS = 60 * 60 * 1000;
 
 interface Entrada {
   fallos: number;
-  desde: number;
+  bloqueos: number;
   bloqueadoHasta: number;
+  ultimoFallo: number;
 }
 
 const g = globalThis as unknown as { __loginIntentos?: Map<string, Entrada> };
 const intentos: Map<string, Entrada> = (g.__loginIntentos ??= new Map());
 
 export function claveCliente(req: Request): string {
+  if (process.env.TRUST_PROXY !== '1') return 'local';
   const forwarded = req.headers.get('x-forwarded-for');
   return forwarded?.split(',')[0].trim() || 'local';
 }
@@ -33,18 +45,20 @@ export function segundosBloqueado(clave: string, ahora: number = Date.now()): nu
 
 export function registrarFallo(clave: string, ahora: number = Date.now()): void {
   if (intentos.size > 1000) {
-    for (const [k, v] of intentos) if (v.bloqueadoHasta <= ahora && ahora - v.desde > VENTANA_MS) intentos.delete(k);
+    for (const [k, v] of intentos) if (v.bloqueadoHasta <= ahora && ahora - v.ultimoFallo > OLVIDO_MS) intentos.delete(k);
   }
   let e = intentos.get(clave);
-  if (!e || ahora - e.desde > VENTANA_MS) {
-    e = { fallos: 0, desde: ahora, bloqueadoHasta: 0 };
+  if (!e || ahora - e.ultimoFallo > OLVIDO_MS) {
+    e = { fallos: 0, bloqueos: 0, bloqueadoHasta: 0, ultimoFallo: ahora };
     intentos.set(clave, e);
   }
+  e.ultimoFallo = ahora;
   e.fallos += 1;
   if (e.fallos >= MAX_FALLOS) {
-    e.bloqueadoHasta = ahora + BLOQUEO_MS;
+    const duracion = Math.min(BLOQUEO_INICIAL_MS * 2 ** e.bloqueos, BLOQUEO_MAXIMO_MS);
+    e.bloqueadoHasta = ahora + duracion;
+    e.bloqueos += 1;
     e.fallos = 0;
-    e.desde = ahora;
   }
 }
 

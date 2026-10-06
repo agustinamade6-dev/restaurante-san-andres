@@ -214,10 +214,11 @@ describe('POST /api/checkout/pay — reglas de negocio y rollback', () => {
     expect(db.state.ventas).toHaveLength(0);
   });
 
-  it('400 si el usuario de la sesión ya no existe y hace rollback', async () => {
+  it('401 si el usuario de la sesión ya no existe (lo frena requireAuth) y no toca nada', async () => {
     await loginAs('MOZO', 999);
     const res = await pagar(valido);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
+    expect(db.state.ventas).toHaveLength(0);
     expect(db.state.pedidos[0].estado).toBe('entregado');
   });
 

@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeDb } from './helpers/fakeDb';
-import { cookieJar, loginAs, resetCookies } from './helpers/session';
-import { reiniciarLimites, MAX_FALLOS, BLOQUEO_MS } from '@/lib/rate-limit';
+import { cookieJar, loginAs, requestHeaders, resetCookies } from './helpers/session';
+import { reiniciarLimites, MAX_FALLOS, BLOQUEO_INICIAL_MS, BLOQUEO_MAXIMO_MS } from '@/lib/rate-limit';
 import { hashPin } from '@/lib/pin';
 import { verifySession } from '@/lib/session';
 
@@ -133,9 +133,28 @@ describe('límite de intentos de PIN', () => {
     for (let i = 0; i < MAX_FALLOS; i++) await login({ pin: '0000' });
     expect((await login({ pin: '3333' })).status).toBe(429);
 
-    vi.setSystemTime(Date.now() + BLOQUEO_MS + 1000);
+    vi.setSystemTime(Date.now() + BLOQUEO_INICIAL_MS + 1000);
 
     expect((await login({ pin: '3333' })).status).toBe(200);
+  });
+
+  it('cada bloqueo seguido dura el doble, hasta un máximo de 15 minutos', async () => {
+    vi.useFakeTimers();
+    const duraciones: number[] = [];
+    for (let ronda = 0; ronda < 6; ronda++) {
+      for (let i = 0; i < MAX_FALLOS; i++) await login({ pin: '0000' });
+      const res = await login({ pin: '3333' });
+      expect(res.status).toBe(429);
+      const segundos = Number(res.headers.get('Retry-After'));
+      duraciones.push(segundos);
+      vi.setSystemTime(Date.now() + segundos * 1000 + 1000);
+    }
+    expect(duraciones).toEqual([60, 120, 240, 480, 900, 900]);
+    expect(BLOQUEO_MAXIMO_MS).toBe(900_000);
+    // Pasado el último bloqueo, el PIN correcto entra y reinicia la escala.
+    expect((await login({ pin: '3333' })).status).toBe(200);
+    for (let i = 0; i < MAX_FALLOS; i++) await login({ pin: '0000' });
+    expect(Number((await login({ pin: '3333' })).headers.get('Retry-After'))).toBe(60);
   });
 
   it('un login correcto reinicia el contador', async () => {
@@ -144,12 +163,24 @@ describe('límite de intentos de PIN', () => {
     for (let i = 0; i < MAX_FALLOS - 1; i++) expect((await login({ pin: '0000' })).status).toBe(401);
   });
 
-  it('los intentos se cuentan por IP cuando hay proxy (x-forwarded-for)', async () => {
-    const atacante = { 'x-forwarded-for': '10.0.0.9' };
-    for (let i = 0; i < MAX_FALLOS; i++) await login({ pin: '0000' }, atacante);
+  it('REGRESIÓN: inventar x-forwarded-for en cada intento NO evade el límite (sin proxy de confianza)', async () => {
+    for (let i = 0; i < MAX_FALLOS; i++) await login({ pin: '0000' }, { 'x-forwarded-for': `10.0.0.${i}` });
 
-    expect((await login({ pin: '3333' }, atacante)).status).toBe(429);
-    expect((await login({ pin: '3333' }, { 'x-forwarded-for': '10.0.0.5' })).status).toBe(200);
+    expect((await login({ pin: '3333' }, { 'x-forwarded-for': '10.9.9.9' })).status).toBe(429);
+    expect((await login({ pin: '3333' })).status).toBe(429);
+  });
+
+  it('con TRUST_PROXY=1 los intentos se cuentan por la IP que informa el proxy', async () => {
+    vi.stubEnv('TRUST_PROXY', '1');
+    try {
+      const atacante = { 'x-forwarded-for': '10.0.0.9' };
+      for (let i = 0; i < MAX_FALLOS; i++) await login({ pin: '0000' }, atacante);
+
+      expect((await login({ pin: '3333' }, atacante)).status).toBe(429);
+      expect((await login({ pin: '3333' }, { 'x-forwarded-for': '10.0.0.5' })).status).toBe(200);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
@@ -168,6 +199,17 @@ describe('GET /api/auth/session y logout', () => {
     expect(await (await getSession()).json()).toEqual({ user: null });
   });
 
+  it('un usuario desactivado deja de tener sesión aunque la cookie no haya vencido', async () => {
+    await loginAs('MOZO', 3, 'Mozo Sala');
+    db.state.usuarios.find((u) => u.id === 3)!.activo = false;
+    expect(await (await getSession()).json()).toEqual({ user: null });
+  });
+
+  it('el rol y el nombre salen de la base, no del token', async () => {
+    await loginAs('ADMIN', 3, 'Nombre viejo'); // token con rol ADMIN, pero en la base es MOZO
+    expect(await (await getSession()).json()).toEqual({ user: { id: 3, nombre: 'Mozo Sala', rol: 'MOZO' } });
+  });
+
   it('logout borra la cookie', async () => {
     await loginAs('MOZO', 3);
     expect((await logout()).status).toBe(200);
@@ -184,7 +226,11 @@ describe('POST /api/auth/check-admin-pin', () => {
 
   it('con sesión: acepta el PIN de un administrador y rechaza el de un mozo', async () => {
     await loginAs('MOZO', 3);
-    expect((await check({ pin: '1111' })).status).toBe(200);
+    const ok = await check({ pin: '1111' });
+    expect(ok.status).toBe(200);
+    // Solo confirma: no revela de quién es el PIN, y la sesión del mozo no cambia.
+    expect(await ok.json()).toEqual({ success: true });
+    expect(cookieJar.sets).toHaveLength(0);
     expect((await check({ pin: '3333' })).status).toBe(403);
     expect((await check({ pin: '9999' })).status).toBe(401);
   });
@@ -252,5 +298,54 @@ describe('administración de usuarios', () => {
     await loginAs('ADMIN', 1);
     expect((await cambiar('999', { pin: '5555' })).status).toBe(404);
     expect((await cambiar('abc', { pin: '5555' })).status).toBe(400);
+  });
+});
+
+describe('usuario desactivado o borrado: la API lo rechaza en la siguiente petición', () => {
+  it('requireAuth devuelve 401 aunque la cookie siga vigente', async () => {
+    await loginAs('ADMIN', 1);
+    expect((await listarUsuarios()).status).toBe(200);
+    db.state.usuarios[0].activo = false;
+    expect((await listarUsuarios()).status).toBe(401);
+  });
+
+  it('un usuario que ya no existe tampoco pasa', async () => {
+    await loginAs('ADMIN', 99);
+    expect((await listarUsuarios()).status).toBe(401);
+  });
+
+  it('un cambio de rol en la base vale de inmediato (ADMIN degradado a MOZO → 403)', async () => {
+    await loginAs('ADMIN', 1);
+    db.state.usuarios[0].rol = 'MOZO';
+    expect((await listarUsuarios()).status).toBe(403);
+  });
+});
+
+describe('CSRF: peticiones desde otro sitio', () => {
+  it.each([
+    ['Origin de otro host', { origin: 'http://malo.example', host: 'localhost' }],
+    ['otro puerto de la misma IP', { origin: 'http://192.168.0.10:8080', host: '192.168.0.10:3000' }],
+    ['Sec-Fetch-Site: cross-site', { 'sec-fetch-site': 'cross-site' }],
+    ['Sec-Fetch-Site: same-site', { 'sec-fetch-site': 'same-site' }],
+    ['Origin opaco ("null")', { origin: 'null' }],
+  ])('403 en la API y en el login: %s', async (_n, encabezados) => {
+    await loginAs('ADMIN', 1);
+    for (const [k, v] of Object.entries(encabezados)) requestHeaders.set(k, v);
+    expect((await listarUsuarios()).status).toBe(403);
+
+    const res = await login({ pin: '3333' }, encabezados as Record<string, string>);
+    expect(res.status).toBe(403);
+    expect(cookieJar.sets).toHaveLength(0);
+  });
+
+  it('el mismo origen pasa (pantallas de la app y la app de escritorio)', async () => {
+    await loginAs('ADMIN', 1);
+    requestHeaders.set('origin', 'http://192.168.0.10:3000');
+    requestHeaders.set('host', '192.168.0.10:3000');
+    requestHeaders.set('sec-fetch-site', 'same-origin');
+    expect((await listarUsuarios()).status).toBe(200);
+
+    const res = await login({ pin: '3333' }, { origin: 'http://localhost', host: 'localhost', 'sec-fetch-site': 'same-origin' });
+    expect(res.status).toBe(200);
   });
 });

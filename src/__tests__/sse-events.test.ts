@@ -3,6 +3,21 @@ import { loginAs, logout, resetCookies } from './helpers/session';
 import eventEmitter from '@/lib/events';
 
 vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
+// El usuario de la sesión existe y está activo salvo que el test lo desactive (`usuarioActivo = false`).
+let usuarioActivo = true;
+vi.mock('@/lib/prisma', async () => {
+  const { usuarioDeLaCookie } = await import('./helpers/session');
+  return {
+    default: {
+      usuario: {
+        findUnique: async ({ where }: { where: { id: number } }) => {
+          const u = usuarioDeLaCookie();
+          return u && u.id === where.id ? { ...u, activo: usuarioActivo } : null;
+        },
+      },
+    },
+  };
+});
 
 import { GET } from '@/app/api/events/route';
 
@@ -11,6 +26,7 @@ const abrir = (signal?: AbortSignal) => GET(new Request('http://localhost/api/ev
 const leer = async (reader: ReadableStreamDefaultReader<Uint8Array>) => decoder.decode((await reader.read()).value);
 
 beforeEach(async () => {
+  usuarioActivo = true;
   vi.useFakeTimers();
   resetCookies();
   await loginAs('MOZO', 3);
@@ -50,6 +66,34 @@ describe('GET /api/events (SSE)', () => {
 
     expect(await leer(reader)).toContain('"heartbeat"');
     await reader.cancel();
+  });
+
+  it('si el usuario se desactiva, el siguiente heartbeat avisa "sesion-vencida" y cierra la conexión', async () => {
+    const res = await abrir();
+    const reader = res.body!.getReader();
+    await leer(reader);
+    expect(eventEmitter.listenerCount('*')).toBe(1);
+
+    usuarioActivo = false;
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(await leer(reader)).toContain('"sesion-vencida"');
+    expect((await reader.read()).done).toBe(true);
+    expect(eventEmitter.listenerCount('*')).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('si la sesión VENCE con la conexión abierta, también se corta', async () => {
+    const res = await abrir();
+    const reader = res.body!.getReader();
+    await leer(reader);
+
+    await vi.advanceTimersByTimeAsync(12 * 60 * 60 * 1000 + 30_000); // 12 h: vence la cookie
+
+    let texto = '';
+    for (let r = await reader.read(); !r.done; r = await reader.read()) texto += decoder.decode(r.value);
+    expect(texto).toContain('"sesion-vencida"');
+    expect(eventEmitter.listenerCount('*')).toBe(0);
   });
 
   it('reenvía a los clientes los eventos que emite el servidor', async () => {

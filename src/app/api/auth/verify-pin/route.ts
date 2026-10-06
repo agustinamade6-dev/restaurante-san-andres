@@ -3,8 +3,14 @@ import { cookies } from 'next/headers';
 import { autenticarPin, PIN_REGEX } from '@/lib/pin';
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from '@/lib/session';
 import { claveCliente, registrarExito, registrarFallo, segundosBloqueado } from '@/lib/rate-limit';
+import { origenPermitido } from '@/lib/origen';
 
 export async function POST(req: Request) {
+  // Login CSRF: una página de otro sitio no puede iniciar sesión en nombre de este equipo.
+  if (!origenPermitido(req.headers)) {
+    return NextResponse.json({ error: 'Origen de la petición no permitido' }, { status: 403 });
+  }
+
   try {
     const clave = claveCliente(req);
     const espera = segundosBloqueado(clave);

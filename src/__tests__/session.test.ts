@@ -74,4 +74,14 @@ describe('sesión firmada', () => {
       env.NODE_ENV = nodeEnv;
     }
   });
+
+  it('REGRESIÓN: sin SESSION_SECRET (desarrollo) ya no se acepta una sesión firmada con el texto fijo publicado', async () => {
+    delete (process.env as Record<string, string | undefined>).SESSION_SECRET;
+    const { createHmac } = await import('node:crypto');
+    const cuerpo = b64({ id: 1, nombre: 'Intruso', rol: 'ADMIN', exp: Math.floor(Date.now() / 1000) + 3600 });
+    const firma = createHmac('sha256', 'dev-only-insecure-secret-change-me-0123456789').update(cuerpo).digest('base64url');
+    expect(await verifySession(`${cuerpo}.${firma}`)).toBeNull();
+    // El secreto aleatorio del proceso sigue firmando y verificando normalmente.
+    expect(await verifySession(await signSession(user))).toEqual(user);
+  });
 });
