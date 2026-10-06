@@ -6,10 +6,10 @@ import { enPesos } from '@/lib/money';
 import { PEDIDOS_QUE_OCUPAN_MESA } from '@/lib/mesas';
 import eventEmitter from '@/lib/events';
 import { ApiError } from '@/lib/api-error';
+import { ESTADOS_FINALES } from '@/lib/pedidos';
 
 const bodySchema = z.object({ motivo: z.string().max(500).nullish() });
 
-const ESTADOS_FINALES = ['pagado', 'cancelado'];
 
 export async function PATCH(
   request: Request,

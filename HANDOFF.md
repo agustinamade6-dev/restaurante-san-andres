@@ -39,3 +39,7 @@ Revisión `code-review` de `master..HEAD`. **Corregido (backend):** ráfaga conc
 - Duplicados: `datePrefix`/`prefijoFecha`, listas de estados finales; `toLocaleString()` sin locale guardado en historial.
 - Un login correcto de otro usuario borra la escala de bloqueo (clave compartida); `.env.example` aún dice "valor inseguro por defecto".
 - No hay backend Python: quick-gate-python no aplica.
+
+### Segunda pasada (2026-10-06)
+Hecho: `escritura()` en `transaccion.ts` pone en fila también las escrituras sueltas (proveedores, productos, costos, inventario, PIN); `metricas` usa 1 consulta de ventas en vez de ~11; `ESTADOS_FINALES`, `prefijoFecha` y `formatoPesos` (es-AR) compartidos; tests nuevos (`escritura.test.ts`, SSE ante error de base). 799 tests, build y eslint OK.
+Sigue pendiente: restricción de `PATCH /api/mesas/[id]` a ADMIN (decisión), `hub-metrics` en el inicio y Inventario (frontend), decisiones abiertas.

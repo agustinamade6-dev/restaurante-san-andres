@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import { transaccion } from '@/lib/transaccion';
 import type { Prisma } from '@prisma/client';
-import { PREFIJO_ANULACION } from '@/lib/ventas';
+import { PREFIJO_ANULACION, formatoPesos, prefijoFecha } from '@/lib/ventas';
 import eventEmitter from '@/lib/events';
 import { MAX_MONTO_PESOS, aCentavos, aPesos, dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { datosNegocio } from '@/lib/negocio';
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     const cajeroId = auth.session.id;
 
     const hoy = new Date();
-    const datePrefix = `${hoy.getFullYear()}${(hoy.getMonth() + 1).toString().padStart(2, '0')}${hoy.getDate().toString().padStart(2, '0')}`;
+    const datePrefix = prefijoFecha(hoy);
 
     const resultado = await transaccion(async (tx) => {
       // 1. Guard atómico: solo UNA petición puede pasar el pedido a "pagado".
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
         data: {
           pedidoId,
           accion: 'COBRADO',
-          detalle: `Cobro registrado por $${aPesos(total).toLocaleString()} — ${metodoPago.toUpperCase()}`,
+          detalle: `Cobro registrado por $${formatoPesos(aPesos(total))} — ${metodoPago.toUpperCase()}`,
           usuarioId: cajeroId,
         },
       });

@@ -5,12 +5,14 @@ import eventEmitter from '@/lib/events';
 vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
 // El usuario de la sesión existe y está activo salvo que el test lo desactive (`usuarioActivo = false`).
 let usuarioActivo = true;
+let fallaBase = false;
 vi.mock('@/lib/prisma', async () => {
   const { usuarioDeLaCookie } = await import('./helpers/session');
   return {
     default: {
       usuario: {
         findUnique: async ({ where }: { where: { id: number } }) => {
+          if (fallaBase) throw new Error('SQLITE_BUSY');
           const u = usuarioDeLaCookie();
           return u && u.id === where.id ? { ...u, activo: usuarioActivo } : null;
         },
@@ -27,6 +29,7 @@ const leer = async (reader: ReadableStreamDefaultReader<Uint8Array>) => decoder.
 
 beforeEach(async () => {
   usuarioActivo = true;
+  fallaBase = false;
   vi.useFakeTimers();
   resetCookies();
   await loginAs('MOZO', 3);
@@ -79,6 +82,19 @@ describe('GET /api/events (SSE)', () => {
 
     expect(await leer(reader)).toContain('"sesion-vencida"');
     expect((await reader.read()).done).toBe(true);
+    expect(eventEmitter.listenerCount('*')).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('REGRESIÓN: si el heartbeat falla por un error de la base, el stream se cierra con error (el cliente reconecta)', async () => {
+    const res = await abrir();
+    const reader = res.body!.getReader();
+    await leer(reader);
+
+    fallaBase = true;
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await expect(reader.read()).rejects.toThrow('SQLITE_BUSY');
     expect(eventEmitter.listenerCount('*')).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
   });

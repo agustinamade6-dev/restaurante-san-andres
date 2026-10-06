@@ -36,3 +36,8 @@ Al cerrar un bloque de trabajo: si hubo una corrección a mano, agregar una fila
 | 26 | Reemplazos por script que no coincidían con el código real (import distinto, texto repetido) y se aplicaban a medias. | Releer el fragmento y editar a mano; scripts que abortan ante cualquier diferencia. | L-057 | sesión 2026-10-06 |
 | 27 | El evento de cancelación anunciaba la mesa con el estado leído antes de liberarla. | Emitir la mesa ya actualizada y solo si cambió. | L-043 | commit 13, AT-32 |
 
+
+## Reemplazos masivos con script (cierre de calidad, 2026-10-06)
+- **Error:** un script que envolvía `prisma.X.create(...)` en `escritura(() => ...)` dejó `await` dentro de una lambda no async, y los reemplazos con `\n` no coincidían porque los archivos son CRLF.
+- **Regla:** tras un cambio automático, correr el compilador antes de seguir; en regex sobre archivos del repo usar `\r?\n`; sacar los `await` de la lambda antes de envolverla.
+- **Cómo verificarlo:** `npm test` + `npm run build` (el build detectó además `readonly string[]` incompatible con `notIn`).

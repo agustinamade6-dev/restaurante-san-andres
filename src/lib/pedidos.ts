@@ -14,3 +14,6 @@ export const TRANSICIONES: Record<string, readonly string[]> = {
   listo: ['entregado', 'preparando'],
   entregado: ['preparando'],
 };
+
+/** Estados de los que un pedido ya no sale (ver TRANSICIONES). */
+export const ESTADOS_FINALES: string[] = ['pagado', 'cancelado'];

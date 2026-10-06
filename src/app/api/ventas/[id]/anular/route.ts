@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/auth';
 import { transaccion } from '@/lib/transaccion';
 import { ApiError } from '@/lib/api-error';
 import { aPesos, enPesos } from '@/lib/money';
-import { PREFIJO_ANULACION, esAnulacion } from '@/lib/ventas';
+import { PREFIJO_ANULACION, esAnulacion, formatoPesos, prefijoFecha as prefijoDeFecha } from '@/lib/ventas';
 import { reintegrarStockDeVenta } from '@/lib/stock';
 
 const bodySchema = z.object({
@@ -44,7 +44,7 @@ export async function POST(
     const usuarioId = auth.session.id;
 
     const hoy = new Date();
-    const prefijoFecha = `${hoy.getFullYear()}${(hoy.getMonth() + 1).toString().padStart(2, '0')}${hoy.getDate().toString().padStart(2, '0')}`;
+    const prefijoFecha = prefijoDeFecha(hoy);
 
     const { original, anulacion } = await transaccion(async (tx) => {
       // Escritura inicial neutra: toma el lock de escritura para que dos anulaciones simultáneas se serialicen.
@@ -89,7 +89,7 @@ export async function POST(
           data: {
             pedidoId: original.pedidoId,
             accion: 'VENTA_ANULADA',
-            detalle: `Venta ${original.numeroTicket || `#${original.id}`} anulada por $${aPesos(original.total).toLocaleString()}`,
+            detalle: `Venta ${original.numeroTicket || `#${original.id}`} anulada por $${formatoPesos(aPesos(original.total))}`,
             motivo,
             usuarioId,
           },

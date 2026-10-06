@@ -68,3 +68,14 @@ export function marcarAnuladas<T extends VentaMinima>(ventas: T[]): (T & { esAnu
     anulada: v.id !== undefined && anuladas.has(v.id),
   }));
 }
+
+/** Prefijo AAAAMMDD de los números de ticket (hora local del servidor). */
+export function prefijoFecha(fecha: Date = new Date()): string {
+  const mm = (fecha.getMonth() + 1).toString().padStart(2, '0');
+  return `${fecha.getFullYear()}${mm}${fecha.getDate().toString().padStart(2, '0')}`;
+}
+
+/** Monto en pesos con formato fijo (es-AR), igual en cualquier equipo; se guarda en el historial. */
+export function formatoPesos(pesos: number): string {
+  return pesos.toLocaleString('es-AR');
+}

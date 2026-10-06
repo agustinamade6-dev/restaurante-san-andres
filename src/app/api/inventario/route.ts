@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { escritura } from '@/lib/transaccion';
 import { enPesos } from '@/lib/money';
 import { crearInsumoSchema, editarInsumoSchema } from '@/lib/catalogo';
 import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
@@ -39,10 +40,10 @@ export async function POST(request: Request) {
       if (!proveedor) return error('El proveedor no existe', 400);
     }
 
-    const insumo = await prisma.insumo.create({
+    const insumo = await escritura(() => prisma.insumo.create({
       data: { ...datos, proveedorId: datos.proveedorId ?? null },
       include: { proveedor: true },
-    });
+    }));
     return NextResponse.json(enPesos(insumo), { status: 201 });
   } catch (e) {
     console.error('Error creating insumo:', e);
@@ -77,11 +78,11 @@ export async function PUT(request: Request) {
       if (!proveedor) return error('El proveedor no existe', 400);
     }
 
-    const insumo = await prisma.insumo.update({
+    const insumo = await escritura(() => prisma.insumo.update({
       where: { id },
       data: cambios,
       include: { proveedor: true },
-    });
+    }));
     return NextResponse.json(enPesos(insumo));
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Insumo no encontrado', 404);
@@ -119,7 +120,7 @@ export async function DELETE(request: Request) {
       return error('No se puede eliminar un insumo con movimientos de stock registrados.', 400);
     }
 
-    await prisma.insumo.delete({ where: { id } });
+    await escritura(() => prisma.insumo.delete({ where: { id } }));
     return NextResponse.json({ success: true });
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Insumo no encontrado', 404);

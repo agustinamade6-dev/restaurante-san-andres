@@ -6,7 +6,7 @@ import { transaccion } from '@/lib/transaccion';
 import eventEmitter from '@/lib/events';
 import { dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, cantidadItem } from '@/lib/api-error';
-import { TRANSICIONES } from '@/lib/pedidos';
+import { ESTADOS_FINALES, TRANSICIONES } from '@/lib/pedidos';
 import { PEDIDOS_QUE_OCUPAN_MESA } from '@/lib/mesas';
 
 export async function GET() {
@@ -133,7 +133,6 @@ export async function POST(request: Request) {
 
 // Estados finales: un pedido "pagado" o "cancelado" no vuelve a abrirse.
 // Corregir un cobro se hace anulando la venta (POST /api/ventas/[id]/anular), no reabriendo el pedido.
-const ESTADOS_FINALES = ['pagado', 'cancelado'];
 const ESTADOS_ABIERTOS = ['pendiente', 'preparando', 'listo', 'entregado'];
 
 const cambiarEstadoSchema = z.object({

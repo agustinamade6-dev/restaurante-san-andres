@@ -23,22 +23,22 @@ export async function GET() {
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Ventas del día
-    const ventasHoy = await prisma.venta.findMany({
-      where: { fechaCobro: { gte: todayStart } },
-    });
+    // Una sola consulta: desde el inicio más antiguo que necesita algún bloque (mes, semana, 7 días o 4 semanas);
+    // hoy, semana, mes y cada día/semana se obtienen filtrando en memoria.
+    const inicioSemanas = new Date(todayStart);
+    inicioSemanas.setDate(inicioSemanas.getDate() - inicioSemanas.getDay() - 3 * 7);
+    const inicioDias = new Date(todayStart);
+    inicioDias.setDate(inicioDias.getDate() - 6);
+    const desde = new Date(Math.min(monthStart.getTime(), weekStart.getTime(), inicioSemanas.getTime(), inicioDias.getTime()));
+    const ventas = await prisma.venta.findMany({ where: { fechaCobro: { gte: desde } } });
+    const entre = (ini: Date, fin?: Date) =>
+      ventas.filter((v) => v.fechaCobro >= ini && (!fin || v.fechaCobro < fin));
+
+    const ventasHoy = entre(todayStart);
     const totalHoy = sumarIngresos(ventasHoy);
-
-    // Ventas de la semana
-    const ventasSemana = await prisma.venta.findMany({
-      where: { fechaCobro: { gte: weekStart } },
-    });
+    const ventasSemana = entre(weekStart);
     const totalSemana = sumarIngresos(ventasSemana);
-
-    // Ventas del mes
-    const ventasMes = await prisma.venta.findMany({
-      where: { fechaCobro: { gte: monthStart } },
-    });
+    const ventasMes = entre(monthStart);
     const totalMes = sumarIngresos(ventasMes);
     const propinasMes = ventasMes.reduce((s, v) => s + (v.propina || 0), 0);
 
@@ -80,9 +80,7 @@ export async function GET() {
       dia.setDate(dia.getDate() - i);
       const finDia = new Date(dia);
       finDia.setDate(finDia.getDate() + 1);
-      const ventasDia = await prisma.venta.findMany({
-        where: { fechaCobro: { gte: dia, lt: finDia } },
-      });
+      const ventasDia = entre(dia, finDia);
       ventasPorDia.push({
         dia: dia.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }),
         total: aPesos(sumarIngresos(ventasDia)),
@@ -97,9 +95,7 @@ export async function GET() {
       inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay() - i * 7);
       const finSemana = new Date(inicioSemana);
       finSemana.setDate(finSemana.getDate() + 7);
-      const ventasS = await prisma.venta.findMany({
-        where: { fechaCobro: { gte: inicioSemana, lt: finSemana } },
-      });
+      const ventasS = entre(inicioSemana, finSemana);
       ventasPorSemana.push({
         semana: `Sem ${4 - i}`,
         total: aPesos(sumarIngresos(ventasS)),

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { escritura } from '@/lib/transaccion';
 import { enPesos } from '@/lib/money';
 import { crearProductoSchema, editarProductoSchema } from '@/lib/catalogo';
 import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     const categoria = await prisma.categoria.findUnique({ where: { id: body.categoriaId } });
     if (!categoria) return error('La categoría no existe', 400);
 
-    const producto = await prisma.producto.create({
+    const producto = await escritura(() => prisma.producto.create({
       data: {
         nombre: body.nombre,
         descripcion: body.descripcion || '',
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
         imagen: body.imagen || '',
       },
       include: { categoria: true },
-    });
+    }));
     return NextResponse.json(enPesos(producto), { status: 201 });
   } catch (e) {
     console.error('Error creating producto:', e);
@@ -84,11 +85,11 @@ export async function PUT(request: Request) {
       if (!categoria) return error('La categoría no existe', 400);
     }
 
-    const producto = await prisma.producto.update({
+    const producto = await escritura(() => prisma.producto.update({
       where: { id },
       data: datos,
       include: { categoria: true },
-    });
+    }));
     return NextResponse.json(enPesos(producto));
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Producto no encontrado', 404);
@@ -115,7 +116,7 @@ export async function DELETE(request: Request) {
       return error('No se puede eliminar un producto con pedidos registrados. Marcalo como no disponible.', 400);
     }
 
-    await prisma.producto.delete({ where: { id } });
+    await escritura(() => prisma.producto.delete({ where: { id } }));
     return NextResponse.json({ success: true });
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Producto no encontrado', 404);
