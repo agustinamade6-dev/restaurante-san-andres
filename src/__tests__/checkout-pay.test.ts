@@ -90,7 +90,7 @@ describe('POST /api/checkout/pay — camino feliz', () => {
   });
 
   it('no libera la mesa si hay otro pedido activo en ella', async () => {
-    db.state.pedidos.push(pedidoBase({ id: 2, estado: 'preparando' }));
+    db.addPedido(pedidoBase({ id: 2, estado: 'preparando' }));
 
     await pagar(valido);
 
@@ -100,7 +100,7 @@ describe('POST /api/checkout/pay — camino feliz', () => {
 
 describe('POST /api/checkout/pay — numeración de tickets', () => {
   it('genera tickets correlativos T-AAAAMMDD-NNNN', async () => {
-    db.state.pedidos.push(pedidoBase({ id: 2 }));
+    db.addPedido(pedidoBase({ id: 2 }));
 
     const a = await (await pagar(valido)).json();
     const b = await (await pagar({ ...valido, pedidoId: 2 })).json();
@@ -138,7 +138,7 @@ describe('POST /api/checkout/pay — idempotencia y concurrencia (modelo single-
   });
 
   it('cobros simultáneos de pedidos distintos no repiten el número de ticket', async () => {
-    db.state.pedidos.push(pedidoBase({ id: 2 }));
+    db.addPedido(pedidoBase({ id: 2 }));
 
     await Promise.all([pagar(valido), pagar({ ...valido, pedidoId: 2 })]);
 
@@ -204,7 +204,7 @@ describe('POST /api/checkout/pay — reglas de negocio y rollback', () => {
   });
 
   it('400 si el pedido no tiene ítems', async () => {
-    db.state.pedidos[0].items = [];
+    db.state.items.length = 0;
     const res = await pagar(valido);
     expect(res.status).toBe(400);
     expect(db.state.pedidos[0].estado).toBe('entregado');

@@ -5,8 +5,12 @@
  * LIMITACIÓN (importante): modela SQLite con un único escritor (las transacciones se serializan
  * con un mutex) y rollback completo ante una excepción. NO reemplaza una prueba contra SQLite real:
  * valida la lógica de la ruta, no el comportamiento del motor.
+ *
+ * Los pedidos del seed pueden traer `items` embebidos (cada uno con `producto: { nombre }` opcional);
+ * se normalizan a las tablas `items` y `productos`.
  */
 type Row = Record<string, any>;
+type Seed = Partial<Record<'pedidos' | 'mesas' | 'usuarios' | 'ventas' | 'historial' | 'productos' | 'items', Row[]>>;
 
 function matches(row: Row, where: Row = {}): boolean {
   return Object.entries(where).every(([key, cond]) => {
@@ -21,27 +25,51 @@ function matches(row: Row, where: Row = {}): boolean {
   });
 }
 
-export function createFakeDb(seed: Partial<Record<'pedidos' | 'mesas' | 'usuarios' | 'ventas' | 'historial', Row[]>> = {}) {
+export function createFakeDb(seed: Seed = {}) {
   const state = {
-    pedidos: [...(seed.pedidos ?? [])] as Row[],
+    pedidos: [] as Row[],
     mesas: [...(seed.mesas ?? [])] as Row[],
     usuarios: [...(seed.usuarios ?? [])] as Row[],
     ventas: [...(seed.ventas ?? [])] as Row[],
     historial: [...(seed.historial ?? [])] as Row[],
+    productos: [...(seed.productos ?? [])] as Row[],
+    items: [...(seed.items ?? [])] as Row[],
   };
   let nextId = 1000;
   const failOn = new Set<string>();
+
+  const addPedido = (p: Row) => {
+    const { items = [], ...pedido } = p;
+    state.pedidos.push(pedido);
+    for (const it of items) {
+      const { producto, ...item } = it;
+      if (producto && !state.productos.some((x) => x.id === item.productoId)) {
+        state.productos.push({ id: item.productoId, disponible: true, precio: item.precio, ...producto });
+      }
+      state.items.push({ id: nextId++, pedidoId: pedido.id, notas: '', ...item });
+    }
+  };
+  (seed.pedidos ?? []).forEach(addPedido);
+
+  const guard = (name: string) => {
+    if (failOn.has(name)) throw new Error(`fallo simulado en ${name}`);
+  };
+
+  const itemWithRel = (it: Row, include?: Row) => ({
+    ...it,
+    ...(include?.producto ? { producto: state.productos.find((p) => p.id === it.productoId) } : {}),
+  });
 
   const withRelations = (p: Row | undefined, include?: Row) => {
     if (!p) return null;
     const out: Row = { ...p };
     if (include?.mesa) out.mesa = state.mesas.find((m) => m.id === p.mesaId);
-    if (!include?.items) delete out.items;
+    if (include?.items) {
+      out.items = state.items
+        .filter((i) => i.pedidoId === p.id)
+        .map((i) => itemWithRel(i, include.items.include));
+    }
     return out;
-  };
-
-  const guard = (name: string) => {
-    if (failOn.has(name)) throw new Error(`fallo simulado en ${name}`);
   };
 
   const api: any = {
@@ -53,7 +81,15 @@ export function createFakeDb(seed: Partial<Record<'pedidos' | 'mesas' | 'usuario
       },
       findUnique: async ({ where, include, select }: any) => {
         const row = state.pedidos.find((r) => matches(r, where));
-        if (select && row) return { id: row.id };
+        if (select && row) return { id: row.id, estado: row.estado };
+        return withRelations(row, include);
+      },
+      create: async ({ data, include }: any) => {
+        guard('pedido.create');
+        const { items, ...rest } = data;
+        const row = { id: nextId++, ...rest };
+        state.pedidos.push(row);
+        for (const it of items?.create ?? []) state.items.push({ id: nextId++, pedidoId: row.id, ...it });
         return withRelations(row, include);
       },
       update: async ({ where, data, include }: any) => {
@@ -63,6 +99,34 @@ export function createFakeDb(seed: Partial<Record<'pedidos' | 'mesas' | 'usuario
         return withRelations(row, include);
       },
       count: async ({ where }: any) => state.pedidos.filter((r) => matches(r, where)).length,
+    },
+    itemPedido: {
+      create: async ({ data }: any) => {
+        guard('itemPedido.create');
+        const row = { id: nextId++, ...data };
+        state.items.push(row);
+        return row;
+      },
+      findUnique: async ({ where, include }: any) => {
+        const row = state.items.find((r) => matches(r, where));
+        return row ? itemWithRel(row, include) : null;
+      },
+      findMany: async ({ where }: any) => state.items.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+      update: async ({ where, data }: any) => {
+        const row = state.items.find((r) => matches(r, where));
+        if (!row) throw new Error('Item no existe');
+        Object.assign(row, data);
+        return row;
+      },
+      delete: async ({ where }: any) => {
+        const idx = state.items.findIndex((r) => matches(r, where));
+        if (idx < 0) throw new Error('Item no existe');
+        return state.items.splice(idx, 1)[0];
+      },
+    },
+    producto: {
+      findMany: async ({ where }: any) => state.productos.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+      findUnique: async ({ where }: any) => state.productos.find((r) => matches(r, where)) ?? null,
     },
     venta: {
       count: async ({ where }: any) => state.ventas.filter((r) => matches(r, where)).length,
@@ -74,6 +138,7 @@ export function createFakeDb(seed: Partial<Record<'pedidos' | 'mesas' | 'usuario
       },
     },
     mesa: {
+      findUnique: async ({ where }: any) => state.mesas.find((r) => matches(r, where)) ?? null,
       update: async ({ where, data }: any) => {
         const row = state.mesas.find((r) => matches(r, where));
         if (!row) throw new Error('Mesa no existe');
@@ -112,5 +177,5 @@ export function createFakeDb(seed: Partial<Record<'pedidos' | 'mesas' | 'usuario
     return result;
   };
 
-  return { prisma: api, state, failOn };
+  return { prisma: api, state, failOn, addPedido };
 }

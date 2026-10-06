@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
+import { roundMoney } from '@/lib/money';
+import { ApiError, MAX_CANTIDAD_ITEM } from '@/lib/api-error';
 
 export async function GET() {
   try {
@@ -24,6 +27,23 @@ export async function GET() {
 
 import { cookies } from 'next/headers';
 
+// El precio NO se acepta del cliente: se toma siempre de Producto.precio.
+// Si el frontend envía "precio", zod lo descarta (no es error, para no romper el contrato).
+const crearPedidoSchema = z.object({
+  mesaId: z.coerce.number().int().positive(),
+  items: z
+    .array(
+      z.object({
+        productoId: z.coerce.number().int().positive(),
+        cantidad: z.coerce.number().int().min(1).max(MAX_CANTIDAD_ITEM),
+        notas: z.string().max(500).nullish(),
+      })
+    )
+    .min(1, 'El pedido debe tener al menos un ítem')
+    .max(100),
+  notas: z.string().max(500).nullish(),
+});
+
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
@@ -34,49 +54,62 @@ export async function POST(request: Request) {
     }
     const usuarioId = sessionData?.id;
 
-    const body = await request.json();
-    const { mesaId, items, notas } = body;
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Cuerpo JSON inválido' }, { status: 400 });
+    }
+    const parsed = crearPedidoSchema.safeParse(raw);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const campo = issue.path.join('.');
+      return NextResponse.json(
+        { success: false, error: campo ? `${campo}: ${issue.message}` : issue.message },
+        { status: 400 }
+      );
+    }
+    const { mesaId, items, notas } = parsed.data;
 
-    // Calculate total
-    const total = items.reduce(
-      (sum: number, item: { precio: number; cantidad: number }) =>
-        sum + item.precio * item.cantidad,
-      0
-    );
+    const pedido = await prisma.$transaction(async (tx) => {
+      const mesa = await tx.mesa.findUnique({ where: { id: mesaId }, select: { id: true, activa: true } });
+      if (!mesa) throw new ApiError(404, 'Mesa no encontrada');
+      if (!mesa.activa) throw new ApiError(400, 'La mesa no está activa');
 
-    const pedido = await prisma.pedido.create({
-      data: {
-        mesaId,
-        creadoPorId: usuarioId || null,
-        estado: 'pendiente',
-        total,
-        notas: notas || '',
-        items: {
-          create: items.map(
-            (item: {
-              productoId: number;
-              cantidad: number;
-              precio: number;
-              notas?: string;
-            }) => ({
-              productoId: item.productoId,
-              cantidad: item.cantidad,
-              precio: item.precio,
-              notas: item.notas || '',
-            })
-          ),
+      const ids = [...new Set(items.map((i) => i.productoId))];
+      const productos = await tx.producto.findMany({ where: { id: { in: ids } } });
+      const porId = new Map(productos.map((p) => [p.id, p]));
+      for (const id of ids) {
+        const producto = porId.get(id);
+        if (!producto) throw new ApiError(400, `El producto ${id} no existe`);
+        if (!producto.disponible) throw new ApiError(400, `"${producto.nombre}" no está disponible`);
+      }
+
+      const lineas = items.map((item) => ({
+        productoId: item.productoId,
+        cantidad: item.cantidad,
+        precio: porId.get(item.productoId)!.precio,
+        notas: item.notas || '',
+      }));
+      const total = roundMoney(lineas.reduce((sum, l) => sum + l.precio * l.cantidad, 0));
+
+      const creado = await tx.pedido.create({
+        data: {
+          mesaId,
+          creadoPorId: usuarioId || null,
+          estado: 'pendiente',
+          total,
+          notas: notas || '',
+          items: { create: lineas },
         },
-      },
-      include: {
-        mesa: true,
-        items: { include: { producto: true } },
-      },
-    });
+        include: {
+          mesa: true,
+          items: { include: { producto: true } },
+        },
+      });
 
-    // Update mesa status
-    await prisma.mesa.update({
-      where: { id: mesaId },
-      data: { estado: 'ocupada' },
+      await tx.mesa.update({ where: { id: mesaId }, data: { estado: 'ocupada' } });
+      return creado;
     });
 
     // Emit real-time event
@@ -84,8 +117,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(pedido, { status: 201 });
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error('Error creating pedido:', error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al crear pedido' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Error al crear pedido' }, { status: 500 });
   }
 }
 
