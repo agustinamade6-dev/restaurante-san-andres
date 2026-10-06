@@ -1,6 +1,6 @@
 {
   "name": "restaurante-san-andres",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -16,6 +16,7 @@
     "postinstall": "prisma generate",
     "desktop:prepare": "node scripts/prepare-desktop.mjs",
     "desktop:test": "npm run build && npm run desktop:prepare && electron .",
+    "test:sse": "electron scripts/test-sse-comandas.js",
     "dist:win": "npm run build && npm run desktop:prepare && electron-builder --win nsis --x64",
     "test": "vitest run",
     "test:watch": "vitest"

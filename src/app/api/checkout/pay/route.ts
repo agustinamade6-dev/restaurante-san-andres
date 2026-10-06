@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
+import eventEmitter from '@/lib/events';
 import { aCentavos, aPesos, enPesos, subtotalCentavos } from '@/lib/money';
 import { datosNegocio } from '@/lib/negocio';
 import { descontarStockDeVenta } from '@/lib/stock';
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     const today = new Date();
     const datePrefix = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
 
-    const { venta, pedido, subtotal, total, numeroTicket, numeroControlInterno } =
+    const { venta, pedido, subtotal, total, numeroTicket, numeroControlInterno, mesaLiberada } =
       await prisma.$transaction(async (tx) => {
         // 1. Guard atómico e idempotente: solo UNA petición puede pasar el pedido a "pagado".
         //    Hacerlo primero (una escritura) evita que dos cobros simultáneos lean el mismo estado.
@@ -118,7 +119,8 @@ export async function POST(request: Request) {
         const otrosActivos = await tx.pedido.count({
           where: { mesaId: pedido.mesaId, id: { not: pedidoId }, estado: { in: ESTADOS_ACTIVOS } },
         });
-        if (otrosActivos === 0) {
+        const mesaLiberada = otrosActivos === 0;
+        if (mesaLiberada) {
           await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'libre' } });
         }
 
@@ -131,8 +133,12 @@ export async function POST(request: Request) {
           },
         });
 
-        return { venta, pedido, subtotal, total, numeroTicket, numeroControlInterno };
+        return { venta, pedido, subtotal, total, numeroTicket, numeroControlInterno, mesaLiberada };
       });
+
+    // Tiempo real: comanderas y cocina ven el pedido cobrado y, si quedó libre, la mesa liberada (montos en pesos).
+    eventEmitter.emit('pedido:actualizado', enPesos({ ...pedido, total: subtotal, estado: 'pagado' }));
+    if (mesaLiberada) eventEmitter.emit('mesa:actualizada', { ...pedido.mesa, estado: 'libre' });
 
     // Los tickets se arman en pesos (contrato con el frontend).
     const lineas = pedido.items.map((i) => ({

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import eventEmitter from '@/lib/events';
 import { ApiError } from '@/lib/api-error';
 import { layoutSchema } from '@/lib/mesas';
 
@@ -34,6 +35,7 @@ export async function PUT(request: Request) {
       }
     });
 
+    eventEmitter.emit('mesa:actualizada', { layout: true });
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof ApiError) {

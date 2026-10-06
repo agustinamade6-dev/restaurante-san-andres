@@ -13,6 +13,7 @@ vi.mock('next/headers', async () => (await import('./helpers/session')).nextHead
 import { POST as CREAR, PATCH as ESTADO } from '@/app/api/mesas/route';
 import { PATCH as EDITAR, DELETE as ELIMINAR } from '@/app/api/mesas/[id]/route';
 import { PUT as LAYOUT } from '@/app/api/mesas/layout/route';
+import eventEmitter from '@/lib/events';
 
 const mesa = (id: number, over: Record<string, unknown> = {}) => ({
   id,
@@ -342,5 +343,28 @@ describe('PUT /api/mesas/layout — guardar la distribución', () => {
       expect((await layout({ mesas: [{ id: 1, posX: 1, posY: 1 }] })).status).toBe(403);
     }
     expect(db.state.mesas[0].posX).toBe(10);
+  });
+});
+
+describe('tiempo real (SSE): cada cambio de mesa se avisa a las otras pantallas', () => {
+  const emit = () => eventEmitter.emit as unknown as ReturnType<typeof vi.fn>;
+  beforeEach(() => emit().mockClear());
+
+  it.each([
+    ['crear', () => crear({ numero: 30, capacidad: 2, sector: 'salon', forma: 'round', posX: 0, posY: 0 })],
+    ['reactivar una eliminada', () => crear({ numero: 18, capacidad: 2, sector: 'salon', forma: 'round', posX: 0, posY: 0 })],
+    ['cambiar el estado', () => estado({ id: 1, estado: 'ocupada' })],
+    ['editar', () => editar(1, { capacidad: 6 })],
+    ['eliminar', () => eliminar(2)],
+    ['mover el plano', () => layout({ mesas: [{ id: 1, posX: 5, posY: 5 }] })],
+  ])('%s emite mesa:actualizada', async (_n, accion) => {
+    expect((await accion()).status).toBeLessThan(300);
+    expect(emit()).toHaveBeenCalledWith('mesa:actualizada', expect.anything());
+  });
+
+  it('una operación rechazada no emite', async () => {
+    expect((await crear({ numero: 1, capacidad: 2, sector: 'salon', forma: 'round', posX: 0, posY: 0 })).status).toBe(400);
+    expect((await layout({ mesas: [{ id: 777, posX: 1, posY: 1 }] })).status).toBe(400);
+    expect(emit()).not.toHaveBeenCalled();
   });
 });

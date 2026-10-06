@@ -12,6 +12,7 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
 
 import { POST } from '@/app/api/checkout/pay/route';
+import eventEmitter from '@/lib/events';
 
 const hoy = () => {
   const d = new Date();
@@ -309,5 +310,34 @@ describe('POST /api/checkout/pay — datos del comercio en el ticket (AT-16)', (
     expect(Object.keys(ticketInterno)).toEqual(
       expect.arrayContaining(['tipo', 'numeroControlInterno', 'numeroTicket', 'fecha', 'mesa', 'sector', 'items', 'subtotal', 'propina', 'total', 'metodoPago', 'ventaId', 'operadorId'])
     );
+  });
+});
+
+describe('POST /api/checkout/pay — tiempo real (SSE)', () => {
+  it('emite el pedido cobrado con los montos en pesos y la mesa liberada', async () => {
+    const emit = vi.spyOn(eventEmitter, 'emit');
+    expect((await pagar(valido)).status).toBe(200);
+    expect(emit).toHaveBeenCalledWith(
+      'pedido:actualizado',
+      expect.objectContaining({ id: 1, estado: 'pagado', total: 3800.5, items: expect.arrayContaining([expect.objectContaining({ precio: 1500 })]) })
+    );
+    expect(emit).toHaveBeenCalledWith('mesa:actualizada', expect.objectContaining({ id: 10, estado: 'libre' }));
+    emit.mockRestore();
+  });
+
+  it('si la mesa sigue con otro pedido activo, no la anuncia como libre', async () => {
+    db.addPedido({ id: 2, mesaId: 10, estado: 'preparando', total: 0, items: [] });
+    const emit = vi.spyOn(eventEmitter, 'emit');
+    expect((await pagar(valido)).status).toBe(200);
+    expect(emit).toHaveBeenCalledWith('pedido:actualizado', expect.anything());
+    expect(emit).not.toHaveBeenCalledWith('mesa:actualizada', expect.anything());
+    emit.mockRestore();
+  });
+
+  it('un cobro rechazado no emite eventos', async () => {
+    const emit = vi.spyOn(eventEmitter, 'emit');
+    expect((await pagar({ ...valido, pedidoId: 999 })).status).toBe(404);
+    expect(emit).not.toHaveBeenCalled();
+    emit.mockRestore();
   });
 });

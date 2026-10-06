@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import eventEmitter from '@/lib/events';
 import { ApiError } from '@/lib/api-error';
 import { PEDIDOS_QUE_BLOQUEAN_BORRADO, editarMesaSchema, mensajeZod } from '@/lib/mesas';
 
@@ -68,6 +69,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
     });
 
+    eventEmitter.emit('mesa:actualizada', mesa);
     return NextResponse.json(mesa);
   } catch (error) {
     if (error instanceof ApiError) {
@@ -114,6 +116,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       }
     });
 
+    eventEmitter.emit('mesa:actualizada', { id, activa: false });
     return NextResponse.json({ success: true, tableId: id });
   } catch (error) {
     if (error instanceof ApiError) {

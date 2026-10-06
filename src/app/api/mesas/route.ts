@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import eventEmitter from '@/lib/events';
 import { enPesos } from '@/lib/money';
 import { ApiError } from '@/lib/api-error';
 import {
@@ -71,6 +72,7 @@ export async function PATCH(request: Request) {
       return tx.mesa.update({ where: { id }, data: { estado } });
     });
 
+    eventEmitter.emit('mesa:actualizada', mesa);
     return NextResponse.json(mesa);
   } catch (error) {
     if (error instanceof ApiError) {
@@ -113,6 +115,7 @@ export async function POST(request: Request) {
       });
     });
 
+    eventEmitter.emit('mesa:actualizada', mesa);
     return NextResponse.json(mesa);
   } catch (error) {
     if (error instanceof ApiError) {
