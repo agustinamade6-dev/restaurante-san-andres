@@ -8,10 +8,23 @@ const texto = (max: number) => z.string().trim().max(max);
 const montoPositivo = z.coerce.number().finite().gt(0, 'debe ser mayor que 0').max(1_000_000_000);
 const cantidadStock = z.coerce.number().finite().min(0, 'no puede ser negativo').max(1_000_000_000);
 
-/** Imagen de producto: vacía, una ruta propia (/uploads/...) o una URL http(s). Nada de javascript:, data: ni //host. */
+/**
+ * Ícono de reemplazo: la pantalla de Menú usa un emoji ("🍽️") como marcador de "sin imagen".
+ * Se acepta un texto corto formado SOLO por caracteres no ASCII (emojis, símbolos); un texto con letras
+ * o números ASCII no es un ícono.
+ */
+function esIcono(v: string): boolean {
+  const caracteres = [...v];
+  return v.length <= 16 && caracteres.length >= 1 && caracteres.every((c) => (c.codePointAt(0) ?? 0) > 127);
+}
+
+/**
+ * Imagen de producto: vacía, un emoji de reemplazo, una ruta propia (/uploads/...) o una URL http(s).
+ * Nada de javascript:, data: ni //host.
+ */
 const imagen = texto(500).refine(
-  (v) => v === '' || (v.startsWith('/') && !v.startsWith('//')) || /^https?:\/\//i.test(v),
-  'debe ser una ruta de /uploads o una URL http(s)'
+  (v) => v === '' || esIcono(v) || (v.startsWith('/') && !v.startsWith('//')) || /^https?:\/\//i.test(v),
+  'debe ser una ruta de /uploads, una URL http(s) o un emoji'
 );
 
 /* ───────────── Productos ───────────── */

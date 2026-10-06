@@ -61,8 +61,19 @@ describe('POST /api/productos', () => {
     expect(data).toMatchObject({ nombre: 'Flan', descripcion: '', imagen: '', disponible: true });
   });
 
+  it('REGRESIÓN: acepta el producto nuevo tal como lo arma "Nuevo Producto" (imagen por defecto = 🍽️)', async () => {
+    const res = await PRODUCTOS.POST(
+      pedir('POST', { nombre: 'Ensalada Mixta', descripcion: '', precio: 5000, categoriaId: 1, disponible: true, imagen: '🍽️' })
+    );
+
+    expect(res.status).toBe(201);
+    expect((await res.json()).imagen).toBe('🍽️');
+  });
+
   it.each([
     ['ruta propia', '/uploads/products/prod-1-ab12cd34.png'],
+    ['emoji de reemplazo', '🍽️'],
+    ['otro emoji', '🥗'],
     ['URL https', 'https://images.unsplash.com/photo-1?w=400'],
     ['URL http', 'http://ejemplo.com/a.jpg'],
     ['vacía', ''],
@@ -75,6 +86,9 @@ describe('POST /api/productos', () => {
     ['data:', 'data:text/html;base64,PHNjcmlwdD4='],
     ['protocolo relativo (//host)', '//evil.com/x.png'],
     ['sin esquema ni ruta', 'foto.png'],
+    ['letras mezcladas con emoji', 'a🍽️'],
+    ['emoji con una barra', '🍽️/x'],
+    ['demasiados emojis', '🍽️'.repeat(8)],
     ['demasiado larga', 'https://x.com/' + 'a'.repeat(600)],
   ])('rechaza una imagen: %s', async (_n, imagen) => {
     expect((await PRODUCTOS.POST(pedir('POST', { ...formulario, imagen }))).status).toBe(400);
@@ -124,6 +138,14 @@ describe('PUT /api/productos', () => {
 
     expect(res.status).toBe(200);
     expect(db.state.productos[0]).toMatchObject({ nombre: 'Milanesa XL', precio: 8000, disponible: false });
+  });
+
+  it('REGRESIÓN: edita un producto que tiene el emoji como imagen sin rechazarlo', async () => {
+    db.state.productos[0].imagen = '🍽️';
+    const res = await PRODUCTOS.PUT(pedir('PUT', { id: 10, nombre: 'Milanesa', descripcion: 'x', precio: 7500, categoriaId: 1, disponible: true, imagen: '🍽️' }));
+
+    expect(res.status).toBe(200);
+    expect(db.state.productos[0]).toMatchObject({ precio: 7500, imagen: '🍽️' });
   });
 
   it('actualiza solo los campos presentes (parcial)', async () => {

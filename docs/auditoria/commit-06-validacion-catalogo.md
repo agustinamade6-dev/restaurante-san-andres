@@ -37,13 +37,24 @@ await prisma.insumo.update({ data: { stockActual: body.stockActual, ... } });   
 - Mensajes de error accionables.
 
 **Recomendación (aplicada):** Validación con `zod`, con los esquemas en `src/lib/catalogo.ts`:
-- **Productos:** nombre obligatorio (1–100), `precio` **mayor que 0**, `categoriaId` existente, `imagen` vacía, ruta propia (`/uploads/...`) o URL `http(s)`. `PUT` valida solo los campos presentes. **Eliminar** un producto con pedidos registrados responde `400` y sugiere marcarlo como no disponible.
+- **Productos:** nombre obligatorio (1–100), `precio` **mayor que 0**, `categoriaId` existente, `imagen` vacía, un **emoji** de reemplazo (la pantalla usa `🍽️` como "sin imagen"), ruta propia (`/uploads/...`) o URL `http(s)`. `PUT` valida solo los campos presentes. **Eliminar** un producto con pedidos registrados responde `400` y sugiere marcarlo como no disponible.
 - **Costos:** concepto obligatorio, `monto` mayor que 0, `tipo` (`fijo`/`variable`) y `periodicidad` (`diario`/`semanal`/`mensual`) con valores por defecto si llegan vacíos.
 - **Proveedores:** solo el nombre es obligatorio; correo válido o vacío; longitudes máximas.
 - **Inventario:** stock, mínimo y precio no negativos (hasta 1.000.000.000), `proveedorId` existente o `null`, y se descartan los campos de más que envía la pantalla (`proveedor` anidado, fechas).
 - **Siempre:** JSON inválido → `400`; id inexistente → `404`; id faltante → `400 "ID requerido"` (mensaje de siempre); id inválido → `400`.
 **Impacto:** Alto
 **Esfuerzo estimado:** Medio
+
+---
+
+## Corrección posterior (importante)
+
+La primera versión de esta validación **rechazaba el emoji `🍽️`** que la pantalla de Menú carga como imagen por
+defecto al abrir "Nuevo Producto". Resultado: crear un producto sin subir una foto respondía `400` y, como la
+pantalla no revisa `res.ok`, el producto simplemente no aparecía. Se detectó en una prueba manual. Se corrige
+aceptando un texto corto formado solo por caracteres no ASCII (emojis), y se agregan tests con el payload exacto
+del formulario. Se revisaron además el resto de formularios (proveedores, costos, inventario, pedidos e ítems de
+cocina) contra las validaciones, sin encontrar otros desajustes.
 
 ---
 
@@ -116,7 +127,7 @@ since.setHours(0, 0, 0, 0);              // desde las 00:00 de ayer
 
 ## Cómo verificar
 ```bash
-npm test        # 598 tests acumulados
+npm test        # 605 tests acumulados
 npm run build
 npm run dev
 ```
