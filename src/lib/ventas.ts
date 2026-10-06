@@ -46,9 +46,14 @@ export function resumirVentas(ventas: VentaMinima[]) {
   const porMetodo = Object.fromEntries(
     Object.entries(centavosPorMetodo).map(([metodo, m]) => [metodo, { count: m.count, total: aPesos(m.total) }])
   );
+  const recaudado = ventas.reduce((s, v) => s + v.total, 0);
+  const propinas = ventas.reduce((s, v) => s + v.propina, 0);
   return {
-    totalRecaudado: aPesos(ventas.reduce((s, v) => s + v.total, 0)),
-    totalPropinas: aPesos(ventas.reduce((s, v) => s + v.propina, 0)),
+    // Lo que entró a caja (incluye propinas): sirve para el arqueo.
+    totalRecaudado: aPesos(recaudado),
+    totalPropinas: aPesos(propinas),
+    // Ingreso del negocio por ventas: sin propinas (son del personal).
+    totalVentas: aPesos(recaudado - propinas),
     cantidadVentas: contarVentasNetas(ventas),
     porMetodo,
   };

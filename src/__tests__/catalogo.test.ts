@@ -465,3 +465,19 @@ describe('montos: la API habla en pesos y la base guarda centavos enteros', () =
     expect(db.state.insumos[0].precioUnitario).toBe(95025);
   });
 });
+
+describe('rango de montos (Prisma Int de 32 bits: máximo 2.147.483.647 centavos)', () => {
+  beforeEach(() => loginAs('ADMIN'));
+
+  it('un precio o costo mayor a $10.000.000 es 400 con mensaje claro (antes, 500 al guardar)', async () => {
+    const res = await PRODUCTOS.POST(pedir('POST', { nombre: 'Caro', precio: 50_000_000, categoriaId: 1 }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/precio: no puede superar/);
+    expect((await COSTOS.POST(pedir('POST', { concepto: 'X', monto: 1e9 }))).status).toBe(400);
+    expect((await INVENTARIO.PUT(pedir('PUT', { id: 7, precioUnitario: 2e7 }))).status).toBe(400);
+  });
+
+  it('$10.000.000 justo se acepta', async () => {
+    expect((await PRODUCTOS.POST(pedir('POST', { nombre: 'Tope', precio: 10_000_000, categoriaId: 1 }))).status).toBe(201);
+  });
+});

@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
-import { aCentavos, aPesos, enPesos, subtotalCentavos } from '@/lib/money';
+import { MAX_MONTO_PESOS, aCentavos, aPesos, dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { datosNegocio } from '@/lib/negocio';
 import { descontarStockDeVenta } from '@/lib/stock';
 
@@ -14,7 +14,7 @@ const bodySchema = z.object({
   mesaId: z.coerce.number().int().positive(),
   metodoPago: z.enum(METODOS_PAGO).default('efectivo'),
   // En pesos, como la envía la pantalla; se convierte a centavos enteros.
-  propina: z.coerce.number().finite().min(0).max(1_000_000_000).default(0).transform(aCentavos),
+  propina: z.coerce.number().finite().min(0).max(MAX_MONTO_PESOS).default(0).transform(aCentavos),
   // cajeroId del body se ignora: el cajero es siempre el usuario de la sesión firmada.
 });
 
@@ -85,6 +85,7 @@ export async function POST(request: Request) {
         //    Todo en centavos enteros: la suma es exacta.
         const subtotal = subtotalCentavos(pedido.items);
         const total = subtotal + propina;
+        if (!dentroDeRango(total)) throw new CobroError(400, 'El total supera el máximo que se puede registrar');
         if (pedido.total !== subtotal) {
           await tx.pedido.update({ where: { id: pedidoId }, data: { total: subtotal } });
         }

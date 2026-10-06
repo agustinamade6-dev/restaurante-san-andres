@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
-import { enPesos, subtotalCentavos } from '@/lib/money';
+import { dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, cantidadItem } from '@/lib/api-error';
 
 
@@ -114,6 +114,7 @@ export async function PATCH(
         select: { precio: true, cantidad: true },
       });
       const total = subtotalCentavos(lineas);
+      if (!dentroDeRango(total)) throw new ApiError(400, 'El total del pedido supera el máximo que se puede registrar');
 
       const actualizado = await tx.pedido.update({
         where: { id: pedidoId },

@@ -19,6 +19,7 @@ y qué debe tener en cuenta.
 | 9 | `fix(dinero): montos en centavos enteros y migración automática de la base al arrancar` | [commit-09-dinero-en-centavos.md](commit-09-dinero-en-centavos.md) | AT-13 (completo), AT-20 |
 | 10 | `feat(inventario): recetas de productos, descuento de stock al cobrar y reintegro al anular` | [commit-10-recetas-y-stock.md](commit-10-recetas-y-stock.md) | AT-12 (completo), AT-09 (completo) |
 | 11 | `fix(seguridad): límite de PIN no evadible, sesiones revocables, CSRF y endpoints sin datos de más` (rama `fix/revision-pr1`) | [commit-11-seguridad-revision-pr1.md](commit-11-seguridad-revision-pr1.md) | AT-21 a AT-27 |
+| 12 | `fix(metricas): propinas fuera del ingreso, costos por periodicidad y montos dentro del rango de la base` | [commit-12-propinas-costos-rango.md](commit-12-propinas-costos-rango.md) | AT-28 a AT-30 |
 
 ## Estado de los hallazgos
 
@@ -51,6 +52,9 @@ y qué debe tener en cuenta.
 | AT-25 | Conexión SSE abierta tras vencer la sesión | Medio | ✅ Commit 11 |
 | AT-26 | Secreto de sesión por defecto publicado en el repositorio | Medio | ✅ Commit 11 |
 | AT-27 | Sin protección CSRF más allá de `SameSite=Lax` | Medio | ✅ Commit 11 |
+| AT-28 | Propinas contadas como ingreso del negocio | Medio | ✅ Commit 12 |
+| AT-29 | Costos sumados sin mirar la periodicidad | Medio | ✅ Commit 12 |
+| AT-30 | Montos fuera del rango de la columna (error 500) | Bajo | ✅ Commit 12 |
 
 ## Convenciones
 

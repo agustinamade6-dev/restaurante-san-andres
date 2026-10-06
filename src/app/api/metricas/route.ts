@@ -2,7 +2,15 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { aPesos } from '@/lib/money';
+import { montoMensualCentavos } from '@/lib/costos';
 import { contarVentasNetas } from '@/lib/ventas';
+
+/**
+ * Ingreso por ventas = total cobrado MENOS la propina: la propina es del personal, no del negocio. Contarla como
+ * ingreso inflaba las ventas y el balance del mes. Las propinas se informan aparte.
+ */
+const ingreso = (v: { total: number; propina: number }) => (v.total || 0) - (v.propina || 0);
+const sumarIngresos = (ventas: { total: number; propina: number }[]) => ventas.reduce((s, v) => s + ingreso(v), 0);
 
 export async function GET() {
   const auth = await requireAuth(['ADMIN']);
@@ -19,23 +27,24 @@ export async function GET() {
     const ventasHoy = await prisma.venta.findMany({
       where: { fechaCobro: { gte: todayStart } },
     });
-    const totalHoy = ventasHoy.reduce((sum, v) => sum + (v.total || 0), 0);
+    const totalHoy = sumarIngresos(ventasHoy);
 
     // Ventas de la semana
     const ventasSemana = await prisma.venta.findMany({
       where: { fechaCobro: { gte: weekStart } },
     });
-    const totalSemana = ventasSemana.reduce((sum, v) => sum + (v.total || 0), 0);
+    const totalSemana = sumarIngresos(ventasSemana);
 
     // Ventas del mes
     const ventasMes = await prisma.venta.findMany({
       where: { fechaCobro: { gte: monthStart } },
     });
-    const totalMes = ventasMes.reduce((sum, v) => sum + (v.total || 0), 0);
+    const totalMes = sumarIngresos(ventasMes);
+    const propinasMes = ventasMes.reduce((s, v) => s + (v.propina || 0), 0);
 
-    // Costos fijos mensuales
+    // Costos llevados a su equivalente mensual según la periodicidad (diario, semanal o mensual).
     const costos = await prisma.costoFijo.findMany();
-    const totalCostosMensuales = costos.reduce((sum, c) => sum + c.monto, 0);
+    const totalCostosMensuales = costos.reduce((sum, c) => sum + montoMensualCentavos(c.monto, c.periodicidad), 0);
 
     // Platos más vendidos (últimos 30 días)
     const thirtyDaysAgo = new Date(todayStart);
@@ -76,7 +85,7 @@ export async function GET() {
       });
       ventasPorDia.push({
         dia: dia.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }),
-        total: aPesos(ventasDia.reduce((sum, v) => sum + (v.total || 0), 0)),
+        total: aPesos(sumarIngresos(ventasDia)),
         cantidad: contarVentasNetas(ventasDia),
       });
     }
@@ -93,18 +102,12 @@ export async function GET() {
       });
       ventasPorSemana.push({
         semana: `Sem ${4 - i}`,
-        total: aPesos(ventasS.reduce((sum, v) => sum + (v.total || 0), 0)),
+        total: aPesos(sumarIngresos(ventasS)),
         cantidad: contarVentasNetas(ventasS),
       });
     }
 
-    // Insumos con bajo stock
-    const insumoBajoStock = await prisma.insumo.findMany({
-      where: {
-        stockActual: { lte: prisma.insumo.fields.stockMinimo } as unknown as number,
-      },
-    });
-    // Fallback: fetch all and filter in JS
+    // Insumos con bajo stock (SQLite no compara dos columnas en un filtro de Prisma: se filtra en memoria).
     const todosInsumos = await prisma.insumo.findMany();
     const alertasStock = todosInsumos.filter((i) => i.stockActual <= i.stockMinimo);
 
@@ -118,6 +121,7 @@ export async function GET() {
       ventasHoy: { total: aPesos(totalHoy), cantidad: contarVentasNetas(ventasHoy) },
       ventasSemana: { total: aPesos(totalSemana), cantidad: contarVentasNetas(ventasSemana) },
       ventasMes: { total: aPesos(totalMes), cantidad: contarVentasNetas(ventasMes) },
+      propinasMes: aPesos(propinasMes),
       costosMensuales: aPesos(totalCostosMensuales),
       balanceMes: aPesos(totalMes - totalCostosMensuales),
       platosMasVendidos,

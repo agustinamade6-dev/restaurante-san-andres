@@ -342,3 +342,17 @@ describe('POST /api/checkout/pay — tiempo real (SSE)', () => {
     emit.mockRestore();
   });
 });
+
+describe('POST /api/checkout/pay — rango de montos', () => {
+  it('propina mayor a $10.000.000 es 400', async () => {
+    expect((await pagar({ ...valido, propina: 2e7 })).status).toBe(400);
+  });
+
+  it('si subtotal + propina no entra en la columna, 400 y rollback (antes, 500 al guardar)', async () => {
+    db.state.items.forEach((i) => (i.precio = 1_000_000_000));
+    const res = await pagar({ ...valido, propina: 0 });
+    expect(res.status).toBe(400);
+    expect(db.state.ventas).toHaveLength(0);
+    expect(db.state.pedidos[0].estado).toBe('entregado');
+  });
+});

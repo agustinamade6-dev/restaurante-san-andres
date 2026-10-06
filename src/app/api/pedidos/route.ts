@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
-import { enPesos, subtotalCentavos } from '@/lib/money';
+import { dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, cantidadItem } from '@/lib/api-error';
 
 export async function GET() {
@@ -92,6 +92,7 @@ export async function POST(request: Request) {
         notas: item.notas || '',
       }));
       const total = subtotalCentavos(lineas);
+      if (!dentroDeRango(total)) throw new ApiError(400, 'El total del pedido supera el máximo que se puede registrar');
 
       const creado = await tx.pedido.create({
         data: {

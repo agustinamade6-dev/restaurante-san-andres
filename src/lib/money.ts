@@ -9,6 +9,18 @@
  * Todo el cálculo intermedio (subtotales, totales, resúmenes de Caja) se hace en centavos.
  */
 
+/**
+ * Rango de los montos. Prisma guarda `Int` como entero de 32 bits: el máximo es 2.147.483.647 centavos (~$21,4 millones).
+ * Un monto mayor hacía fallar la escritura con un error 500. Se limita cada monto cargado a $10.000.000 y cualquier
+ * total calculado (pedido, cobro) se verifica con `dentroDeRango` antes de guardarlo.
+ */
+export const MAX_MONTO_PESOS = 10_000_000;
+export const MAX_CENTAVOS_DB = 2_147_483_647;
+
+export function dentroDeRango(centavos: number): boolean {
+  return Number.isSafeInteger(centavos) && Math.abs(centavos) <= MAX_CENTAVOS_DB;
+}
+
 /** Pesos (lo que escribe el usuario) → centavos enteros. 19.99 → 1999, 1250.5 → 125050. */
 export function aCentavos(pesos: number): number {
   // toPrecision(15) descarta el ruido binario antes de redondear (1.005 * 100 = 100.49999999999999 → 100.5 → 101).

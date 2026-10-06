@@ -39,7 +39,15 @@ function matches(row: Row, where: Row = {}): boolean {
       if ('notIn' in cond) return !cond.notIn.includes(value);
       if ('not' in cond) return value !== cond.not;
       if ('startsWith' in cond) return typeof value === 'string' && value.startsWith(cond.startsWith);
-      if ('gte' in cond) return value >= cond.gte;
+      if (['gte', 'gt', 'lte', 'lt'].some((k) => k in cond)) {
+        // Rangos combinados (p. ej. { gte: inicio, lt: fin }): se cumplen todos los límites presentes.
+        return (
+          (!('gte' in cond) || value >= cond.gte) &&
+          (!('gt' in cond) || value > cond.gt) &&
+          (!('lte' in cond) || value <= cond.lte) &&
+          (!('lt' in cond) || value < cond.lt)
+        );
+      }
       if ('contains' in cond) return typeof value === 'string' && value.toLowerCase().includes(String(cond.contains).toLowerCase());
     }
     return value === cond;

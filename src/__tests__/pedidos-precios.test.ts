@@ -301,3 +301,14 @@ describe('PATCH /api/pedidos/[id]/items — precios y totales del servidor', () 
     expect(db.state.historial).toHaveLength(0);
   });
 });
+
+describe('rango de montos del pedido', () => {
+  it('un pedido cuyo total no entra en la columna (Int de 32 bits) es 400 y no se crea', async () => {
+    db.state.productos[0].precio = 1_000_000_000; // $10.000.000 (el máximo por producto)
+    const res = await crear({ mesaId: 10, items: [{ productoId: 1, cantidad: 3 }] }); // $30.000.000
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/supera el máximo/);
+    expect(db.state.pedidos).toHaveLength(0);
+    expect(db.state.mesas[0].estado).toBe('libre');
+  });
+});
