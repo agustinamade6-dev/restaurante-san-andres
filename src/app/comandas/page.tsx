@@ -32,6 +32,7 @@ import {
   Printer,
 } from 'lucide-react';
 import { useSSE } from '@/hooks/useSSE';
+import { enviarJson } from '@/lib/api-cliente';
 
 interface HistorialPedido {
   id: number;
@@ -127,7 +128,6 @@ export default function ComandasPage() {
   const [ticketData, setTicketData] = useState<{ ticketCliente: any; ticketInterno: any } | null>(null);
 
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   const fetchMesas = useCallback(async () => {
     const res = await fetch('/api/mesas');
@@ -156,7 +156,6 @@ export default function ComandasPage() {
       .then(data => {
         if (data.user) {
           setCurrentUserRole(data.user.rol);
-          setCurrentUserId(data.user.id);
         }
       })
       .catch(() => {});
@@ -244,6 +243,11 @@ export default function ComandasPage() {
         setMesaSeleccionada(null);
         fetchMesas();
         setTimeout(() => setNotificacion(null), 3000);
+      } else {
+        // La comanda NO llegó a cocina: el mozo tiene que ver por qué (p. ej., un producto dejó de estar disponible).
+        const data = await res.json().catch(() => null);
+        setNotificacion({ msg: `❌ ${data?.error || 'No se pudo enviar la comanda'}`, tipo: 'error' });
+        setTimeout(() => setNotificacion(null), 5000);
       }
     } catch {
       setNotificacion({ msg: '❌ Error al enviar comanda', tipo: 'error' });
@@ -339,14 +343,14 @@ export default function ComandasPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin: pinAdmin })
     });
-    const data = await res.json();
-    if (res.ok && data.user.rol === 'ADMIN') {
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.user?.rol === 'ADMIN') {
       setIsEditorMode(true);
       setMesasBackup(JSON.parse(JSON.stringify(mesas))); // backup
       setShowPinModal(false);
       setPinAdmin('');
     } else {
-      setNotificacion({ msg: 'PIN inválido o sin permisos', tipo: 'error' });
+      setNotificacion({ msg: (!res.ok && data?.error) || 'PIN inválido o sin permisos', tipo: 'error' });
       setTimeout(() => setNotificacion(null), 3000);
     }
   };
@@ -362,31 +366,24 @@ export default function ComandasPage() {
       setIsEditorMode(false);
       fetchMesas();
       setTimeout(() => setNotificacion(null), 3000);
+    } else {
+      const data = await res.json().catch(() => null);
+      setNotificacion({ msg: data?.error || 'No se pudo guardar la distribución', tipo: 'error' });
+      setTimeout(() => setNotificacion(null), 4000);
     }
   };
 
   const guardarMesa = async () => {
-    if (mesaEditorOpen?.id) {
-      const res = await fetch(`/api/mesas/${mesaEditorOpen.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mesaEditorOpen)
-      });
-      if (res.ok) { fetchMesas(); setMesaEditorOpen(null); }
-      else setNotificacion({ msg: 'Error al actualizar', tipo: 'error' });
-    } else {
-      const res = await fetch(`/api/mesas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...mesaEditorOpen, posX: 50, posY: 50 })
-      });
-      if (res.ok) { fetchMesas(); setMesaEditorOpen(null); }
-      else {
-        const errorData = await res.json();
-        setNotificacion({ msg: errorData.error || 'Error al crear', tipo: 'error' });
-      }
+    const error = mesaEditorOpen?.id
+      ? await enviarJson(`/api/mesas/${mesaEditorOpen.id}`, 'PATCH', mesaEditorOpen, 'No se pudo actualizar la mesa')
+      : await enviarJson('/api/mesas', 'POST', { ...mesaEditorOpen, posX: 50, posY: 50 }, 'No se pudo crear la mesa');
+    if (error) {
+      setNotificacion({ msg: error, tipo: 'error' });
+      setTimeout(() => setNotificacion(null), 4000);
+      return;
     }
-    setTimeout(() => setNotificacion(null), 3000);
+    fetchMesas();
+    setMesaEditorOpen(null);
   };
 
   const solicitarEliminarMesa = (mesa: Mesa) => {
@@ -431,7 +428,6 @@ export default function ComandasPage() {
           mesaId: mesaSeleccionada.id,
           metodoPago,
           propina,
-          cajeroId: currentUserId,
         }),
       });
       const data = await res.json();
@@ -488,6 +484,21 @@ export default function ComandasPage() {
   };
 
   // Step 1: Select mesa
+  // Notificación flotante: va en las dos vistas (plano de mesas y toma de pedido / cobro).
+  const avisoFlotante = notificacion && (
+    <div
+      role={notificacion.tipo === 'error' ? 'alert' : 'status'}
+      className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-xl text-sm font-bold shadow-2xl animate-slide-in flex items-center gap-2 ${
+        notificacion.tipo === 'success'
+          ? 'bg-[var(--success)] text-white'
+          : 'bg-[var(--danger)] text-white'
+      }`}
+    >
+      {notificacion.tipo === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+      {notificacion.msg}
+    </div>
+  );
+
   if (!mesaSeleccionada) {
     return (
       <div className="min-h-screen flex flex-col p-4 md:p-6 bg-[var(--background)]">
@@ -564,19 +575,7 @@ export default function ComandasPage() {
           </div>
         </div>
 
-        {/* Notification */}
-        {notificacion && (
-          <div
-            className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-xl text-sm font-bold shadow-2xl animate-slide-in flex items-center gap-2 ${
-              notificacion.tipo === 'success'
-                ? 'bg-[var(--success)] text-white'
-                : 'bg-[var(--danger)] text-white'
-            }`}
-          >
-            {notificacion.tipo === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-            {notificacion.msg}
-          </div>
-        )}
+        {avisoFlotante}
 
         {/* Floor Plan Engine Canvas 2D */}
         <div className={`flex-1 bg-zinc-900 rounded-3xl border border-zinc-800 relative shadow-[inset_0_0_100px_rgba(0,0,0,0.5)] min-h-[600px] ${isEditorMode ? 'overflow-visible' : 'overflow-hidden'}`}>
@@ -843,6 +842,7 @@ export default function ComandasPage() {
   // Step 2: Build comanda
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
+      {avisoFlotante}
       {/* Left: Product catalog */}
       <div className="flex-1 p-4 md:p-6 overflow-y-auto">
         {/* Header */}
