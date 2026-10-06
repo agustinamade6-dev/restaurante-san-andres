@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { enPesos } from '@/lib/money';
 import { crearInsumoSchema, editarInsumoSchema } from '@/lib/catalogo';
-import { JSON_INVALIDO, codigoPrisma, leerJson, mensajeZod } from '@/lib/validacion';
+import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
 
 const error = (mensaje: string, status: number) => NextResponse.json({ error: mensaje }, { status });
 
@@ -79,5 +79,46 @@ export async function PUT(request: Request) {
     if (codigoPrisma(e) === 'P2025') return error('Insumo no encontrado', 404);
     console.error('Error updating insumo:', e);
     return error('Error al actualizar insumo', 500);
+  }
+}
+
+export async function DELETE(request: Request) {
+  const auth = await requireAuth(['ADMIN']);
+  if (!auth.ok) return auth.response;
+
+  try {
+    const id = idDeQuery(request);
+    if (id === undefined) return error('ID requerido', 400);
+    if (id === null) return error('ID inválido', 400);
+
+    const existente = await prisma.insumo.findUnique({ where: { id } });
+    if (!existente) return error('Insumo no encontrado', 404);
+
+    // Un insumo en una receta no se borra: esos productos dejarían de descontar stock sin aviso.
+    const recetas = await prisma.recetaItem.findMany({ where: { insumoId: id } });
+    if (recetas.length > 0) {
+      const productos = await prisma.producto.findMany({
+        where: { id: { in: recetas.map((r) => r.productoId) } },
+        select: { nombre: true },
+      });
+      const nombres = productos.map((p) => p.nombre).join(', ');
+      return error(`El insumo está en la receta de: ${nombres}. Quitalo de esas recetas antes de eliminarlo.`, 400);
+    }
+
+    // Con movimientos de stock (ventas que lo descontaron) borrarlo rompería ese historial.
+    const movimientos = await prisma.movimientoStock.count({ where: { insumoId: id } });
+    if (movimientos > 0) {
+      return error('No se puede eliminar un insumo con movimientos de stock registrados.', 400);
+    }
+
+    await prisma.insumo.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    if (codigoPrisma(e) === 'P2025') return error('Insumo no encontrado', 404);
+    if (codigoPrisma(e) === 'P2003') {
+      return error('No se puede eliminar un insumo usado en recetas o con movimientos de stock.', 400);
+    }
+    console.error('Error deleting insumo:', e);
+    return error('Error al eliminar insumo', 500);
   }
 }

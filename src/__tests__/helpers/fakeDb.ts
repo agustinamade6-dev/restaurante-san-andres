@@ -269,6 +269,11 @@ export function createFakeDb(seed: Seed = {}) {
         Object.assign(row, sinUndefined(data));
         return insumoConRel(row, include);
       },
+      delete: async ({ where }: any) => {
+        const idx = state.insumos.findIndex((r) => matches(r, where));
+        if (idx < 0) throw noExiste('Insumo');
+        return state.insumos.splice(idx, 1)[0];
+      },
     },
     recetaItem: {
       findMany: async ({ where, include }: any = {}) =>
@@ -292,6 +297,7 @@ export function createFakeDb(seed: Seed = {}) {
     },
     movimientoStock: {
       findMany: async ({ where }: any = {}) => state.movimientos.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+      count: async ({ where }: any = {}) => state.movimientos.filter((r) => matches(r, where)).length,
       create: async ({ data }: any) => {
         guard('movimientoStock.create');
         const row = { id: nextId++, createdAt: new Date(), ...data };

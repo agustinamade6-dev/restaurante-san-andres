@@ -8,6 +8,7 @@ import {
   Search,
   Plus,
   Save,
+  Trash2,
   X,
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
@@ -36,6 +37,7 @@ export default function InventarioPage() {
   const [nuevo, setNuevo] = useState<typeof insumoVacio | null>(null);
   const [proveedores, setProveedores] = useState<{ id: number; nombre: string }[]>([]);
   const [errorNuevo, setErrorNuevo] = useState('');
+  const [errorTabla, setErrorTabla] = useState('');
 
   const fetchInsumos = useCallback(async () => {
     const res = await fetch('/api/inventario');
@@ -53,6 +55,18 @@ export default function InventarioPage() {
       body: JSON.stringify({ ...insumo, stockActual: stockEdit }),
     });
     setEditandoId(null);
+    fetchInsumos();
+  };
+
+  const eliminarInsumo = async (insumo: Insumo) => {
+    if (!confirm(`¿Eliminar el insumo "${insumo.nombre}"?`)) return;
+    setErrorTabla('');
+    const res = await fetch(`/api/inventario?id=${insumo.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErrorTabla(data.error || 'No se pudo eliminar el insumo');
+      return;
+    }
     fetchInsumos();
   };
 
@@ -164,6 +178,16 @@ export default function InventarioPage() {
         </div>
       </div>
 
+      {errorTabla && (
+        <div className="glass-card p-4 mb-4 flex items-center gap-3 border-red-500/30">
+          <AlertTriangle className="w-5 h-5 text-[var(--danger)] shrink-0" />
+          <p className="text-sm flex-1">{errorTabla}</p>
+          <button onClick={() => setErrorTabla('')} className="btn btn-sm btn-secondary" aria-label="Cerrar aviso">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="glass-card overflow-hidden">
         <table className="w-full">
@@ -190,6 +214,7 @@ export default function InventarioPage() {
               <th className="text-left p-4 text-sm font-semibold text-[var(--muted)]">
                 Fecha y Hora
               </th>
+              <th className="p-4" />
             </tr>
           </thead>
           <tbody>
@@ -300,6 +325,16 @@ export default function InventarioPage() {
                         <span className="text-[10px] uppercase">Por: Admin</span>
                       </div>
                     ) : '—'}
+                  </td>
+                  <td className="p-4 text-right">
+                    <button
+                      onClick={() => eliminarInsumo(insumo)}
+                      className="btn btn-sm btn-secondary text-[var(--danger)]"
+                      title="Eliminar insumo"
+                      aria-label={`Eliminar ${insumo.nombre}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               );

@@ -33,6 +33,7 @@ const CASOS: Caso[] = [
   ['/api/inventario', 'GET', ADMIN, () => import('@/app/api/inventario/route')],
   ['/api/inventario', 'POST', ADMIN, () => import('@/app/api/inventario/route')],
   ['/api/inventario', 'PUT', ADMIN, () => import('@/app/api/inventario/route')],
+  ['/api/inventario', 'DELETE', ADMIN, () => import('@/app/api/inventario/route')],
   ['/api/mesas', 'GET', TODOS, () => import('@/app/api/mesas/route')],
   ['/api/mesas', 'POST', ADMIN, () => import('@/app/api/mesas/route')],
   ['/api/mesas', 'PATCH', SALA, () => import('@/app/api/mesas/route')],

@@ -390,6 +390,45 @@ describe('PUT /api/inventario', () => {
   });
 });
 
+describe('DELETE /api/inventario', () => {
+  it('elimina un insumo sin recetas ni movimientos', async () => {
+    const res = await INVENTARIO.DELETE(pedir('DELETE', undefined, '?id=7'));
+    expect(res.status).toBe(200);
+    expect(db.state.insumos).toHaveLength(0);
+  });
+
+  it('400 si el insumo está en una receta, nombrando los productos, y no lo borra', async () => {
+    db.state.recetas.push({ id: 50, productoId: 10, insumoId: 7, cantidad: 0.2 });
+    const res = await INVENTARIO.DELETE(pedir('DELETE', undefined, '?id=7'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/receta de: Milanesa/);
+    expect(db.state.insumos).toHaveLength(1);
+  });
+
+  it('400 si el insumo tiene movimientos de stock, y no lo borra', async () => {
+    db.state.movimientos.push({ id: 60, insumoId: 7, cantidad: -0.2, motivo: 'VENTA', ventaId: null, usuarioId: 1 });
+    const res = await INVENTARIO.DELETE(pedir('DELETE', undefined, '?id=7'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/movimientos de stock/);
+    expect(db.state.insumos).toHaveLength(1);
+  });
+
+  it('404 si no existe; 400 sin id o con id inválido', async () => {
+    expect((await INVENTARIO.DELETE(pedir('DELETE', undefined, '?id=999'))).status).toBe(404);
+    expect((await INVENTARIO.DELETE(pedir('DELETE'))).status).toBe(400);
+    expect((await INVENTARIO.DELETE(pedir('DELETE', undefined, '?id=abc'))).status).toBe(400);
+    expect(db.state.insumos).toHaveLength(1);
+  });
+
+  it('403 para MOZO; 401 sin sesión', async () => {
+    await loginAs('MOZO', 3);
+    expect((await INVENTARIO.DELETE(pedir('DELETE', undefined, '?id=7'))).status).toBe(403);
+    logout();
+    expect((await INVENTARIO.DELETE(pedir('DELETE', undefined, '?id=7'))).status).toBe(401);
+    expect(db.state.insumos).toHaveLength(1);
+  });
+});
+
 /* ──────────────────────────── MONTOS EN CENTAVOS (AT-13) ──────────────────────────── */
 
 describe('montos: la API habla en pesos y la base guarda centavos enteros', () => {
