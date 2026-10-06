@@ -44,7 +44,7 @@ Los fallos anteriores (pantalla en blanco, `ERR_CONNECTION_REFUSED`, "Could not 
 - `package.json`: scripts y dependencias de Electron / Next / Prisma.
 - `next.config.ts`: `output: 'standalone'`.
 - `prisma/schema.prisma`: esquema SQLite. `prisma/seed-production.ts`: datos iniciales del `.exe`.
-- `electron/main.js`: proceso principal (base, backups, secreto de sesión, arranque del servidor).
+- `electron/main.js`: proceso principal (base, backups, secreto de sesión, arranque del servidor). `electron/preload.js`, `electron/after-pack.js`: copia `desktop-build/` al paquete y falla el build si falta algo.
 - `scripts/prepare-desktop.mjs`: arma `desktop-build/`. `scripts/test-sse-comandas.js`: prueba de tiempo real.
 - `src/proxy.ts`, `src/lib/session.ts`, `src/lib/auth.ts`, `src/lib/pin.ts`: autenticación.
 - `src/app/`: vistas de salón, comandas, cocina y administración; `src/app/api/`: API.
