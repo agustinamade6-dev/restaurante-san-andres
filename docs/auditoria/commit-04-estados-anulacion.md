@@ -155,7 +155,7 @@ Prueba manual (reproduce el caso original):
 - **Falta la pantalla:** el botón "Anular" y el estilo de las filas anuladas son trabajo de frontend (el backend ya está listo).
 - **Anulación total:** no hay devoluciones parciales. Para corregir una cuenta se anula la venta completa y se carga el pedido correcto.
 - **El pedido anulado queda `pagado`** (cerrado); su historial muestra `VENTA_ANULADA`. Si el cliente vuelve, se crea un pedido nuevo.
-- **El stock no se reintegra** (el inventario sigue desconectado de los productos, AT-12).
+- ~~**El stock no se reintegra** (el inventario sigue desconectado de los productos, AT-12).~~ Resuelto en el [commit 10](commit-10-recetas-y-stock.md): anular reintegra lo que descontó el cobro.
 - **El ranking de platos más vendidos** (`/api/metricas`) se calcula desde los pedidos `entregado`/`pagado` y **no descuenta** ventas anuladas.
 - **Ventas fantasma históricas** (commit 1): siguen en las bases que ya usaron el sistema. Se pueden anular con este mecanismo, pero conviene revisarlas antes.
 - Los tests usan una base simulada; la concurrencia real sobre SQLite no está probada automáticamente.

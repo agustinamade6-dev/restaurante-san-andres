@@ -60,6 +60,7 @@ model Producto {
   disponible   Boolean     @default(true)
   imagen       String      @default("")
   itemsPedido  ItemPedido[]
+  receta       RecetaItem[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 }
@@ -114,6 +115,8 @@ model Insumo {
   precioUnitario Int              @default(0) // centavos
   proveedorId   Int?
   proveedor     Proveedor?        @relation(fields: [proveedorId], references: [id])
+  recetas       RecetaItem[]
+  movimientos   MovimientoStock[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 }
@@ -158,4 +161,33 @@ model Venta {
   items                Int      @default(0)
   fechaCobro           DateTime @default(now())
   createdAt            DateTime @default(now())
+  movimientosStock     MovimientoStock[]
+}
+
+// Receta de un producto: cuánto de cada insumo consume UNA unidad vendida (en la unidad del insumo).
+model RecetaItem {
+  id         Int      @id @default(autoincrement())
+  productoId Int
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  insumoId   Int
+  insumo     Insumo   @relation(fields: [insumoId], references: [id])
+  cantidad   Float
+
+  @@unique([productoId, insumoId])
+}
+
+// Cada cambio automático de stock: el consumo de una venta (negativo) y su reintegro al anularla (positivo).
+// Anular revierte exactamente estos movimientos, aunque la receta haya cambiado después de la venta.
+model MovimientoStock {
+  id        Int      @id @default(autoincrement())
+  insumoId  Int
+  insumo    Insumo   @relation(fields: [insumoId], references: [id])
+  cantidad  Float
+  motivo    String // VENTA, ANULACION
+  ventaId   Int?
+  venta     Venta?   @relation(fields: [ventaId], references: [id], onDelete: SetNull)
+  usuarioId Int?
+  createdAt DateTime @default(now())
+
+  @@index([ventaId])
 }

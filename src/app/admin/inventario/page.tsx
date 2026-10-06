@@ -6,6 +6,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Search,
+  Plus,
+  Save,
+  X,
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
 
@@ -21,12 +24,18 @@ interface Insumo {
   updatedAt: string;
 }
 
+const UNIDADES = ['kg', 'litro', 'unidad', 'paquete'];
+const insumoVacio = { nombre: '', unidad: 'kg', stockActual: '', stockMinimo: '', precioUnitario: '', proveedorId: '' };
+
 export default function InventarioPage() {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<'todos' | 'bajo' | 'ok'>('todos');
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [stockEdit, setStockEdit] = useState<number>(0);
+  const [nuevo, setNuevo] = useState<typeof insumoVacio | null>(null);
+  const [proveedores, setProveedores] = useState<{ id: number; nombre: string }[]>([]);
+  const [errorNuevo, setErrorNuevo] = useState('');
 
   const fetchInsumos = useCallback(async () => {
     const res = await fetch('/api/inventario');
@@ -44,6 +53,38 @@ export default function InventarioPage() {
       body: JSON.stringify({ ...insumo, stockActual: stockEdit }),
     });
     setEditandoId(null);
+    fetchInsumos();
+  };
+
+  const abrirNuevo = async () => {
+    setErrorNuevo('');
+    setNuevo({ ...insumoVacio });
+    const res = await fetch('/api/proveedores');
+    if (res.ok) setProveedores(await res.json());
+  };
+
+  const crearInsumo = async () => {
+    if (!nuevo) return;
+    setErrorNuevo('');
+    const numero = (v: string) => (v.trim() === '' ? 0 : Number(v.replace(',', '.')));
+    const res = await fetch('/api/inventario', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: nuevo.nombre,
+        unidad: nuevo.unidad,
+        stockActual: numero(nuevo.stockActual),
+        stockMinimo: numero(nuevo.stockMinimo),
+        precioUnitario: numero(nuevo.precioUnitario),
+        proveedorId: nuevo.proveedorId ? Number(nuevo.proveedorId) : null,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErrorNuevo(data.error || 'No se pudo crear el insumo');
+      return;
+    }
+    setNuevo(null);
     fetchInsumos();
   };
 
@@ -66,6 +107,10 @@ export default function InventarioPage() {
             {insumos.length} insumos registrados
           </p>
         </div>
+        <button onClick={abrirNuevo} className="btn btn-primary">
+          <Plus className="w-4 h-4" />
+          Nuevo insumo
+        </button>
       </div>
 
       {/* Alert */}
@@ -150,10 +195,11 @@ export default function InventarioPage() {
           <tbody>
             {filtrados.map((insumo) => {
               const esBajo = insumo.stockActual <= insumo.stockMinimo;
-              const porcentaje = Math.min(
-                (insumo.stockActual / insumo.stockMinimo) * 100,
-                100
-              );
+              // Con stock mínimo 0 la barra va llena; un stock negativo (ventas sin stock cargado) la deja vacía.
+              const porcentaje =
+                insumo.stockMinimo > 0
+                  ? Math.max(0, Math.min((insumo.stockActual / insumo.stockMinimo) * 100, 100))
+                  : 100;
               return (
                 <tr
                   key={insumo.id}
@@ -261,6 +307,115 @@ export default function InventarioPage() {
           </tbody>
         </table>
       </div>
+
+      {nuevo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-card w-full max-w-md p-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Package className="w-5 h-5 text-amber-400" />
+                Nuevo insumo
+              </h2>
+              <button
+                onClick={() => setNuevo(null)}
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-[var(--muted)] mb-1 block">Nombre</label>
+                <input
+                  type="text"
+                  value={nuevo.nombre}
+                  onChange={(e) => setNuevo((n) => n && { ...n, nombre: e.target.value })}
+                  className="input"
+                  placeholder="Ej.: Carne picada"
+                  autoFocus
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-[var(--muted)] mb-1 block">Unidad</label>
+                  <select
+                    value={nuevo.unidad}
+                    onChange={(e) => setNuevo((n) => n && { ...n, unidad: e.target.value })}
+                    className="input"
+                  >
+                    {UNIDADES.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-[var(--muted)] mb-1 block">Precio por {nuevo.unidad} ($)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={nuevo.precioUnitario}
+                    onChange={(e) => setNuevo((n) => n && { ...n, precioUnitario: e.target.value })}
+                    className="input"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-[var(--muted)] mb-1 block">Stock actual</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={nuevo.stockActual}
+                    onChange={(e) => setNuevo((n) => n && { ...n, stockActual: e.target.value })}
+                    className="input"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-[var(--muted)] mb-1 block">Stock mínimo</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={nuevo.stockMinimo}
+                    onChange={(e) => setNuevo((n) => n && { ...n, stockMinimo: e.target.value })}
+                    className="input"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-[var(--muted)] mb-1 block">Proveedor (opcional)</label>
+                <select
+                  value={nuevo.proveedorId}
+                  onChange={(e) => setNuevo((n) => n && { ...n, proveedorId: e.target.value })}
+                  className="input"
+                >
+                  <option value="">Sin proveedor</option>
+                  {proveedores.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {errorNuevo && <p className="text-sm text-[var(--danger)] mt-4">{errorNuevo}</p>}
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setNuevo(null)} className="btn btn-secondary flex-1">
+                Cancelar
+              </button>
+              <button onClick={crearInsumo} disabled={!nuevo.nombre.trim()} className="btn btn-primary flex-1 disabled:opacity-50">
+                <Save className="w-4 h-4" />
+                Crear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

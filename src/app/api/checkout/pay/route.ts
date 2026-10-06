@@ -4,6 +4,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { aCentavos, aPesos, enPesos, subtotalCentavos } from '@/lib/money';
 import { datosNegocio } from '@/lib/negocio';
+import { descontarStockDeVenta } from '@/lib/stock';
 
 const METODOS_PAGO = ['efectivo', 'tarjeta', 'transferencia', 'dividido'] as const;
 
@@ -110,7 +111,10 @@ export async function POST(request: Request) {
           },
         });
 
-        // 4. Liberar la mesa solo si no quedan otros pedidos activos en ella.
+        // 4. Descontar del stock los insumos de las recetas (en la misma transacción que la venta).
+        await descontarStockDeVenta(tx, { ventaId: venta.id, usuarioId: cajeroId, items: pedido.items });
+
+        // 5. Liberar la mesa solo si no quedan otros pedidos activos en ella.
         const otrosActivos = await tx.pedido.count({
           where: { mesaId: pedido.mesaId, id: { not: pedidoId }, estado: { in: ESTADOS_ACTIVOS } },
         });

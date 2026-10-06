@@ -110,3 +110,29 @@ export const editarInsumoSchema = z.object({
   precioUnitario: montoNoNegativo.optional(),
   proveedorId: idPositivo.nullish(),
 });
+
+// Alta de insumo (antes no había forma de crear insumos fuera del seed de desarrollo).
+export const crearInsumoSchema = z.object({
+  nombre,
+  unidad: z.preprocess(vacioANulo, z.string().trim().min(1).max(20).default('unidad')),
+  stockActual: cantidadStock.default(0),
+  stockMinimo: cantidadStock.default(0),
+  precioUnitario: montoNoNegativo.default(0),
+  proveedorId: z.preprocess(vacioANulo, idPositivo.nullish()),
+});
+
+/* ───────────── Recetas ───────────── */
+
+// PUT reemplaza la receta completa del producto. `cantidad` es lo que consume UNA unidad vendida, en la unidad
+// del insumo (0.2 = 200 g si el insumo se mide en kg).
+export const recetaSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        insumoId: idPositivo,
+        cantidad: z.coerce.number().finite().gt(0, 'debe ser mayor que 0').max(100_000),
+      })
+    )
+    .max(50, 'una receta admite hasta 50 insumos')
+    .refine((items) => new Set(items.map((i) => i.insumoId)).size === items.length, 'un insumo aparece más de una vez'),
+});

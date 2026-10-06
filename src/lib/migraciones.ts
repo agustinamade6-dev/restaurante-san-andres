@@ -108,8 +108,51 @@ const montosEnCentavos: Paso = {
   },
 };
 
+/* ───────────── Paso 2: recetas y movimientos de stock (AT-12) ───────────── */
+
+async function existeTabla(db: Conexion, tabla: string): Promise<boolean> {
+  const filas = await db.consultar(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = '${tabla}'`);
+  return filas.length > 0;
+}
+
+// DDL generado por `prisma migrate diff` (idéntico al que crea `prisma db push`).
+const DDL_RECETAS = [
+  `CREATE TABLE "RecetaItem" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "productoId" INTEGER NOT NULL,
+    "insumoId" INTEGER NOT NULL,
+    "cantidad" REAL NOT NULL,
+    CONSTRAINT "RecetaItem_productoId_fkey" FOREIGN KEY ("productoId") REFERENCES "Producto" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "RecetaItem_insumoId_fkey" FOREIGN KEY ("insumoId") REFERENCES "Insumo" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+)`,
+  `CREATE UNIQUE INDEX "RecetaItem_productoId_insumoId_key" ON "RecetaItem"("productoId", "insumoId")`,
+];
+const DDL_MOVIMIENTOS = [
+  `CREATE TABLE "MovimientoStock" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "insumoId" INTEGER NOT NULL,
+    "cantidad" REAL NOT NULL,
+    "motivo" TEXT NOT NULL,
+    "ventaId" INTEGER,
+    "usuarioId" INTEGER,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "MovimientoStock_insumoId_fkey" FOREIGN KEY ("insumoId") REFERENCES "Insumo" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "MovimientoStock_ventaId_fkey" FOREIGN KEY ("ventaId") REFERENCES "Venta" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+)`,
+  `CREATE INDEX "MovimientoStock_ventaId_idx" ON "MovimientoStock"("ventaId")`,
+];
+
+const recetasYStock: Paso = {
+  nombre: 'Recetas de productos y movimientos de stock (AT-12)',
+  necesario: async (db) => !(await existeTabla(db, 'RecetaItem')) || !(await existeTabla(db, 'MovimientoStock')),
+  sentencias: async (db) => [
+    ...((await existeTabla(db, 'RecetaItem')) ? [] : DDL_RECETAS),
+    ...((await existeTabla(db, 'MovimientoStock')) ? [] : DDL_MOVIMIENTOS),
+  ],
+};
+
 /** Pasos en orden de aplicación. Los siguientes cambios de esquema se agregan al final. */
-export const PASOS: Paso[] = [montosEnCentavos];
+export const PASOS: Paso[] = [montosEnCentavos, recetasYStock];
 
 /* ───────────── Ejecución ───────────── */
 

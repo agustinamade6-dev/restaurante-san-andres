@@ -12,7 +12,19 @@
 type Row = Record<string, any>;
 type Seed = Partial<
   Record<
-    'pedidos' | 'mesas' | 'usuarios' | 'ventas' | 'historial' | 'productos' | 'items' | 'categorias' | 'costos' | 'proveedores' | 'insumos',
+    | 'pedidos'
+    | 'mesas'
+    | 'usuarios'
+    | 'ventas'
+    | 'historial'
+    | 'productos'
+    | 'items'
+    | 'categorias'
+    | 'costos'
+    | 'proveedores'
+    | 'insumos'
+    | 'recetas'
+    | 'movimientos',
     Row[]
   >
 >;
@@ -45,6 +57,8 @@ export function createFakeDb(seed: Seed = {}) {
     costos: [...(seed.costos ?? [])] as Row[],
     proveedores: [...(seed.proveedores ?? [])] as Row[],
     insumos: [...(seed.insumos ?? [])] as Row[],
+    recetas: [...(seed.recetas ?? [])] as Row[],
+    movimientos: [...(seed.movimientos ?? [])] as Row[],
   };
   let nextId = 1000;
   const failOn = new Set<string>();
@@ -77,6 +91,9 @@ export function createFakeDb(seed: Seed = {}) {
 
   const noExiste = (que: string) => Object.assign(new Error(`${que} no existe`), { code: 'P2025' });
   const buscar = (tabla: Row[], where: Row) => tabla.find((r) => matches(r, where));
+  // Imita `select` de Prisma: solo las columnas pedidas (sin select, la fila completa).
+  const elegir = (row: Row | undefined, select?: Row) =>
+    row && select ? Object.fromEntries(Object.keys(select).filter((k) => select[k]).map((k) => [k, row[k]])) : row && { ...row };
   const sinUndefined = (data: Row) => Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
   const productoConRel = (p: Row | undefined, include?: Row) =>
     p
@@ -235,13 +252,51 @@ export function createFakeDb(seed: Seed = {}) {
       },
     },
     insumo: {
-      findMany: async ({ include }: any = {}) => state.insumos.map((r) => insumoConRel(r, include)),
-      findUnique: async ({ where }: any) => buscar(state.insumos, where) ?? null,
+      findMany: async ({ where, include }: any = {}) =>
+        state.insumos.filter((r) => matches(r, where)).map((r) => insumoConRel(r, include)),
+      findUnique: async ({ where }: any) => {
+        const row = buscar(state.insumos, where);
+        return row ? { ...row } : null;
+      },
+      create: async ({ data, include }: any) => {
+        const row = { id: nextId++, ...data };
+        state.insumos.push(row);
+        return insumoConRel(row, include);
+      },
       update: async ({ where, data, include }: any) => {
         const row = buscar(state.insumos, where);
         if (!row) throw noExiste('Insumo');
         Object.assign(row, sinUndefined(data));
         return insumoConRel(row, include);
+      },
+    },
+    recetaItem: {
+      findMany: async ({ where, include }: any = {}) =>
+        state.recetas
+          .filter((r) => matches(r, where))
+          .sort((a, b) => a.id - b.id)
+          .map((r) => ({
+            ...r,
+            ...(include?.insumo ? { insumo: elegir(state.insumos.find((i) => i.id === r.insumoId), include.insumo.select) } : {}),
+          })),
+      deleteMany: async ({ where }: any) => {
+        const antes = state.recetas.length;
+        state.recetas.splice(0, antes, ...state.recetas.filter((r) => !matches(r, where)));
+        return { count: antes - state.recetas.length };
+      },
+      createMany: async ({ data }: any) => {
+        guard('recetaItem.createMany');
+        for (const d of data) state.recetas.push({ id: nextId++, ...d });
+        return { count: data.length };
+      },
+    },
+    movimientoStock: {
+      findMany: async ({ where }: any = {}) => state.movimientos.filter((r) => matches(r, where)).map((r) => ({ ...r })),
+      create: async ({ data }: any) => {
+        guard('movimientoStock.create');
+        const row = { id: nextId++, createdAt: new Date(), ...data };
+        state.movimientos.push(row);
+        return { ...row };
       },
     },
     venta: {

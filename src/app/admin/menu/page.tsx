@@ -11,7 +11,9 @@ import {
   UtensilsCrossed,
   Image as ImageIcon,
   Upload,
+  ClipboardList,
 } from 'lucide-react';
+import RecetaModal from './RecetaModal';
 
 interface Producto {
   id: number;
@@ -45,6 +47,7 @@ export default function MenuPage() {
     imagen: '',
   });
   const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const [recetaDe, setRecetaDe] = useState<Producto | null>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -259,6 +262,13 @@ export default function MenuPage() {
                 <td className="p-4">
                   <div className="flex items-center justify-end gap-2">
                     <button
+                      onClick={() => setRecetaDe(p)}
+                      title="Receta (insumos que descuenta del stock)"
+                      className="w-8 h-8 rounded-lg bg-[var(--background)] text-amber-400 border border-[var(--border)] flex items-center justify-center hover:bg-amber-500 hover:text-white transition-colors"
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={() => abrirModal(p)}
                       className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors"
                     >
@@ -455,6 +465,8 @@ export default function MenuPage() {
           </div>
         </div>
       )}
+
+      {recetaDe && <RecetaModal producto={recetaDe} onClose={() => setRecetaDe(null)} />}
     </div>
   );
 }

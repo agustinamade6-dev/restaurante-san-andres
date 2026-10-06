@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { ApiError } from '@/lib/api-error';
 import { aPesos, enPesos } from '@/lib/money';
 import { PREFIJO_ANULACION, esAnulacion } from '@/lib/ventas';
+import { reintegrarStockDeVenta } from '@/lib/stock';
 
 const bodySchema = z.object({
   motivo: z.string().trim().min(3, 'El motivo es obligatorio (mínimo 3 caracteres)').max(500),
@@ -79,6 +80,9 @@ export async function POST(
           items: 0,
         },
       });
+
+      // Devuelve al stock exactamente lo que descontó el cobro original.
+      await reintegrarStockDeVenta(tx, { ventaOriginalId: original.id, anulacionId: anulacion.id, usuarioId });
 
       if (original.pedidoId) {
         await tx.historialPedido.create({

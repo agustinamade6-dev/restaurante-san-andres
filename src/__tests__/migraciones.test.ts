@@ -79,8 +79,11 @@ describe('migrarBase: montos en pesos (REAL) → centavos (INTEGER)', () => {
     await db.$disconnect();
   });
 
-  it('aplica el paso de centavos', () => {
-    expect(aplicados).toEqual(['Montos de dinero en centavos enteros (AT-13)']);
+  it('aplica los pasos de centavos y de recetas', () => {
+    expect(aplicados).toEqual([
+      'Montos de dinero en centavos enteros (AT-13)',
+      'Recetas de productos y movimientos de stock (AT-12)',
+    ]);
   });
 
   it('todas las columnas de dinero quedan INTEGER', async () => {
@@ -162,7 +165,7 @@ describe('migrarBase: integridad', () => {
     await db.$executeRawUnsafe(`INSERT INTO "Producto" (id, nombre, precio, categoriaId, updatedAt) VALUES (1, 'Huérfano', 10.5, 999, '2026-10-06 12:00:00')`);
     await db.$disconnect();
 
-    expect(await migrarBase(url)).toHaveLength(1);
+    expect(await migrarBase(url)).toHaveLength(2);
     const db2 = new PrismaClient({ datasourceUrl: url });
     const [p] = await db2.$queryRawUnsafe<{ precio: number }[]>(`SELECT precio FROM "Producto"`);
     expect(Number(p.precio)).toBe(1050);
@@ -193,5 +196,25 @@ describe('migrarBase: integridad', () => {
     const [p] = await db2.$queryRawUnsafe<{ precio: number; categoriaId: number }[]>(`SELECT precio, categoriaId FROM "Producto"`);
     expect([Number(p.precio), Number(p.categoriaId)]).toEqual([125050, 1]);
     await db2.$disconnect();
+  }, 60_000);
+});
+
+describe('migrarBase: base en centavos sin recetas (estado del commit 9)', () => {
+  it('solo crea las tablas de recetas y movimientos, sin tocar los montos', async () => {
+    const url = urlDe('commit9.db');
+    const ddl = readFileSync(join(__dirname, 'fixtures', 'esquema-centavos-sin-recetas.sql'), 'utf8');
+    const db = await crearBase(url, ddl);
+    await db.$executeRawUnsafe(`INSERT INTO "CostoFijo" (concepto, monto, updatedAt) VALUES ('Luz', 8500050, '2026-10-06 12:00:00')`);
+    await db.$disconnect();
+
+    expect(await migrarBase(url)).toEqual(['Recetas de productos y movimientos de stock (AT-12)']);
+
+    const db2 = new PrismaClient({ datasourceUrl: url });
+    expect((await db2.costoFijo.findFirst())?.monto).toBe(8500050);
+    expect(await db2.recetaItem.count()).toBe(0);
+    await db2.$disconnect();
+
+    const r = prismaCli(['migrate', 'diff', '--from-url', `"${url}"`, '--to-schema-datamodel', 'prisma/schema.prisma', '--exit-code']);
+    expect(r.status).toBe(0);
   }, 60_000);
 });

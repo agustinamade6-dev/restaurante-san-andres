@@ -17,6 +17,7 @@ y qué debe tener en cuenta.
 | 7 | `fix(caja): período "Hoy" correcto, datos del comercio configurables y limpieza del repositorio` | [commit-07-periodo-caja-y-limpieza.md](commit-07-periodo-caja-y-limpieza.md) | AT-19, AT-16, AT-17 (parcial) |
 | 8 | `chore(repo): eliminar temp.tsx, copia sin uso de la pantalla de Comandas` | [commit-08-borrar-temp.md](commit-08-borrar-temp.md) | AT-17 (completo) |
 | 9 | `fix(dinero): montos en centavos enteros y migración automática de la base al arrancar` | [commit-09-dinero-en-centavos.md](commit-09-dinero-en-centavos.md) | AT-13 (completo), AT-20 |
+| 10 | `feat(inventario): recetas de productos, descuento de stock al cobrar y reintegro al anular` | [commit-10-recetas-y-stock.md](commit-10-recetas-y-stock.md) | AT-12 (completo), AT-09 (completo) |
 
 ## Estado de los hallazgos
 
@@ -30,10 +31,10 @@ y qué debe tener en cuenta.
 | AT-06 | Operaciones multi-paso sin transacción | Alto | ✅ Commits 1, 2 y 4 |
 | AT-07 | PIN en texto plano y sin límite de intentos | Alto | ✅ Commit 3 |
 | AT-08 | Sin validación de entrada | Alto | ✅ Commits 1, 2, 4, 5 y 6 |
-| AT-09 | Cancelación sin controles (pedido pagado, stock, venta) | Alto | 🟡 Commit 4 (estado y transacción). Pendiente: reintegro de stock (AT-12) |
+| AT-09 | Cancelación sin controles (pedido pagado, stock, venta) | Alto | ✅ Commits 4 (estado y transacción) y 10 (stock) |
 | AT-10 | SSE sin autenticación y fuga de temporizadores | Medio | ✅ Commits 3 y 5 |
 | AT-11 | Subida de archivos débil | Medio | ✅ Commits 3 y 5 |
-| AT-12 | Inventario desconectado de las ventas | Medio | ⏳ Pendiente |
+| AT-12 | Inventario desconectado de las ventas | Medio | ✅ Commit 10 |
 | AT-13 | Dinero en `Float` | Medio | ✅ Commits 1 (redondeo) y 9 (centavos enteros) |
 | AT-14 | Mesas: estado libre y borrado sin validar | Medio | ✅ Commits 3, 4 y 5 |
 | AT-15 | Múltiples instancias de `PrismaClient` | Medio | ✅ Commit 3 |
