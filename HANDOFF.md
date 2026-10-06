@@ -43,3 +43,5 @@ Revisión `code-review` de `master..HEAD`. **Corregido (backend):** ráfaga conc
 ### Segunda pasada (2026-10-06)
 Hecho: `escritura()` en `transaccion.ts` pone en fila también las escrituras sueltas (proveedores, productos, costos, inventario, PIN); `metricas` usa 1 consulta de ventas en vez de ~11; `ESTADOS_FINALES`, `prefijoFecha` y `formatoPesos` (es-AR) compartidos; tests nuevos (`escritura.test.ts`, SSE ante error de base). 799 tests, build y eslint OK.
 Sigue pendiente: restricción de `PATCH /api/mesas/[id]` a ADMIN (decisión), `hub-metrics` en el inicio y Inventario (frontend), decisiones abiertas.
+
+**Aviso a Agus (cambio de contrato):** `PATCH /api/mesas/[id]` ahora es solo ADMIN (antes ADMIN y MOZO). Hoy lo usa solo el editor de plano de Comandas (`comandas/page.tsx:374`); si un mozo lo dispara, recibirá 403.

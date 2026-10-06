@@ -204,9 +204,10 @@ describe('PATCH /api/mesas/[id] — editar y renumerar', () => {
     expect(db.state.mesas.find((m) => m.id === 20)?.numero).toBe(20);
   });
 
-  it('MOZO puede editar (lo usa Sala); COCINERO no', async () => {
-    await loginAs('MOZO', 3);
+  it('REGRESIÓN: solo ADMIN edita mesas; MOZO y COCINERO reciben 403', async () => {
     expect((await editar(1, { capacidad: 5 })).status).toBe(200);
+    await loginAs('MOZO', 3);
+    expect((await editar(1, { capacidad: 7 })).status).toBe(403);
     await loginAs('COCINERO', 3);
     expect((await editar(1, { capacidad: 6 })).status).toBe(403);
   });

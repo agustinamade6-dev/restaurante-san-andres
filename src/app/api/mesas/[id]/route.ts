@@ -11,7 +11,7 @@ function idDeMesa(idStr: string): number | null {
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAuth(['ADMIN', 'MOZO']);
+  const auth = await requireAuth(['ADMIN']);
   if (!auth.ok) return auth.response;
 
   try {
