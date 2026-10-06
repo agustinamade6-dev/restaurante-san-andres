@@ -102,6 +102,15 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { id, estado, motivo } = body;
 
+    // El cobro (Venta + ticket) se registra únicamente en /api/checkout/pay.
+    // Permitir "pagado" por acá dejaría pedidos pagados sin Venta.
+    if (estado === 'pagado') {
+      return NextResponse.json(
+        { success: false, error: 'Para cobrar un pedido usá /api/checkout/pay' },
+        { status: 400 }
+      );
+    }
+
     const updateData: any = { estado };
     if (estado === 'entregado' || estado === 'pagado') {
       updateData.entregadoEn = new Date();
@@ -144,19 +153,6 @@ export async function PATCH(request: Request) {
         await prisma.mesa.update({
           where: { id: pedido.mesaId },
           data: { estado: 'libre' },
-        });
-      }
-
-      // Record as a venta if delivered or paid
-      if (estado === 'entregado' || estado === 'pagado') {
-        await prisma.venta.create({
-          data: {
-            total: pedido.total,
-            items: pedido.items.length,
-            mesaNumero: pedido.mesa.numero,
-            pedido: { connect: { id: pedido.id } },
-            mesa: { connect: { id: pedido.mesaId } },
-          },
         });
       }
     } else if (estado === 'listo') {
