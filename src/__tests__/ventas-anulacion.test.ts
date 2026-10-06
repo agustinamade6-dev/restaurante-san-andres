@@ -274,7 +274,10 @@ describe('escenario real: corregir un cobro (5 ensaladas cobradas, quedó 1)', (
     expect(edicion.status).toBe(400);
     expect((await CANCELAR(json('http://x', 'PATCH', { motivo: 'x' }), { params: Promise.resolve({ id: String(creado.id) }) })).status).toBe(400);
     await loginAs('MOZO', 3);
-    expect((await PAGAR(json('http://x/api/checkout/pay', 'POST', { pedidoId: creado.id, mesaId: 2 }))).status).toBe(400);
+    // Volver a cobrarlo es un reintento: devuelve la MISMA venta, no registra otra.
+    const otraVez = await PAGAR(json('http://x/api/checkout/pay', 'POST', { pedidoId: creado.id, mesaId: 2 }));
+    expect(otraVez.status).toBe(200);
+    expect((await otraVez.json()).reintento).toBe(true);
     expect(db.state.items[0].cantidad).toBe(5); // el pedido pagado quedó intacto
     expect(db.state.ventas).toHaveLength(1);
 

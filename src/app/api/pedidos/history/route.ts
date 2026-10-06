@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { enPesos } from '@/lib/money';
 import { enteroDeQuery } from '@/lib/validacion';
 
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
     if (days === null) {
       return NextResponse.json({ error: 'El parámetro days debe ser un entero entre 1 y 366' }, { status: 400 });
     }
-    const where: any = {
+    const where: Prisma.PedidoWhereInput = {
       estado: { in: ['entregado', 'pagado', 'cancelado'] },
     };
     if (mesaNumero) {

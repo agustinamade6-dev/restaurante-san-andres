@@ -339,19 +339,28 @@ describe('/api/proveedores', () => {
 /* ──────────────────────────── INVENTARIO ──────────────────────────── */
 
 describe('PUT /api/inventario', () => {
-  it('actualiza el stock con el objeto completo que envía la pantalla (con proveedor anidado y fechas)', async () => {
+  it('acepta el objeto completo que envía la pantalla (con proveedor anidado, fechas y el MISMO stock)', async () => {
     const insumoCompleto = {
       ...db.state.insumos[0],
+      precioUnitario: 900,
       proveedor: { id: 3, nombre: 'Distribuidora Sur' },
       createdAt: '2026-10-06T11:12:43.000Z',
       updatedAt: '2026-10-06T11:12:43.000Z',
     };
 
-    const res = await INVENTARIO.PUT(pedir('PUT', { ...insumoCompleto, stockActual: 25.5 }));
+    const res = await INVENTARIO.PUT(pedir('PUT', { ...insumoCompleto, stockMinimo: 3 }));
 
     expect(res.status).toBe(200);
-    expect(db.state.insumos[0]).toMatchObject({ stockActual: 25.5, nombre: 'Harina', unidad: 'kg' });
+    expect(db.state.insumos[0]).toMatchObject({ stockActual: 10, stockMinimo: 3, nombre: 'Harina', unidad: 'kg' });
     expect((await res.json()).proveedor.nombre).toBe('Distribuidora Sur');
+  });
+
+  it('REGRESIÓN: un stock distinto por PUT es 400 (pisaba las ventas hechas con la pantalla abierta) y no cambia nada', async () => {
+    db.state.insumos[0].stockActual = 8.5; // una venta descontó mientras la pantalla mostraba 10
+    const res = await INVENTARIO.PUT(pedir('PUT', { ...db.state.insumos[0], stockActual: 10, stockMinimo: 3 }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Ajustar stock/);
+    expect(db.state.insumos[0]).toMatchObject({ stockActual: 8.5, stockMinimo: 5 });
   });
 
   it('permite desvincular el proveedor (null) y cambiar el resto de los campos', async () => {

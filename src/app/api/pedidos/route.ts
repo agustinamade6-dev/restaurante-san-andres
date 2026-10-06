@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import eventEmitter from '@/lib/events';
 import { dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, cantidadItem } from '@/lib/api-error';
+import { TRANSICIONES } from '@/lib/pedidos';
+import { PEDIDOS_QUE_OCUPAN_MESA } from '@/lib/mesas';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
     }
     const { mesaId, items, notas } = parsed.data;
 
-    const pedido = await prisma.$transaction(async (tx) => {
+    const { creado: pedido, mesa: mesaOcupada } = await prisma.$transaction(async (tx) => {
       const mesa = await tx.mesa.findUnique({ where: { id: mesaId }, select: { id: true, activa: true } });
       if (!mesa) throw new ApiError(404, 'Mesa no encontrada');
       if (!mesa.activa) throw new ApiError(400, 'La mesa no está activa');
@@ -109,13 +111,14 @@ export async function POST(request: Request) {
         },
       });
 
-      await tx.mesa.update({ where: { id: mesaId }, data: { estado: 'ocupada' } });
-      return creado;
+      const ocupada = await tx.mesa.update({ where: { id: mesaId }, data: { estado: 'ocupada' } });
+      return { creado, mesa: ocupada };
     });
 
     // Emit real-time event
     const respuesta = enPesos(pedido);
     eventEmitter.emit('pedido:nuevo', respuesta);
+    eventEmitter.emit('mesa:actualizada', mesaOcupada);
 
     return NextResponse.json(respuesta, { status: 201 });
   } catch (error) {
@@ -131,7 +134,6 @@ export async function POST(request: Request) {
 // Corregir un cobro se hace anulando la venta (POST /api/ventas/[id]/anular), no reabriendo el pedido.
 const ESTADOS_FINALES = ['pagado', 'cancelado'];
 const ESTADOS_ABIERTOS = ['pendiente', 'preparando', 'listo', 'entregado'];
-const ESTADOS_DE_MESA_OCUPADA = ['pendiente', 'preparando', 'listo'];
 
 const cambiarEstadoSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -199,15 +201,22 @@ export async function PATCH(request: Request) {
 
       // Mismo estado: no hay nada que hacer (evita historial duplicado por doble clic).
       if (anterior.estado === estado) {
-        return { pedido: await tx.pedido.findUnique({ where: { id }, include: incluir }), cambio: false };
+        return { pedido: await tx.pedido.findUnique({ where: { id }, include: incluir }), cambio: false, mesa: null };
       }
 
-      // Guard atómico: si un cobro o una cancelación se coló entre la lectura y la escritura, no pisa el estado final.
+      if (!TRANSICIONES[anterior.estado]?.includes(estado)) {
+        throw new ApiError(400, `Un pedido "${anterior.estado}" no puede pasar a "${estado}"`);
+      }
+
+      // Guard atómico: reclama el estado EXACTO que se validó. Si otra petición (cocina, cobro, cancelación) lo cambió
+      // entre la lectura y la escritura, no se pisa: se rechaza y la pantalla vuelve a cargar.
       const claimed = await tx.pedido.updateMany({
-        where: { id, estado: { notIn: ESTADOS_FINALES } },
+        where: { id, estado: anterior.estado },
         data: { estado, entregadoEn: estado === 'entregado' ? new Date() : null },
       });
-      if (claimed.count === 0) throw new ApiError(400, 'El pedido ya fue cerrado y no puede cambiar de estado');
+      if (claimed.count === 0) {
+        throw new ApiError(409, 'El pedido cambió de estado mientras tanto. Actualizá la pantalla y volvé a intentar.');
+      }
 
       const pedido = await tx.pedido.findUnique({ where: { id }, include: incluir });
       if (!pedido) throw new ApiError(404, 'Pedido no encontrado');
@@ -224,27 +233,32 @@ export async function PATCH(request: Request) {
         });
       }
 
-      // Estado de la mesa según el estado del pedido.
+      // Estado de la mesa según el estado del pedido (null = la mesa no cambia).
+      let nuevoEstadoMesa: string | null;
       if (estado === 'entregado') {
         const activos = await tx.pedido.count({
-          where: { mesaId: pedido.mesaId, estado: { in: ESTADOS_DE_MESA_OCUPADA } },
+          where: { mesaId: pedido.mesaId, estado: { in: PEDIDOS_QUE_OCUPAN_MESA } },
         });
-        if (activos === 0) {
-          await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'libre' } });
-        }
+        nuevoEstadoMesa = activos === 0 ? 'libre' : null;
       } else if (estado === 'listo') {
-        await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'esperando' } });
+        nuevoEstadoMesa = 'esperando';
       } else {
-        // pendiente / preparando (p. ej. al reabrir un pedido entregado): la mesa vuelve a estar ocupada.
-        await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: 'ocupada' } });
+        // preparando (p. ej. al reabrir un pedido entregado): la mesa vuelve a estar ocupada.
+        nuevoEstadoMesa = 'ocupada';
       }
+      const mesa =
+        nuevoEstadoMesa && nuevoEstadoMesa !== pedido.mesa.estado
+          ? await tx.mesa.update({ where: { id: pedido.mesaId }, data: { estado: nuevoEstadoMesa } })
+          : null;
 
-      return { pedido, cambio: true };
+      return { pedido, cambio: true, mesa };
     });
 
     // Emit real-time event
     const respuesta = enPesos(resultado.pedido);
     if (resultado.cambio) eventEmitter.emit('pedido:actualizado', respuesta);
+    // La mesa se anuncia solo si cambió, con su estado ya actualizado.
+    if (resultado.mesa) eventEmitter.emit('mesa:actualizada', resultado.mesa);
 
     return NextResponse.json(respuesta);
   } catch (error) {

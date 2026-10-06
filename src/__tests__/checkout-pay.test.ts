@@ -138,21 +138,51 @@ describe('POST /api/checkout/pay — numeración de tickets', () => {
 });
 
 describe('POST /api/checkout/pay — idempotencia y concurrencia (modelo single-writer)', () => {
-  it('rechaza cobrar dos veces el mismo pedido', async () => {
-    await pagar(valido);
+  it('cobrar dos veces el mismo pedido NO registra otra venta: el reintento devuelve la misma', async () => {
+    const primera = await (await pagar(valido)).json();
     const res = await pagar(valido);
+    const data = await res.json();
 
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe('Este pedido ya fue cerrado o cancelado');
-    expect(db.state.ventas).toHaveLength(1);
-  });
-
-  it('con dos cobros simultáneos solo uno gana y se crea una sola venta', async () => {
-    const [r1, r2] = await Promise.all([pagar(valido), pagar(valido)]);
-
-    expect([r1.status, r2.status].sort()).toEqual([200, 400]);
+    expect(res.status).toBe(200);
+    expect(data.reintento).toBe(true);
+    expect(data.venta.id).toBe(primera.venta.id);
+    expect(data.ticketCliente.numeroTicket).toBe(primera.ticketCliente.numeroTicket);
+    expect(data.ticketCliente.total).toBe(primera.ticketCliente.total);
     expect(db.state.ventas).toHaveLength(1);
     expect(db.state.historial.filter((h) => h.accion === 'COBRADO')).toHaveLength(1);
+  });
+
+  it('con dos cobros simultáneos solo uno registra la venta; el otro recibe la misma', async () => {
+    const [r1, r2] = await Promise.all([pagar(valido), pagar(valido)]);
+    const [d1, d2] = [await r1.json(), await r2.json()];
+
+    expect([r1.status, r2.status]).toEqual([200, 200]);
+    expect([d1.reintento, d2.reintento].filter(Boolean)).toHaveLength(1);
+    expect(d1.venta.id).toBe(d2.venta.id);
+    expect(db.state.ventas).toHaveLength(1);
+    expect(db.state.historial.filter((h) => h.accion === 'COBRADO')).toHaveLength(1);
+  });
+
+  it('un reintento no vuelve a emitir eventos', async () => {
+    await pagar(valido);
+    const emit = vi.spyOn(eventEmitter, 'emit');
+    await pagar(valido);
+    expect(emit).not.toHaveBeenCalled();
+    emit.mockRestore();
+  });
+
+  it('una venta ANULADA no se devuelve como reintento: el pedido sigue cerrado (400)', async () => {
+    await pagar(valido);
+    const ventaId = db.state.ventas[0].id;
+    db.state.ventas.push({ id: 999, pedidoId: 1, total: -390050, propina: -10000, metodoPago: 'efectivo', numeroTicket: 'A-1', numeroControlInterno: `ANUL-V${ventaId}` });
+    const res = await pagar(valido);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Este pedido ya fue cerrado o cancelado');
+  });
+
+  it('un reintento desde OTRA mesa no devuelve la venta (400)', async () => {
+    await pagar(valido);
+    expect((await pagar({ ...valido, mesaId: 99 })).status).toBe(400);
   });
 
   it('cobros simultáneos de pedidos distintos no repiten el número de ticket', async () => {

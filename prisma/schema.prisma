@@ -183,7 +183,8 @@ model MovimientoStock {
   insumoId  Int
   insumo    Insumo   @relation(fields: [insumoId], references: [id])
   cantidad  Float
-  motivo    String // VENTA, ANULACION
+  motivo    String // VENTA, ANULACION, AJUSTE
+  detalle   String   @default("") // texto libre (p. ej. el motivo de un ajuste manual)
   ventaId   Int?
   venta     Venta?   @relation(fields: [ventaId], references: [id], onDelete: SetNull)
   usuarioId Int?

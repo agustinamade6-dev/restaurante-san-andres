@@ -20,6 +20,7 @@ y qué debe tener en cuenta.
 | 10 | `feat(inventario): recetas de productos, descuento de stock al cobrar y reintegro al anular` | [commit-10-recetas-y-stock.md](commit-10-recetas-y-stock.md) | AT-12 (completo), AT-09 (completo) |
 | 11 | `fix(seguridad): límite de PIN no evadible, sesiones revocables, CSRF y endpoints sin datos de más` (rama `fix/revision-pr1`) | [commit-11-seguridad-revision-pr1.md](commit-11-seguridad-revision-pr1.md) | AT-21 a AT-27 |
 | 12 | `fix(metricas): propinas fuera del ingreso, costos por periodicidad y montos dentro del rango de la base` | [commit-12-propinas-costos-rango.md](commit-12-propinas-costos-rango.md) | AT-28 a AT-30 |
+| 13 | `fix(pedidos): transiciones de estado explícitas, eventos de mesa correctos, cobro idempotente y ajuste de stock` | [commit-13-estados-eventos-cobro-stock.md](commit-13-estados-eventos-cobro-stock.md) | AT-31 a AT-34 |
 
 ## Estado de los hallazgos
 
@@ -55,6 +56,10 @@ y qué debe tener en cuenta.
 | AT-28 | Propinas contadas como ingreso del negocio | Medio | ✅ Commit 12 |
 | AT-29 | Costos sumados sin mirar la periodicidad | Medio | ✅ Commit 12 |
 | AT-30 | Montos fuera del rango de la columna (error 500) | Bajo | ✅ Commit 12 |
+| AT-31 | Cualquier salto entre estados abiertos del pedido | Medio | ✅ Commit 13 |
+| AT-32 | Eventos `mesa:actualizada` ausentes o con el estado viejo | Bajo | ✅ Commit 13 |
+| AT-33 | El reintento de un cobro exitoso respondía error | Medio | ✅ Commit 13 |
+| AT-34 | Editar el stock pisaba las ventas y no dejaba registro | Medio | ✅ Commit 13 (falta la pantalla) |
 
 ## Convenciones
 

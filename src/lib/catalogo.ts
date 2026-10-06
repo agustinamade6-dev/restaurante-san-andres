@@ -111,6 +111,17 @@ export const editarInsumoSchema = z.object({
   proveedorId: idPositivo.nullish(),
 });
 
+// Ajuste manual de stock: delta (positivo suma, negativo resta) y motivo obligatorio. Ver lib/stock.ts.
+export const ajusteStockSchema = z.object({
+  insumoId: idPositivo,
+  delta: z.coerce
+    .number()
+    .finite()
+    .refine((d) => d !== 0, 'debe ser distinto de 0')
+    .refine((d) => Math.abs(d) <= 1_000_000, 'es demasiado grande'),
+  motivo: z.string().trim().min(3, 'es obligatorio (mínimo 3 caracteres)').max(200),
+});
+
 // Alta de insumo (antes no había forma de crear insumos fuera del seed de desarrollo).
 export const crearInsumoSchema = z.object({
   nombre,

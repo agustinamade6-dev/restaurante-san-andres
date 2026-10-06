@@ -64,14 +64,22 @@ export async function PUT(request: Request) {
     const existente = await prisma.insumo.findUnique({ where: { id } });
     if (!existente) return error('Insumo no encontrado', 404);
 
-    if (datos.proveedorId) {
-      const proveedor = await prisma.proveedor.findUnique({ where: { id: datos.proveedorId } });
+    // El stock no se reemplaza por esta vía: un valor absoluto pisaba los descuentos de ventas hechas mientras la
+    // pantalla estaba abierta, y el cambio no quedaba registrado. Para cambiarlo: POST /api/inventario/ajuste.
+    // Si llega el mismo valor que ya tiene (la pantalla manda el insumo completo), se ignora.
+    const { stockActual, ...cambios } = datos;
+    if (stockActual !== undefined && stockActual !== existente.stockActual) {
+      return error('El stock no se edita acá: usá "Ajustar stock" (POST /api/inventario/ajuste) con la diferencia y un motivo.', 400);
+    }
+
+    if (cambios.proveedorId) {
+      const proveedor = await prisma.proveedor.findUnique({ where: { id: cambios.proveedorId } });
       if (!proveedor) return error('El proveedor no existe', 400);
     }
 
     const insumo = await prisma.insumo.update({
       where: { id },
-      data: datos,
+      data: cambios,
       include: { proveedor: true },
     });
     return NextResponse.json(enPesos(insumo));
