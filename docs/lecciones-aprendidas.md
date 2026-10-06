@@ -30,3 +30,9 @@ Al cerrar un bloque de trabajo: si hubo una corrección a mano, agregar una fila
 | 20 | La rama `frontend` cambió archivos del backend en paralelo; 7 commits estaban sin subir. | Unión simulada con `git merge-tree` y resuelta sobre la versión auditada; división por carpetas. | L-051 | merge `a531548` |
 | 21 | `prisma format` reformateó todo el esquema dentro de un cambio funcional. | Revertido; solo los cambios necesarios. | L-053 | commit 9 |
 | 22 | Scripts con heredoc rotos por escapes; nombres con tilde rotos en consola. | Scripts a archivo; búsquedas sin tildes. | L-054 | sesión 2026-10-06 |
+| 23 | 5 cobros simultáneos daban `[500, 500, 500, 200, 500]` en SQLite real; la base simulada no podía mostrarlo. | Transacciones de escritura en fila (`src/lib/transaccion.ts`) + `integracion-sqlite.test.ts`. | L-013, L-041 | commit 14, AT-35 |
+| 24 | El test de integración daba 401 en todo: `vi.resetModules()` dejó dos instancias del helper de sesión y del secreto. | Importar el helper después de recargar los módulos. | L-044 | commit 14 |
+| 25 | Casi se exportaron constantes desde archivos `route.ts` (no permitido por Next); se detectó antes de compilar. | Constantes a `src/lib/` (`pedidos.ts`, `transaccion.ts`). | L-056 | commits 11 y 13 |
+| 26 | Reemplazos por script que no coincidían con el código real (import distinto, texto repetido) y se aplicaban a medias. | Releer el fragmento y editar a mano; scripts que abortan ante cualquier diferencia. | L-057 | sesión 2026-10-06 |
+| 27 | El evento de cancelación anunciaba la mesa con el estado leído antes de liberarla. | Emitir la mesa ya actualizada y solo si cambió. | L-043 | commit 13, AT-32 |
+
