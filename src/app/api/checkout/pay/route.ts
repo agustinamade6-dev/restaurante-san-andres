@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import eventEmitter from '@/lib/events';
 
 export async function POST(request: Request) {
   try {
@@ -84,6 +85,10 @@ export async function POST(request: Request) {
 
       return venta;
     });
+
+    // Emitir eventos para que comanderas y cocina vean la mesa liberada
+    eventEmitter.emit('pedido:actualizado', { ...pedido, estado: 'pagado' });
+    eventEmitter.emit('mesa:actualizada', { ...pedido.mesa, estado: 'libre' });
 
     // Build ticket payloads
     const ticketCliente = {

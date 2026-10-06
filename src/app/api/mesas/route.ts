@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import eventEmitter from '@/lib/events';
 
 export async function GET() {
   try {
@@ -35,6 +36,7 @@ export async function PATCH(request: Request) {
       where: { id },
       data: { estado },
     });
+    eventEmitter.emit('mesa:actualizada', mesa);
     return NextResponse.json(mesa);
   } catch (error) {
     console.error('Error updating mesa:', error);
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
           where: { numero },
           data: { activa: true, capacidad, sector, forma, posX, posY }
         });
+        eventEmitter.emit('mesa:actualizada', mesa);
         return NextResponse.json(mesa);
       }
       return NextResponse.json({ success: false, error: 'El número de mesa ya está en uso' }, { status: 400 });
@@ -72,6 +75,7 @@ export async function POST(request: Request) {
         activa: true,
       },
     });
+    eventEmitter.emit('mesa:actualizada', mesa);
     return NextResponse.json(mesa);
   } catch (error) {
     console.error('Error creating mesa:', error);

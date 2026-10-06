@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import eventEmitter from '@/lib/events';
 
 export async function PUT(request: Request) {
   try {
@@ -19,6 +20,7 @@ export async function PUT(request: Request) {
         })
       )
     );
+    eventEmitter.emit('mesa:actualizada', { layout: true });
 
     return NextResponse.json({ success: true });
   } catch (error) {
