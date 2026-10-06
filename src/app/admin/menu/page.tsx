@@ -42,6 +42,8 @@ export default function MenuPage() {
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
   const [errorModal, setErrorModal] = useState('');
   const [errorLista, setErrorLista] = useState('');
+  // Producto que no se pudo eliminar: se ofrece marcarlo como no disponible
+  const [noEliminado, setNoEliminado] = useState<Producto | null>(null);
   const [editando, setEditando] = useState<Producto | null>(null);
   const [form, setForm] = useState({
     nombre: '',
@@ -113,7 +115,7 @@ export default function MenuPage() {
         nombre: '',
         descripcion: '',
         precio: 0,
-        categoriaId: categorias[0]?.id || 1,
+        categoriaId: categorias[0]?.id ?? 0,
         disponible: true,
         imagen: '🍽️',
       });
@@ -132,13 +134,40 @@ export default function MenuPage() {
     fetchData();
   };
 
-  const eliminar = async (id: number) => {
+  const eliminar = async (producto: Producto) => {
     if (!confirm('¿Eliminar este producto?')) return;
-    setErrorLista('');
-    const error = await enviar(`/api/productos?id=${id}`, { method: 'DELETE' }, 'No se pudo eliminar el producto');
-    if (error) return setErrorLista(error);
+    cerrarAvisoLista();
+    const error = await enviar(`/api/productos?id=${producto.id}`, { method: 'DELETE' }, 'No se pudo eliminar el producto');
+    if (error) {
+      setErrorLista(error);
+      // Un producto ya vendido no se borra; sacarlo de la venta es marcarlo como no disponible.
+      if (producto.disponible) setNoEliminado(producto);
+      return;
+    }
     fetchData();
   };
+
+  const marcarNoDisponible = async () => {
+    if (!noEliminado) return;
+    const error = await enviarJson('/api/productos', 'PUT', { id: noEliminado.id, disponible: false }, 'No se pudo marcar como no disponible');
+    setNoEliminado(null);
+    setErrorLista(error ?? '');
+    fetchData();
+  };
+
+  const cerrarAvisoLista = () => {
+    setErrorLista('');
+    setNoEliminado(null);
+  };
+
+  // Lo que falta para poder guardar (el servidor lo rechazaría igual)
+  const faltaParaGuardar = !form.nombre.trim()
+    ? 'Falta el nombre'
+    : !(form.precio > 0)
+      ? 'El precio debe ser mayor que 0'
+      : !categorias.some((c) => c.id === form.categoriaId)
+        ? 'Elegí una categoría'
+        : '';
 
   const filtrados = productos.filter((p) => {
     if (catFiltro && p.categoriaId !== catFiltro) return false;
@@ -196,7 +225,11 @@ export default function MenuPage() {
         </div>
       </div>
 
-      <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
+      <AvisoError
+        mensaje={errorLista}
+        onCerrar={cerrarAvisoLista}
+        accion={noEliminado ? { texto: 'Marcar como no disponible', onClick: marcarNoDisponible } : undefined}
+      />
 
       {/* Table */}
       <div className="glass-card overflow-hidden">
@@ -277,7 +310,7 @@ export default function MenuPage() {
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => eliminar(p.id)}
+                      onClick={() => eliminar(p)}
                       className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -453,6 +486,7 @@ export default function MenuPage() {
             </div>
 
             {errorModal && <p role="alert" className="text-sm text-[var(--danger)] mt-4">{errorModal}</p>}
+            {!errorModal && faltaParaGuardar && <p className="text-sm text-[var(--muted)] mt-4">{faltaParaGuardar}</p>}
 
             <div className="flex gap-3 mt-6">
               <button
@@ -461,7 +495,7 @@ export default function MenuPage() {
               >
                 Cancelar
               </button>
-              <button onClick={guardar} className="btn btn-primary flex-1">
+              <button onClick={guardar} disabled={!!faltaParaGuardar} className="btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Save className="w-4 h-4" />
                 Guardar
               </button>
