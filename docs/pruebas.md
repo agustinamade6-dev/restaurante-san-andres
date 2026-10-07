@@ -44,7 +44,7 @@ debajo para que **no retroceda**; no son una meta. Sin cubrir hoy: `api-cliente.
 - Requiere un build de producción previo (`npm run build`) y Chromium (`npx playwright install chromium`, una vez).
 - El ingreso se prueba por el teclado (atajos `1`, `2`, `3` y los cuatro dígitos), que es lo más estable de la pantalla.
 - **Accesibilidad (`e2e/accesibilidad.spec.ts`):** axe (WCAG A/AA). Las violaciones que ya existían están anotadas con su
-  cantidad en `CONOCIDAS`; la prueba falla ante una violación nueva **o** ante una cantidad distinta (más o menos). Al
+  cantidad en `CONOCIDAS`; la prueba falla ante una violación nueva **o** ante una cantidad distinta (más o menos). Cubre inicio, modal del PIN, Comandas, Cocina y las 8 pantallas de `/admin` (36 e2e en total entre escritorio y móvil). Una pantalla nueva de `/admin` va en `PANTALLAS_ADMIN`. Al
   corregir una, actualizar la cantidad. Detalle de lo encontrado en `docs/auditoria/commit-15-calidad-de-pruebas.md`.
 
 ## Mutation testing

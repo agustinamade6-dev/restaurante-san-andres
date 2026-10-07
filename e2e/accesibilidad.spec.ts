@@ -18,7 +18,19 @@ const CONOCIDAS = {
   inicio: {},
   modalPin: {},
   comandas: {},
-} satisfies Record<string, Conocidas>;
+  cocina: {},
+  // Por "viewport ruta" de /admin; lo que no aparece acá se espera sin violaciones. AT-38 (hallado el 2026-10-07 al ampliar
+  // la prueba a Cocina y Administración): un <select> sin etiqueta en Caja e Historial (el filtro de período/usuario), y
+  // zonas con scroll que no se pueden enfocar con el teclado en móvil (<main> de /admin y la tabla de Historial).
+  // Al corregir una, borrar su entrada: la prueba también falla si hay MENOS de lo anotado.
+  admin: {
+    'escritorio /admin/caja': { 'select-name': 1 },
+    'escritorio /admin/historial': { 'select-name': 1 },
+    'movil /admin': { 'scrollable-region-focusable': 1 },
+    'movil /admin/caja': { 'select-name': 1 },
+    'movil /admin/historial': { 'scrollable-region-focusable': 1, 'select-name': 1 },
+  } as Record<string, Conocidas>,
+};
 
 async function violaciones(page: Page): Promise<Conocidas> {
   // Las animaciones de entrada (fade-in de 0,3 s) bajan la opacidad: medir en medio daba contrastes que dependían
@@ -50,3 +62,24 @@ test('Comandas tras el ingreso del mozo: sin violaciones distintas de las conoci
   await page.waitForLoadState('networkidle');
   expect(await violaciones(page)).toEqual(CONOCIDAS.comandas);
 });
+
+test('Cocina tras el ingreso del cocinero: sin violaciones distintas de las conocidas', async ({ page }) => {
+  await ingresarPin(page, 'cocina', PIN.COCINERO);
+  await expect(page).toHaveURL(/\/cocina$/);
+  await page.waitForLoadState('networkidle');
+  expect(await violaciones(page)).toEqual(CONOCIDAS.cocina);
+});
+
+// Las ocho pantallas de Administración, con la sesión del administrador (AT-36 se cerró revisándolas a mano con axe;
+// esta prueba lo mantiene cerrado). Una pantalla nueva de /admin va en esta lista.
+const PANTALLAS_ADMIN = ['/admin', '/admin/caja', '/admin/costos', '/admin/historial', '/admin/inventario', '/admin/menu', '/admin/proveedores', '/admin/usuarios'];
+
+for (const ruta of PANTALLAS_ADMIN) {
+  test(`Administración ${ruta}: sin violaciones distintas de las conocidas`, async ({ page }) => {
+    await ingresarPin(page, 'admin', PIN.ADMIN);
+    await expect(page).toHaveURL(/\/admin$/);
+    if (ruta !== '/admin') await page.goto(ruta);
+    await page.waitForLoadState('networkidle');
+    expect(await violaciones(page)).toEqual(CONOCIDAS.admin[`${test.info().project.name} ${ruta}`] ?? {});
+  });
+}
