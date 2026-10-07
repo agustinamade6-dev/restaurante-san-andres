@@ -4,7 +4,7 @@ import { aCentavos } from '../src/lib/money';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Sembrando datos para Restaurante San Andrés...');
+  console.log('🌱 Sembrando datos para AKROS Café...');
 
   // --- Usuarios ---
   await prisma.usuario.upsert({
@@ -68,7 +68,7 @@ async function main() {
       data: { nombre: 'Hamburguesa Clásica', descripcion: 'Medallón de 200g, lechuga, tomate, queso cheddar', precio: aCentavos(5500), categoriaId: catComidas.id, imagen: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&q=80&w=400&h=400' },
     }),
     prisma.producto.create({
-      data: { nombre: 'Hamburguesa Doble San Andrés', descripcion: 'Doble medallón, bacon, cheddar fundido, cebolla caramelizada', precio: aCentavos(7800), categoriaId: catComidas.id, imagen: 'https://images.unsplash.com/photo-1586816001966-79b736744398?auto=format&fit=crop&q=80&w=400&h=400' },
+      data: { nombre: 'Hamburguesa Doble AKROS', descripcion: 'Doble medallón, bacon, cheddar fundido, cebolla caramelizada', precio: aCentavos(7800), categoriaId: catComidas.id, imagen: 'https://images.unsplash.com/photo-1586816001966-79b736744398?auto=format&fit=crop&q=80&w=400&h=400' },
     }),
     prisma.producto.create({
       data: { nombre: 'Pizza Muzzarella', descripcion: 'Pizza grande con muzzarella y orégano', precio: aCentavos(6200), categoriaId: catComidas.id, imagen: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&q=80&w=400&h=400' },
@@ -280,7 +280,7 @@ async function main() {
   await prisma.venta.createMany({ data: ventasData });
   console.log(`✅ ${ventasData.length} ventas históricas creadas`);
 
-  console.log('\n🎉 Datos sembrados exitosamente para Restaurante San Andrés!');
+  console.log('\n🎉 Datos sembrados exitosamente para AKROS Café!');
 }
 
 main()
