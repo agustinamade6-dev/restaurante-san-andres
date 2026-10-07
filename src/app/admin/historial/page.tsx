@@ -2,9 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import { useApi } from '@/hooks/useApi';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { useAhora } from '@/hooks/useAhora';
 import { Search, Clock, CheckCheck, TrendingUp, Filter } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
+import { formatPesos } from '@/utils/dinero';
 
 interface Pedido {
   id: number;
@@ -24,7 +26,7 @@ interface Pedido {
 export default function AdminHistorialPage() {
   const [busqueda, setBusqueda] = useState('');
   const [dias, setDias] = useState('1'); // Por defecto, hoy
-  const { data } = useApi<Pedido[]>(`/api/pedidos/history?days=${dias}`, []);
+  const { data, error: errorCarga, recargar } = useApi<Pedido[]>(`/api/pedidos/history?days=${dias}`, []);
   const pedidos = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   // Duración de pedidos aún sin entregar: se mide contra una hora que avanza sola
   const ahora = useAhora();
@@ -72,6 +74,8 @@ export default function AdminHistorialPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="el historial" onReintentar={recargar} />
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card p-5 border border-[var(--border)] bg-gradient-to-br from-[var(--card)] to-[var(--background)]">
@@ -101,7 +105,7 @@ export default function AdminHistorialPage() {
             </div>
             <h3 className="font-bold text-[var(--muted)]">Facturación Total</h3>
           </div>
-          <p className="text-3xl font-black">${stats.total.toLocaleString()}</p>
+          <p className="text-3xl font-black">{formatPesos(stats.total)}</p>
         </div>
       </div>
 
@@ -175,11 +179,11 @@ export default function AdminHistorialPage() {
                         {pedido.estado}
                       </span>
                     </td>
-                    <td className="p-4 text-right font-black">${pedido.total.toLocaleString()}</td>
+                    <td className="p-4 text-right font-black">{formatPesos(pedido.total)}</td>
                   </tr>
                 )
               })}
-              {pedidosFiltrados.length === 0 && (
+              {pedidosFiltrados.length === 0 && !errorCarga && (
                 <tr>
                   <td colSpan={6} className="p-12 text-center text-[var(--muted)]">
                     <CheckCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />

@@ -14,8 +14,9 @@ import { PIN, ingresarPin } from './ayudas';
 type Conocidas = Record<string, number>;
 
 const CONOCIDAS = {
-  inicio: { 'button-name': 1 },
-  modalPin: { 'button-name': 3, 'color-contrast': 1 },
+  // 2026-10-07: sin violaciones de button-name (nombres accesibles y se quitó el botón Power, que no tenía acción).
+  inicio: {},
+  modalPin: { 'color-contrast': 1 },
   comandas: { 'color-contrast': 4 },
 } satisfies Record<string, Conocidas>;
 

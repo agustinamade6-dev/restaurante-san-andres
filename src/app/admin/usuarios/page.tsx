@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { useApi } from '@/hooks/useApi';
+import { useAviso } from '@/hooks/useAviso';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { User, CheckCircle2, AlertTriangle, Shield, KeyRound, Eye, EyeOff, X, Delete } from 'lucide-react';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface Usuario {
   id: number;
@@ -13,7 +16,7 @@ interface Usuario {
 }
 
 export default function UsuariosPage() {
-  const { data: usuarios, cargando: loading, recargar: fetchUsuarios } = useApi<Usuario[]>('/api/admin/usuarios', []);
+  const { data: usuarios, cargando: loading, error: errorCarga, recargar: fetchUsuarios } = useApi<Usuario[]>('/api/admin/usuarios', []);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -25,7 +28,7 @@ export default function UsuariosPage() {
   const [error, setError] = useState('');
 
   // Toast State
-  const [toastMessage, setToastMessage] = useState('');
+  const { aviso: toastMessage, mostrar: mostrarToast } = useAviso<string>();
 
   const openPinModal = (user: Usuario) => {
     setSelectedUser(user);
@@ -40,6 +43,7 @@ export default function UsuariosPage() {
     setModalOpen(false);
     setSelectedUser(null);
   };
+  const dlgPin = useDialogo('Cambiar PIN', () => closePinModal());
 
   const addDigit = (digit: string) => {
     setError('');
@@ -85,8 +89,7 @@ export default function UsuariosPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setToastMessage(`PIN de ${selectedUser.nombre} actualizado con éxito`);
-        setTimeout(() => setToastMessage(''), 3000);
+        mostrarToast(`PIN de ${selectedUser.nombre} actualizado con éxito`, 3000);
         closePinModal();
         fetchUsuarios(); // Refresh just in case
       } else {
@@ -122,6 +125,8 @@ export default function UsuariosPage() {
           <p className="text-[var(--muted)]">Administra roles y accesos al sistema</p>
         </div>
       </div>
+
+      <ErrorDeCarga error={errorCarga} que="los usuarios" onReintentar={fetchUsuarios} />
 
       <div className="glass-card overflow-hidden">
         <table className="w-full text-left">
@@ -171,9 +176,9 @@ export default function UsuariosPage() {
                   ****
                 </td>
                 <td className="p-4 text-right">
-                  <button 
+                  <button aria-label={`Modificar PIN de ${user.nombre}`} 
                     onClick={() => openPinModal(user)}
-                    className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-purple-500/10 hover:text-purple-400 hover:border-purple-500/30 transition-all text-[var(--muted)] shadow-sm"
+                    className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-purple-500/10 hover:text-purple-400 hover:border-purple-500/30 transition-all text-[var(--muted)] shadow-sm min-w-11 min-h-11"
                     title="Modificar PIN"
                   >
                     <KeyRound className="w-4 h-4" />
@@ -187,12 +192,12 @@ export default function UsuariosPage() {
 
       {/* Modal Modificar PIN */}
       {modalOpen && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+        <div {...dlgPin} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-sm rounded-3xl border border-[var(--border)] shadow-2xl relative overflow-hidden flex flex-col">
             
-            <button 
+            <button aria-label="Cerrar" 
               onClick={closePinModal}
-              className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-white bg-black/20 rounded-full transition-colors z-10"
+              className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-white bg-black/20 rounded-full transition-colors z-10 min-w-11 min-h-11"
             >
               <X className="w-5 h-5" />
             </button>
@@ -281,10 +286,10 @@ export default function UsuariosPage() {
                 >
                   0
                 </button>
-                <button
+                <button aria-label="Borrar último dígito"
                   onClick={removeDigit}
                   type="button"
-                  className="h-12 rounded-lg bg-[var(--background)] border border-[var(--border)] text-lg font-bold hover:bg-[var(--card-hover)] active:bg-red-500/10 active:border-red-500/30 flex items-center justify-center text-[var(--muted)] hover:text-red-400 transition-colors"
+                  className="h-12 rounded-lg bg-[var(--background)] border border-[var(--border)] text-lg font-bold hover:bg-[var(--card-hover)] active:bg-red-500/10 active:border-red-500/30 flex items-center justify-center text-[var(--muted)] hover:text-red-400 transition-colors min-w-11 min-h-11"
                 >
                   <Delete className="w-5 h-5" />
                 </button>

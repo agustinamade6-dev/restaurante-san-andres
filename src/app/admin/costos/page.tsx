@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
+import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 import {
   Plus,
   Trash2,
@@ -26,6 +30,8 @@ export default function CostosPage() {
   const [modal, setModal] = useState(false);
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
   const [errorModal, setErrorModal] = useState('');
+  const { ejecutar, enviando } = useEnvio();
+  const dlgCosto = useDialogo('Nuevo costo', () => setModal(false));
   const [errorLista, setErrorLista] = useState('');
   const [form, setForm] = useState({
     concepto: '',
@@ -34,16 +40,16 @@ export default function CostosPage() {
     periodicidad: 'mensual',
   });
 
-  const { data: costos, recargar: fetchCostos } = useApi<CostoFijo[]>('/api/costos', []);
+  const { data: costos, error: errorCarga, recargar: fetchCostos } = useApi<CostoFijo[]>('/api/costos', []);
 
-  const guardar = async () => {
+  const guardar = () => ejecutar(async () => {
     setErrorModal('');
     const error = await enviarJson('/api/costos', 'POST', form, 'No se pudo guardar el costo');
     if (error) return setErrorModal(error);
     setModal(false);
     setForm({ concepto: '', monto: 0, tipo: 'fijo', periodicidad: 'mensual' });
     fetchCostos();
-  };
+  });
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar este costo?')) return;
@@ -83,7 +89,7 @@ export default function CostosPage() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Costos Fijos</p>
               <p className="text-2xl font-bold text-[var(--info)]">
-                ${totalFijos.toLocaleString()}
+                {formatPesos(totalFijos)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[var(--info-bg)] flex items-center justify-center">
@@ -98,7 +104,7 @@ export default function CostosPage() {
                 Costos Variables
               </p>
               <p className="text-2xl font-bold text-amber-400">
-                ${totalVariables.toLocaleString()}
+                {formatPesos(totalVariables)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
@@ -111,7 +117,7 @@ export default function CostosPage() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Total Mensual</p>
               <p className="text-2xl font-bold text-[var(--danger)]">
-                ${totalGeneral.toLocaleString()}
+                {formatPesos(totalGeneral)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[var(--danger-bg)] flex items-center justify-center">
@@ -121,6 +127,7 @@ export default function CostosPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="los costos" onReintentar={fetchCostos} />
       <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
 
       {/* Cost list */}
@@ -189,13 +196,13 @@ export default function CostosPage() {
                 </td>
                 <td className="p-4 text-right">
                   <span className="font-bold text-[var(--danger)]">
-                    ${costo.monto.toLocaleString()}
+                    {formatPesos(costo.monto)}
                   </span>
                 </td>
                 <td className="p-4 text-right">
-                  <button
+                  <button aria-label={`Eliminar ${costo.concepto}`}
                     onClick={() => eliminar(costo.id)}
-                    className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors ml-auto"
+                    className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors ml-auto min-w-11 min-h-11"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -208,16 +215,16 @@ export default function CostosPage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgCosto} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-amber-400" />
                 Agregar Costo
               </h2>
-              <button
+              <button aria-label="Cerrar"
                 onClick={() => setModal(false)}
-                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center"
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center min-w-11 min-h-11"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -301,7 +308,7 @@ export default function CostosPage() {
               >
                 Cancelar
               </button>
-              <button onClick={guardar} className="btn btn-primary flex-1">
+              <button onClick={guardar} disabled={enviando} className="btn btn-primary flex-1 disabled:opacity-50">
                 <Save className="w-4 h-4" />
                 Guardar
               </button>

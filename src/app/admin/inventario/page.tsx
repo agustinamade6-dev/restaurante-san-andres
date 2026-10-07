@@ -10,11 +10,17 @@ import {
   Plus,
   Save,
   Trash2,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
 import AvisoError from '@/components/AvisoError';
-import { enviarJson } from '@/lib/api-cliente';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
+import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
+import AjusteStockModal from '@/components/inventario/AjusteStockModal';
 
 interface Insumo {
   id: number;
@@ -33,67 +39,57 @@ const insumoVacio = { nombre: '', unidad: 'kg', stockActual: '', stockMinimo: ''
 
 export default function InventarioPage() {
   const [busqueda, setBusqueda] = useState('');
+  const { ejecutar, enviando } = useEnvio();
   const [filtro, setFiltro] = useState<'todos' | 'bajo' | 'ok'>('todos');
-  const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [stockEdit, setStockEdit] = useState<number>(0);
+  // Insumo con el modal "Ajustar stock" abierto (por id: el stock que muestra se actualiza si llega una venta).
+  const [ajustandoId, setAjustandoId] = useState<number | null>(null);
   const [nuevo, setNuevo] = useState<typeof insumoVacio | null>(null);
+  const dlgInsumo = useDialogo('Nuevo insumo', () => setNuevo(null));
   const [proveedores, setProveedores] = useState<{ id: number; nombre: string }[]>([]);
   const [errorNuevo, setErrorNuevo] = useState('');
   const [errorTabla, setErrorTabla] = useState('');
 
-  const { data: insumos, recargar: fetchInsumos } = useApi<Insumo[]>('/api/inventario', []);
+  const { data: insumos, error: errorCarga, recargar: fetchInsumos } = useApi<Insumo[]>('/api/inventario', []);
 
-  const actualizarStock = async (insumo: Insumo) => {
-    setErrorTabla('');
-    const error = await enviarJson('/api/inventario', 'PUT', { ...insumo, stockActual: stockEdit }, 'No se pudo actualizar el stock');
-    if (error) return setErrorTabla(error);
-    setEditandoId(null);
-    fetchInsumos();
-  };
+  const ajustando = insumos.find((i) => i.id === ajustandoId) ?? null;
 
   const eliminarInsumo = async (insumo: Insumo) => {
     if (!confirm(`¿Eliminar el insumo "${insumo.nombre}"?`)) return;
     setErrorTabla('');
-    const res = await fetch(`/api/inventario?id=${insumo.id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErrorTabla(data.error || 'No se pudo eliminar el insumo');
-      return;
-    }
+    const error = await enviar(`/api/inventario?id=${insumo.id}`, { method: 'DELETE' }, 'No se pudo eliminar el insumo');
+    if (error) return setErrorTabla(error);
     fetchInsumos();
   };
 
   const abrirNuevo = async () => {
     setErrorNuevo('');
     setNuevo({ ...insumoVacio });
-    const res = await fetch('/api/proveedores');
-    if (res.ok) setProveedores(await res.json());
+    // Si no cargan, el insumo se puede crear igual "Sin proveedor".
+    const res = await fetch('/api/proveedores').catch(() => null);
+    if (res?.ok) setProveedores(await res.json().catch(() => []));
   };
 
-  const crearInsumo = async () => {
+  const crearInsumo = () => ejecutar(async () => {
     if (!nuevo) return;
     setErrorNuevo('');
     const numero = (v: string) => (v.trim() === '' ? 0 : Number(v.replace(',', '.')));
-    const res = await fetch('/api/inventario', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const error = await enviarJson(
+      '/api/inventario',
+      'POST',
+      {
         nombre: nuevo.nombre,
         unidad: nuevo.unidad,
         stockActual: numero(nuevo.stockActual),
         stockMinimo: numero(nuevo.stockMinimo),
         precioUnitario: numero(nuevo.precioUnitario),
         proveedorId: nuevo.proveedorId ? Number(nuevo.proveedorId) : null,
-      }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErrorNuevo(data.error || 'No se pudo crear el insumo');
-      return;
-    }
+      },
+      'No se pudo crear el insumo'
+    );
+    if (error) return setErrorNuevo(error);
     setNuevo(null);
     fetchInsumos();
-  };
+  });
 
   const filtrados = insumos.filter((i) => {
     if (busqueda && !i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
@@ -171,6 +167,7 @@ export default function InventarioPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="los insumos" onReintentar={fetchInsumos} />
       <AvisoError mensaje={errorTabla} onCerrar={() => setErrorTabla('')} />
 
       {/* Table */}
@@ -233,45 +230,23 @@ export default function InventarioPage() {
                     </div>
                   </td>
                   <td className="p-4 text-center">
-                    {editandoId === insumo.id ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <input
-                          type="number"
-                          value={stockEdit}
-                          onChange={(e) =>
-                            setStockEdit(parseFloat(e.target.value) || 0)
-                          }
-                          className="input w-20 text-center py-1"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => actualizarStock(insumo)}
-                          className="btn btn-sm btn-success"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={() => setEditandoId(null)}
-                          className="btn btn-sm btn-secondary"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setEditandoId(insumo.id);
-                          setStockEdit(insumo.stockActual);
-                        }}
-                        className={`font-bold text-sm cursor-pointer hover:underline ${
-                          esBajo
-                            ? 'text-[var(--danger)]'
-                            : 'text-[var(--foreground)]'
+                    <div className="flex items-center justify-center gap-2">
+                      <span
+                        className={`font-bold text-sm ${
+                          esBajo ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'
                         }`}
                       >
                         {insumo.stockActual} {insumo.unidad}
+                      </span>
+                      <button
+                        onClick={() => setAjustandoId(insumo.id)}
+                        className="btn btn-sm btn-secondary"
+                        aria-label={`Ajustar stock de ${insumo.nombre}`}
+                      >
+                        <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+                        Ajustar
                       </button>
-                    )}
+                    </div>
                   </td>
                   <td className="p-4 text-center text-sm text-[var(--muted)]">
                     {insumo.stockMinimo} {insumo.unidad}
@@ -298,7 +273,7 @@ export default function InventarioPage() {
                     </div>
                   </td>
                   <td className="p-4 text-right text-sm font-semibold">
-                    ${insumo.precioUnitario.toLocaleString()}
+                    {formatPesos(insumo.precioUnitario)}
                   </td>
                   <td className="p-4 text-sm text-[var(--muted)]">
                     {insumo.proveedor?.nombre || '—'}
@@ -314,7 +289,7 @@ export default function InventarioPage() {
                   <td className="p-4 text-right">
                     <button
                       onClick={() => eliminarInsumo(insumo)}
-                      className="btn btn-sm btn-secondary text-[var(--danger)]"
+                      className="btn btn-sm btn-secondary text-[var(--danger)] min-w-11 min-h-11"
                       title="Eliminar insumo"
                       aria-label={`Eliminar ${insumo.nombre}`}
                     >
@@ -328,17 +303,28 @@ export default function InventarioPage() {
         </table>
       </div>
 
+      {ajustando && (
+        <AjusteStockModal
+          insumo={ajustando}
+          onCerrar={() => setAjustandoId(null)}
+          onAjustado={() => {
+            setAjustandoId(null);
+            fetchInsumos();
+          }}
+        />
+      )}
+
       {nuevo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgInsumo} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Package className="w-5 h-5 text-amber-400" />
                 Nuevo insumo
               </h2>
-              <button
+              <button aria-label="Cerrar"
                 onClick={() => setNuevo(null)}
-                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors"
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors min-w-11 min-h-11"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -428,7 +414,7 @@ export default function InventarioPage() {
               <button onClick={() => setNuevo(null)} className="btn btn-secondary flex-1">
                 Cancelar
               </button>
-              <button onClick={crearInsumo} disabled={!nuevo.nombre.trim()} className="btn btn-primary flex-1 disabled:opacity-50">
+              <button onClick={crearInsumo} disabled={!nuevo.nombre.trim() || enviando} className="btn btn-primary flex-1 disabled:opacity-50">
                 <Save className="w-4 h-4" />
                 Crear
               </button>

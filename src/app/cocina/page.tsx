@@ -22,7 +22,12 @@ import {
 import { useSSE } from '@/hooks/useSSE';
 import { useAhora } from '@/hooks/useAhora';
 import { useApi } from '@/hooks/useApi';
+import { useAviso } from '@/hooks/useAviso';
+import { useEnvio } from '@/hooks/useEnvio';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { formatPesos } from '@/utils/dinero';
 import { enviarJson } from '@/lib/api-cliente';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface HistorialPedido {
   id: number;
@@ -55,29 +60,41 @@ interface Pedido {
 }
 
 export default function CocinaPage() {
-  const [nuevoPedido, setNuevoPedido] = useState(false);
-  const [modalEditOpen, setModalEditOpen] = useState<Pedido | null>(null);
-  const [modalHistoryOpen, setModalHistoryOpen] = useState<Pedido | null>(null);
+  const { aviso: nuevoPedido, mostrar: mostrarNuevoPedido } = useAviso<boolean>();
+  const [modalEditId, setModalEditId] = useState<number | null>(null);
+  const [modalHistoryId, setModalHistoryId] = useState<number | null>(null);
   const [modalEntregadosOpen, setModalEntregadosOpen] = useState(false);
-  const [modalCancelarOpen, setModalCancelarOpen] = useState<Pedido | null>(null);
+  const [modalCancelarId, setModalCancelarId] = useState<number | null>(null);
   const [motivoCambio, setMotivoCambio] = useState('');
-  const [isCancelling, setIsCancelling] = useState(false);
   const [historialTab, setHistorialTab] = useState<'entregados' | 'cancelados'>('entregados');
   // Errores de la API: aviso flotante para acciones sobre la grilla; el de cancelar va en su modal.
-  const [aviso, setAviso] = useState('');
+  const { aviso, mostrar: mostrarAviso, ocultar: ocultarAviso } = useAviso<string>();
+  // Una acción a la vez por pedido: el segundo toque (antes del re-render) se ignora.
+  const { ejecutar, ocupado } = useEnvio();
   const [errorCancelar, setErrorCancelar] = useState('');
+  // Modales: Escape los cierra, el foco entra al abrirlos y vuelve al cerrarlos.
+  const dlgEditar = useDialogo('Editar comanda', () => setModalEditId(null));
+  const dlgHistorial = useDialogo('Historial del pedido', () => setModalHistoryId(null));
+  const dlgEntregados = useDialogo('Pedidos de hoy', () => setModalEntregadosOpen(false));
+  const dlgCancelar = useDialogo('Cancelar pedido', () => {
+    setModalCancelarId(null);
+    setMotivoCambio('');
+    setErrorCancelar('');
+  });
   // Hora que avanza sola: refresca "hace X min" y la marca de demorado aunque no lleguen eventos
   const ahora = useAhora();
 
-  const mostrarError = useCallback((mensaje: string) => {
-    setAviso(mensaje);
-    setTimeout(() => setAviso((actual) => (actual === mensaje ? '' : actual)), 5000);
-  }, []);
+  const mostrarError = useCallback((mensaje: string) => mostrarAviso(mensaje, 5000), [mostrarAviso]);
 
-  const { data: pedidos, recargar: fetchPedidos } = useApi<Pedido[]>('/api/pedidos', []);
-  const { data: productos } = useApi<Array<{ id: number; nombre: string; precio: number; categoriaId: number }>>('/api/productos', []);
+  const { data: pedidos, error: errorPedidos, recargar: fetchPedidos } = useApi<Pedido[]>('/api/pedidos', []);
+  // Los modales guardan solo el id y leen el pedido de la lista actual: así muestran cada cambio
+  // (el "+" suma de verdad la segunda vez) y se cierran solos si el pedido deja de estar activo.
+  const modalEditOpen = pedidos.find((p) => p.id === modalEditId) ?? null;
+  const modalHistoryOpen = pedidos.find((p) => p.id === modalHistoryId) ?? null;
+  const modalCancelarOpen = pedidos.find((p) => p.id === modalCancelarId) ?? null;
+  const { data: productos, error: errorProductos, recargar: fetchProductos } = useApi<Array<{ id: number; nombre: string; precio: number; categoriaId: number }>>('/api/productos', []);
   // Historial de hoy: solo se pide con su modal abierto (y se vuelve a pedir al reabrirlo)
-  const { data: entregados, recargar: fetchEntregados } = useApi<Pedido[]>(
+  const { data: entregados, error: errorEntregados, recargar: fetchEntregados } = useApi<Pedido[]>(
     modalEntregadosOpen ? '/api/pedidos/history?days=1' : null,
     []
   );
@@ -87,16 +104,21 @@ export default function CocinaPage() {
     useCallback(
       (data: { event: string }) => {
         if (data.event === 'pedido:nuevo') {
-          setNuevoPedido(true);
-          setTimeout(() => setNuevoPedido(false), 3000);
+          mostrarNuevoPedido(true, 3000);
         }
         fetchPedidos();
       },
-      [fetchPedidos]
-    )
+      [fetchPedidos, mostrarNuevoPedido]
+    ),
+    // Al volver la conexión: lo que pasó mientras estuvo caída no llegó por SSE.
+    useCallback(() => {
+      fetchPedidos();
+      fetchProductos();
+      fetchEntregados();
+    }, [fetchPedidos, fetchProductos, fetchEntregados])
   );
 
-  const handleModifyItem = async (pedidoId: number, action: string, data: Record<string, unknown>) => {
+  const handleModifyItem = (pedidoId: number, action: string, data: Record<string, unknown>) => ejecutar(async () => {
     const error = await enviarJson(
       `/api/pedidos/${pedidoId}/items`,
       'PATCH',
@@ -106,18 +128,20 @@ export default function CocinaPage() {
     if (error) mostrarError(error);
     setMotivoCambio('');
     fetchPedidos();
-  };
+  }, pedidoId);
 
   /** Devuelve true si el servidor aceptó el cambio; si no, muestra su error. */
   const cambiarEstado = async (pedidoId: number, nuevoEstado: string): Promise<boolean> => {
-    const error = await enviarJson('/api/pedidos', 'PATCH', { id: pedidoId, estado: nuevoEstado }, 'No se pudo cambiar el estado del pedido');
-    if (error) mostrarError(error);
-    fetchPedidos();
-    return !error;
+    const aceptado = await ejecutar(async () => {
+      const error = await enviarJson('/api/pedidos', 'PATCH', { id: pedidoId, estado: nuevoEstado }, 'No se pudo cambiar el estado del pedido');
+      if (error) mostrarError(error);
+      fetchPedidos();
+      return !error;
+    }, pedidoId);
+    return aceptado ?? false; // undefined = ya había una acción en curso sobre ese pedido
   };
 
-  const handleCancelarPedido = async (pedidoId: number) => {
-    setIsCancelling(true);
+  const handleCancelarPedido = (pedidoId: number) => ejecutar(async () => {
     setErrorCancelar('');
     try {
       const res = await fetch(`/api/pedidos/${pedidoId}/cancel`, {
@@ -127,7 +151,7 @@ export default function CocinaPage() {
       });
       if (res.ok) {
         setMotivoCambio('');
-        setModalCancelarOpen(null);
+        setModalCancelarId(null);
         fetchPedidos();
       } else {
         const data = await res.json().catch(() => null);
@@ -135,10 +159,8 @@ export default function CocinaPage() {
       }
     } catch {
       setErrorCancelar('No se pudo conectar con el servidor');
-    } finally {
-      setIsCancelling(false);
     }
-  };
+  }, pedidoId);
 
   const tiempoTranscurrido = (fecha: string) => {
     const diff = ahora - new Date(fecha).getTime();
@@ -200,13 +222,13 @@ export default function CocinaPage() {
                     MODIFICADO
                   </span>
                 )}
-                <button onClick={() => setModalHistoryOpen(pedido)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]" title="Historial">
+                <button aria-label={`Historial del pedido de la mesa ${pedido.mesa.numero}`} onClick={() => setModalHistoryId(pedido.id)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)] min-w-11 min-h-11" title="Historial">
                   <History className="w-4 h-4" />
                 </button>
-                <button onClick={() => setModalEditOpen(pedido)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]" title="Editar Comanda">
+                <button aria-label={`Editar comanda de la mesa ${pedido.mesa.numero}`} onClick={() => setModalEditId(pedido.id)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)] min-w-11 min-h-11" title="Editar Comanda">
                   <Edit className="w-4 h-4" />
                 </button>
-                <button onClick={() => setModalCancelarOpen(pedido)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-red-950/40 transition-colors text-[var(--muted)] hover:text-red-400" title="Cancelar Pedido">
+                <button aria-label={`Cancelar pedido de la mesa ${pedido.mesa.numero}`} onClick={() => { setModalCancelarId(pedido.id); setMotivoCambio(''); setErrorCancelar(''); }} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-red-950/40 transition-colors text-[var(--muted)] hover:text-red-400 min-w-11 min-h-11" title="Cancelar Pedido">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -252,6 +274,7 @@ export default function CocinaPage() {
         {pedido.estado === 'pendiente' && (
           <button
             onClick={() => cambiarEstado(pedido.id, 'preparando')}
+            disabled={ocupado(pedido.id)}
             className="btn btn-info w-full text-base py-4 font-black shadow-lg hover:shadow-cyan-500/20 active:scale-95 transition-all"
           >
             <Flame className="w-5 h-5 mr-1" />
@@ -261,6 +284,7 @@ export default function CocinaPage() {
         {pedido.estado === 'preparando' && (
           <button
             onClick={() => cambiarEstado(pedido.id, 'listo')}
+            disabled={ocupado(pedido.id)}
             className="btn btn-success w-full text-base py-4 font-black shadow-lg hover:shadow-green-500/20 active:scale-95 transition-all"
           >
             <CheckCircle2 className="w-5 h-5 mr-1" />
@@ -270,6 +294,7 @@ export default function CocinaPage() {
         {pedido.estado === 'listo' && (
           <button
             onClick={() => cambiarEstado(pedido.id, 'entregado')}
+            disabled={ocupado(pedido.id)}
             className="btn btn-primary w-full text-base py-4 font-black shadow-lg hover:shadow-blue-500/20 active:scale-95 transition-all opacity-80"
           >
             <CheckCircle2 className="w-5 h-5 mr-1" />
@@ -296,7 +321,7 @@ export default function CocinaPage() {
         <div role="alert" className="fixed top-20 right-4 z-50 max-w-sm px-6 py-4 rounded-xl bg-[var(--danger)] text-white text-sm font-bold shadow-2xl animate-slide-in flex items-center gap-2">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <span className="flex-1">{aviso}</span>
-          <button onClick={() => setAviso('')} aria-label="Cerrar aviso" className="p-1 rounded hover:bg-white/20">
+          <button onClick={ocultarAviso} aria-label="Cerrar aviso" className="p-1 rounded hover:bg-white/20 min-w-11 min-h-11">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -304,12 +329,13 @@ export default function CocinaPage() {
 
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <button
+        <button aria-label="Bloquear terminal"
           onClick={async () => {
-            await fetch('/api/auth/logout', { method: 'POST' });
+            // Aunque el servidor no responda, se vuelve al inicio (la cookie vence sola).
+            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
             window.location.href = '/';
           }}
-          className="w-10 h-10 rounded-xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors shadow-sm text-[var(--muted)]"
+          className="w-10 h-10 rounded-xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors shadow-sm text-[var(--muted)] min-w-11 min-h-11"
           title="Bloquear Terminal"
         >
           <LogOut className="w-5 h-5" />
@@ -321,7 +347,7 @@ export default function CocinaPage() {
           <div>
             <h1 className="text-2xl font-bold">Cocina — Monitor KDS</h1>
             <p className="text-[var(--muted)] text-sm">
-              {pedidos.length} pedidos activos
+              {errorPedidos && pedidos.length === 0 ? 'Sin datos del servidor' : `${pedidos.length} pedidos activos`}
             </p>
           </div>
         </div>
@@ -357,6 +383,9 @@ export default function CocinaPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorPedidos} que="los pedidos" onReintentar={fetchPedidos} />
+      <ErrorDeCarga error={errorProductos} que="los productos (para agregar platos)" onReintentar={fetchProductos} />
+
       {/* Kanban Columns */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Pendientes */}
@@ -370,7 +399,7 @@ export default function CocinaPage() {
           </div>
           <div className="space-y-4">
             {pedidosPendientes.map(renderPedido)}
-            {pedidosPendientes.length === 0 && (
+            {pedidosPendientes.length === 0 && !errorPedidos && (
               <div className="glass-card p-8 text-center text-[var(--muted)]">
                 <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">Sin pedidos pendientes</p>
@@ -390,7 +419,7 @@ export default function CocinaPage() {
           </div>
           <div className="space-y-4">
             {pedidosPreparando.map(renderPedido)}
-            {pedidosPreparando.length === 0 && (
+            {pedidosPreparando.length === 0 && !errorPedidos && (
               <div className="glass-card p-8 text-center text-[var(--muted)]">
                 <Flame className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">Nada cocinándose</p>
@@ -410,7 +439,7 @@ export default function CocinaPage() {
           </div>
           <div className="space-y-4">
             {pedidosListos.map(renderPedido)}
-            {pedidosListos.length === 0 && (
+            {pedidosListos.length === 0 && !errorPedidos && (
               <div className="glass-card p-8 text-center text-[var(--muted)]">
                 <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">Nada listo aún</p>
@@ -422,7 +451,7 @@ export default function CocinaPage() {
 
       {/* Edit Modal */}
       {modalEditOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div {...dlgEditar} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-2xl rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <div>
@@ -432,7 +461,7 @@ export default function CocinaPage() {
                 </h2>
                 <p className="text-sm text-[var(--muted)]">Modifica los platos de la orden activa.</p>
               </div>
-              <button onClick={() => setModalEditOpen(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button aria-label="Cerrar" onClick={() => setModalEditId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors min-w-11 min-h-11">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -449,15 +478,15 @@ export default function CocinaPage() {
                         <div className="text-xs text-[var(--muted)]">{item.notas || 'Sin notas'}</div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: Math.max(1, item.cantidad - 1) })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-400">
+                        <button aria-label={`Quitar uno de ${item.producto.nombre}`} disabled={ocupado(modalEditOpen.id)} onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: Math.max(1, item.cantidad - 1) })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-400 min-w-11 min-h-11">
                           <Minus className="w-4 h-4" />
                         </button>
                         <span className="font-bold w-6 text-center">{item.cantidad}</span>
-                        <button onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: item.cantidad + 1 })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-green-500/20 text-green-400">
+                        <button aria-label={`Agregar uno de ${item.producto.nombre}`} disabled={ocupado(modalEditOpen.id)} onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: item.cantidad + 1 })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-green-500/20 text-green-400 min-w-11 min-h-11">
                           <Plus className="w-4 h-4" />
                         </button>
                         <div className="w-[1px] h-6 bg-[var(--border)] mx-1"></div>
-                        <button onClick={() => { if(confirm('¿Eliminar este plato?')) handleModifyItem(modalEditOpen.id, 'REMOVE_ITEM', { itemId: item.id }) }} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-500">
+                        <button aria-label={`Eliminar ${item.producto.nombre}`} disabled={ocupado(modalEditOpen.id)} onClick={() => { if(confirm('¿Eliminar este plato?')) handleModifyItem(modalEditOpen.id, 'REMOVE_ITEM', { itemId: item.id }) }} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-500 min-w-11 min-h-11">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -473,7 +502,7 @@ export default function CocinaPage() {
                   <select id="new-item-select" className="flex-1 input bg-[var(--background)] border border-[var(--border)] rounded-xl p-3">
                     <option value="">Seleccionar producto...</option>
                     {productos.map(p => (
-                      <option key={p.id} value={p.id}>{p.nombre} - ${p.precio}</option>
+                      <option key={p.id} value={p.id}>{p.nombre} - {formatPesos(p.precio)}</option>
                     ))}
                   </select>
                   <button onClick={() => {
@@ -482,7 +511,7 @@ export default function CocinaPage() {
                       handleModifyItem(modalEditOpen.id, 'ADD_ITEM', { productoId: parseInt(sel.value, 10), cantidad: 1 });
                       sel.value = '';
                     }
-                  }} className="btn btn-primary px-6 rounded-xl">
+                  }} disabled={ocupado(modalEditOpen.id)} className="btn btn-primary px-6 rounded-xl">
                     Añadir
                   </button>
                 </div>
@@ -498,14 +527,14 @@ export default function CocinaPage() {
 
       {/* History Modal */}
       {modalHistoryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div {...dlgHistorial} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-lg rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[80vh]">
             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <History className="w-5 h-5 text-purple-400" />
                 Historial Mesa {modalHistoryOpen.mesa.numero}
               </h2>
-              <button onClick={() => setModalHistoryOpen(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button aria-label="Cerrar" onClick={() => setModalHistoryId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors min-w-11 min-h-11">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -535,7 +564,7 @@ export default function CocinaPage() {
 
       {/* Entregados Modal */}
       {modalEntregadosOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+        <div {...dlgEntregados} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
           <div className="bg-[var(--background)] w-full max-w-6xl h-[90vh] rounded-3xl border border-[var(--border)] shadow-2xl flex flex-col overflow-hidden">
             <div className="p-6 bg-[var(--card)] border-b border-[var(--border)] flex items-center justify-between shrink-0 flex-wrap gap-4">
               <h2 className="text-2xl font-bold flex items-center gap-3 text-[var(--foreground)]">
@@ -557,7 +586,7 @@ export default function CocinaPage() {
                     Cancelados
                   </button>
                 </div>
-                <button onClick={() => setModalEntregadosOpen(false)} className="p-3 hover:bg-[var(--card-hover)] rounded-xl transition-colors border border-[var(--border)]">
+                <button aria-label="Cerrar" onClick={() => setModalEntregadosOpen(false)} className="p-3 hover:bg-[var(--card-hover)] rounded-xl transition-colors border border-[var(--border)] min-w-11 min-h-11">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -636,6 +665,10 @@ export default function CocinaPage() {
                     </div>
                   )
                 })
+              ) : errorEntregados ? (
+                <div className="col-span-full">
+                  <ErrorDeCarga error={errorEntregados} que="el historial" onReintentar={fetchEntregados} />
+                </div>
               ) : (
                 <div className="col-span-full flex flex-col items-center justify-center text-[var(--muted)] p-12">
                   <CheckCheck className="w-16 h-16 opacity-20 mb-4" />
@@ -649,14 +682,14 @@ export default function CocinaPage() {
 
       {/* Cancel Order Modal */}
       {modalCancelarOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div {...dlgCancelar} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-md rounded-2xl border border-red-500/30 overflow-hidden shadow-2xl flex flex-col">
             <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-red-500/10">
               <h3 className="font-black text-xl text-red-500 flex items-center gap-2">
                 <Trash2 className="w-6 h-6" />
                 Cancelar Pedido Mesa {modalCancelarOpen.mesa.numero}
               </h3>
-              <button onClick={() => { setModalCancelarOpen(null); setMotivoCambio(''); setErrorCancelar(''); }} className="p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)]">
+              <button aria-label="Cerrar" onClick={() => { setModalCancelarId(null); setMotivoCambio(''); setErrorCancelar(''); }} className="p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] min-w-11 min-h-11">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -684,18 +717,18 @@ export default function CocinaPage() {
               )}
               <div className="flex gap-3">
                 <button 
-                  onClick={() => { setModalCancelarOpen(null); setMotivoCambio(''); setErrorCancelar(''); }} 
+                  onClick={() => { setModalCancelarId(null); setMotivoCambio(''); setErrorCancelar(''); }} 
                   className="flex-1 btn bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] py-3 font-bold hover:bg-[var(--card-hover)]"
                 >
                   Conservar
                 </button>
                 <button 
                   onClick={() => handleCancelarPedido(modalCancelarOpen.id)} 
-                  disabled={isCancelling}
+                  disabled={ocupado(modalCancelarOpen.id)}
                   className="flex-1 btn bg-red-500 text-white py-3 font-black shadow-lg hover:bg-red-600 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Trash2 className="w-5 h-5" />
-                  {isCancelling ? 'CANCELANDO...' : 'SÍ, CANCELAR'}
+                  {ocupado(modalCancelarOpen.id) ? 'CANCELANDO...' : 'SÍ, CANCELAR'}
                 </button>
               </div>
             </div>

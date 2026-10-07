@@ -13,6 +13,10 @@ import {
   X
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
+import { documentoImpresion, html, imprimir } from '@/utils/html';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 
 // Lo que el modal de anulación usa de una fila de GET /api/caja (montos en pesos).
 interface VentaAnulable {
@@ -46,12 +50,13 @@ interface CajaData {
 
 export default function CajaPage() {
   const [periodo, setPeriodo] = useState('1'); // days
-  const { data, cargando: loading, recargar: fetchCaja } = useApi<CajaData | null>(`/api/caja?days=${periodo}`, null);
+  const { data, cargando: loading, error: errorCaja, recargar: fetchCaja } = useApi<CajaData | null>(`/api/caja?days=${periodo}`, null);
   // Venta a anular (modal abierto) y estado del formulario
   const [anulando, setAnulando] = useState<VentaAnulable | null>(null);
   const [motivo, setMotivo] = useState('');
   const [errorAnular, setErrorAnular] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const dlgAnular = useDialogo('Anular venta', () => setAnulando(null));
 
   const abrirAnular = (venta: VentaAnulable) => {
     setAnulando(venta);
@@ -91,36 +96,30 @@ export default function CajaPage() {
 
   const imprimirCierre = () => {
     if (!data) return;
-    const w = window.open('', '_blank', 'width=320,height=600');
-    if (!w) return;
-    
-    w.document.write(`<!DOCTYPE html><html><head><title>Cierre de Caja</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}td{padding:4px 0}.sep{border-top:1px dashed #000;margin:10px 0}.center{text-align:center}.bold{font-weight:bold}.right{text-align:right}</style></head><body>`);
-    
-    w.document.write(`<div class="center bold" style="font-size:16px">CIERRE DE CAJA</div>`);
-    w.document.write(`<div class="center">Periodo: ${data.resumen.periodo}</div>`);
-    w.document.write(`<div class="center">Fecha: ${formatDate(new Date(), true)}</div>`);
-    w.document.write(`<div class="sep"></div>`);
-    
-    w.document.write(`<table>`);
-    w.document.write(`<tr><td>Total Recaudado</td><td class="right bold">$${data.resumen.totalRecaudado.toLocaleString()}</td></tr>`);
-    w.document.write(`<tr><td>Total Propinas</td><td class="right">$${data.resumen.totalPropinas.toLocaleString()}</td></tr>`);
-    w.document.write(`<tr><td>Cant. Ventas</td><td class="right">${data.resumen.cantidadVentas}</td></tr>`);
-    w.document.write(`</table>`);
-    
-    w.document.write(`<div class="sep"></div>`);
-    w.document.write(`<div class="bold">DESGLOSE POR M\u00c9TODO</div>`);
-    w.document.write(`<table>`);
-    Object.entries(data.resumen.porMetodo).forEach(([metodo, stats]) => {
-      w.document.write(`<tr><td>${metodo.toUpperCase()} (${stats.count})</td><td class="right">$${stats.total.toLocaleString()}</td></tr>`);
-    });
-    w.document.write(`</table>`);
-    
-    w.document.write(`<div class="sep"></div>`);
-    w.document.write(`<div style="margin-top:40px;border-top:1px solid #000;text-align:center;padding-top:4px">Firma Responsable</div>`);
-    
-    w.document.write(`</body></html>`);
-    w.document.close();
-    setTimeout(() => w.print(), 300);
+    // Todo dato va interpolado en `html`, que lo escapa (los métodos de pago vienen de la base).
+    const metodos = Object.entries(data.resumen.porMetodo).map(
+      ([metodo, stats]) => html`<tr><td>${metodo.toUpperCase()} (${stats.count})</td><td class="right">${formatPesos(stats.total)}</td></tr>`
+    );
+    imprimir(
+      documentoImpresion(
+        'Cierre de Caja',
+        'body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}td{padding:4px 0}.sep{border-top:1px dashed #000;margin:10px 0}.center{text-align:center}.bold{font-weight:bold}.right{text-align:right}',
+        html`<div class="center bold" style="font-size:16px">CIERRE DE CAJA</div>
+<div class="center">Periodo: ${data.resumen.periodo}</div>
+<div class="center">Fecha: ${formatDate(new Date(), true)}</div>
+<div class="sep"></div>
+<table>
+<tr><td>Total Recaudado</td><td class="right bold">${formatPesos(data.resumen.totalRecaudado)}</td></tr>
+<tr><td>Total Propinas</td><td class="right">${formatPesos(data.resumen.totalPropinas)}</td></tr>
+<tr><td>Cant. Ventas</td><td class="right">${data.resumen.cantidadVentas}</td></tr>
+</table>
+<div class="sep"></div>
+<div class="bold">DESGLOSE POR MÉTODO</div>
+<table>${metodos}</table>
+<div class="sep"></div>
+<div style="margin-top:40px;border-top:1px solid #000;text-align:center;padding-top:4px">Firma Responsable</div>`
+      )
+    );
   };
 
 
@@ -154,6 +153,8 @@ export default function CajaPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorCaja} que="las ventas" onReintentar={fetchCaja} />
+
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
@@ -167,7 +168,7 @@ export default function CajaPage() {
                 <div className="p-2 bg-amber-500/10 rounded-lg"><TrendingUp className="w-5 h-5 text-amber-500" /></div>
                 <h3 className="font-bold text-sm text-[var(--muted)]">Total Recaudado</h3>
               </div>
-              <p className="text-3xl font-black text-amber-500 font-mono">${data.resumen.totalRecaudado.toLocaleString()}</p>
+              <p className="text-3xl font-black text-amber-500 font-mono">{formatPesos(data.resumen.totalRecaudado)}</p>
             </div>
             <div className="bg-[var(--card)] p-5 rounded-2xl border border-[var(--border)] shadow-sm">
               <div className="flex items-center gap-3 mb-2">
@@ -181,7 +182,7 @@ export default function CajaPage() {
                 <div className="p-2 bg-emerald-500/10 rounded-lg"><Banknote className="w-5 h-5 text-emerald-500" /></div>
                 <h3 className="font-bold text-sm text-[var(--muted)]">Efectivo</h3>
               </div>
-              <p className="text-3xl font-black text-emerald-500 font-mono">${(data.resumen.porMetodo['efectivo']?.total || 0).toLocaleString()}</p>
+              <p className="text-3xl font-black text-emerald-500 font-mono">{formatPesos(data.resumen.porMetodo['efectivo']?.total || 0)}</p>
             </div>
             <div className="bg-[var(--card)] p-5 rounded-2xl border border-[var(--border)] shadow-sm">
               <div className="flex items-center gap-3 mb-2">
@@ -189,7 +190,7 @@ export default function CajaPage() {
                 <h3 className="font-bold text-sm text-[var(--muted)]">Digital</h3>
               </div>
               <p className="text-3xl font-black text-purple-500 font-mono">
-                ${((data.resumen.porMetodo['tarjeta']?.total || 0) + (data.resumen.porMetodo['transferencia']?.total || 0)).toLocaleString()}
+                {formatPesos((data.resumen.porMetodo['tarjeta']?.total || 0) + (data.resumen.porMetodo['transferencia']?.total || 0))}
               </p>
             </div>
           </div>
@@ -232,9 +233,9 @@ export default function CajaPage() {
                             {v.metodoPago}
                           </span>
                         </td>
-                        <td className="p-4 text-right text-[var(--muted)]">${v.propina.toLocaleString()}</td>
+                        <td className="p-4 text-right text-[var(--muted)]">{formatPesos(v.propina)}</td>
                         <td className={`p-4 text-right font-black font-mono ${v.esAnulacion ? 'text-red-500' : 'text-amber-500'} ${v.anulada ? 'line-through' : ''}`}>
-                          {v.total < 0 ? '-' : ''}${Math.abs(v.total).toLocaleString()}
+                          {formatPesos(v.total)}
                         </td>
                         <td className="p-4 text-right whitespace-nowrap">
                           {v.esAnulacion ? (
@@ -262,7 +263,7 @@ export default function CajaPage() {
       ) : null}
 
       {anulando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgAnular} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold flex items-center gap-2">
@@ -271,7 +272,7 @@ export default function CajaPage() {
               </h2>
               <button
                 onClick={() => setAnulando(null)}
-                className="p-1 rounded-lg hover:bg-[var(--background)]"
+                className="p-1 rounded-lg hover:bg-[var(--background)] min-w-11 min-h-11"
                 aria-label="Cerrar"
               >
                 <X className="w-5 h-5" />
@@ -281,7 +282,7 @@ export default function CajaPage() {
             <div className="bg-[var(--background)] rounded-lg p-3 mb-4 text-sm space-y-1">
               <p><span className="text-[var(--muted)]">Ticket:</span> <span className="font-mono">{anulando.numeroTicket || `#${anulando.id}`}</span></p>
               <p><span className="text-[var(--muted)]">Mesa:</span> {anulando.mesaNumero ?? anulando.mesa?.numero ?? anulando.pedido?.mesa?.numero ?? 'S/N'}</p>
-              <p><span className="text-[var(--muted)]">Total:</span> <span className="font-bold">${anulando.total.toLocaleString()}</span></p>
+              <p><span className="text-[var(--muted)]">Total:</span> <span className="font-bold">{formatPesos(anulando.total)}</span></p>
             </div>
 
             <p className="text-sm text-[var(--muted)] mb-3">

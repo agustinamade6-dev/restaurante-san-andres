@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { ClipboardList, Plus, Save, Trash2, X } from 'lucide-react';
+import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface Insumo {
   id: number;
@@ -32,6 +34,7 @@ export default function RecetaModal({ producto, onClose }: Props) {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  const dlgReceta = useDialogo(`Receta de ${producto.nombre}`, () => onClose());
 
   useEffect(() => {
     let cancelado = false;
@@ -110,16 +113,16 @@ export default function RecetaModal({ producto, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div {...dlgReceta} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="glass-card w-full max-w-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <ClipboardList className="w-5 h-5 text-amber-400" />
             Receta: {producto.nombre}
           </h2>
-          <button
+          <button aria-label="Cerrar"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors"
+            className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors min-w-11 min-h-11"
           >
             <X className="w-4 h-4" />
           </button>
@@ -165,9 +168,9 @@ export default function RecetaModal({ producto, onClose }: Props) {
                   className="input w-24 text-right"
                 />
                 <span className="text-xs text-[var(--muted)] w-14">{insumoDe(linea.insumoId)?.unidad}</span>
-                <button
+                <button aria-label="Quitar insumo de la receta"
                   onClick={() => setLineas((ls) => ls.filter((_, i) => i !== idx))}
-                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors shrink-0"
+                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors shrink-0 min-w-11 min-h-11"
                   title="Quitar"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -187,16 +190,16 @@ export default function RecetaModal({ producto, onClose }: Props) {
             <div className="bg-[var(--background)] p-3 rounded-xl border border-[var(--border)] text-sm grid grid-cols-3 gap-2">
               <div>
                 <p className="text-xs text-[var(--muted)]">Precio</p>
-                <p className="font-bold">${producto.precio.toLocaleString()}</p>
+                <p className="font-bold">{formatPesos(producto.precio)}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Costo insumos</p>
-                <p className="font-bold">${Math.round(costo).toLocaleString()}</p>
+                <p className="font-bold">{formatPesos(Math.round(costo))}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Margen</p>
                 <p className={`font-bold ${margen < 0 ? 'text-[var(--danger)]' : 'text-amber-400'}`}>
-                  ${Math.round(margen).toLocaleString()}
+                  {formatPesos(Math.round(margen))}
                 </p>
               </div>
             </div>
