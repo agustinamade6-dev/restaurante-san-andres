@@ -39,7 +39,7 @@ async function violaciones(page: Page): Promise<Conocidas> {
 
 test('pantalla de inicio: sin violaciones de accesibilidad distintas de las conocidas', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Restaurante San Andrés' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'AKROS Café' })).toBeVisible();
   expect(await violaciones(page)).toEqual(CONOCIDAS.inicio);
 });
 
