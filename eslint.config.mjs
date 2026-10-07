@@ -12,7 +12,7 @@ const eslintConfig = defineConfig([
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   // Salidas de build que no son código fuente.
-  globalIgnores(["desktop-build/**", "dist/**", "graphify-out/**"]),
+  globalIgnores(["desktop-build/**", "dist/**", "graphify-out/**", "coverage/**", ".stryker-tmp/**", "reports/**", "playwright-report/**", "test-results/**"]),
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

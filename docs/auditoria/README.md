@@ -22,6 +22,7 @@ y qué debe tener en cuenta.
 | 12 | `fix(metricas): propinas fuera del ingreso, costos por periodicidad y montos dentro del rango de la base` | [commit-12-propinas-costos-rango.md](commit-12-propinas-costos-rango.md) | AT-28 a AT-30 |
 | 13 | `fix(pedidos): transiciones de estado explícitas, eventos de mesa correctos, cobro idempotente y ajuste de stock` | [commit-13-estados-eventos-cobro-stock.md](commit-13-estados-eventos-cobro-stock.md) | AT-31 a AT-34 |
 | 14 | `fix(concurrencia): transacciones de escritura en fila para SQLite y tests de integración contra la base real` | [commit-14-sqlite-concurrencia.md](commit-14-sqlite-concurrencia.md) | AT-35 |
+| 15 | `chore(pruebas): separar tests rápidos, medir cobertura, CI, e2e con Playwright, propiedades, mutación y contrato de pantallas` (rama `chore/calidad-pruebas`) | [commit-15-calidad-de-pruebas.md](commit-15-calidad-de-pruebas.md) | AT-36, AT-37 (hallados; abiertos) |
 
 ## Estado de los hallazgos
 
@@ -62,6 +63,8 @@ y qué debe tener en cuenta.
 | AT-33 | El reintento de un cobro exitoso respondía error | Medio | ✅ Commit 13 |
 | AT-34 | Editar el stock pisaba las ventas y no dejaba registro | Medio | ✅ Commit 13 (falta la pantalla) |
 | AT-35 | Cobros simultáneos fallaban con 500 en SQLite real (hallado por el test de integración) | Alto | ✅ Commit 14 |
+| AT-36 | Violaciones de accesibilidad en inicio, modal del PIN y Comandas: botones sin nombre y contraste (hallado por axe) | Medio | ⏳ Abierto (frontend); medido en el commit 15 |
+| AT-37 | 25 vulnerabilidades en dependencias según `npm audit` (3 altas en producción); sin actualizar | A evaluar | ⏳ Abierto; registrado en el commit 15 |
 
 ## Convenciones
 
