@@ -32,6 +32,7 @@ import { useSSE } from '@/hooks/useSSE';
 import { enviarJson } from '@/lib/api-cliente';
 import { useApi } from '@/hooks/useApi';
 import { conservarPosiciones } from '@/utils/mesas';
+import { documentoImpresion, html, imprimir } from '@/utils/html';
 
 interface HistorialPedido {
   id: number;
@@ -194,7 +195,7 @@ export default function ComandasPage() {
       setNotificacion({ msg: 'La mesa que estaba abierta ya no existe', tipo: 'error' });
       setTimeout(() => setNotificacion(null), 4000);
     }
-  }, []);
+  }, [setShowCheckout, setTicketData]);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -501,37 +502,43 @@ export default function ComandasPage() {
   const imprimirTicket = (tipo: 'cliente' | 'interno') => {
     if (!ticketData) return;
     const ticket = tipo === 'cliente' ? ticketData.ticketCliente : ticketData.ticketInterno;
-    const w = window.open('', '_blank', 'width=320,height=600');
-    if (!w) return;
-    const itemsHtml = ticket.items.map((i) => `<tr><td>${i.cantidad}x ${i.nombre}</td><td style="text-align:right">$${i.subtotal.toLocaleString()}</td></tr>`).join('');
-    w.document.write(`<!DOCTYPE html><html><head><title>Ticket</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}td{padding:2px 0}.sep{border-top:1px dashed #000;margin:6px 0}.center{text-align:center}.bold{font-weight:bold}.right{text-align:right}</style></head><body>`);
-    if (tipo === 'cliente') {
-      w.document.write(`<div class="center bold" style="font-size:16px">${ticket.restaurante}</div>`);
-      w.document.write(`<div class="center">${ticket.cuit}</div>`);
-      w.document.write(`<div class="center">${ticket.direccion}</div>`);
-      w.document.write(`<div class="sep"></div>`);
-      w.document.write(`<div>Ticket: ${ticket.numeroTicket}</div>`);
-      w.document.write(`<div>Fecha: ${formatDate(ticket.fecha, true)}</div>`);
-      w.document.write(`<div>Mesa: ${ticket.mesa}</div>`);
-    } else {
-      w.document.write(`<div class="center bold" style="font-size:14px">COMPROBANTE INTERNO</div>`);
-      w.document.write(`<div class="center">Control: ${ticket.numeroControlInterno}</div>`);
-      w.document.write(`<div class="sep"></div>`);
-      w.document.write(`<div>Ticket: ${ticket.numeroTicket}</div>`);
-      w.document.write(`<div>Fecha: ${formatDate(ticket.fecha, true)}</div>`);
-      w.document.write(`<div>Mesa: ${ticket.mesa} | Sector: ${ticket.sector}</div>`);
-      w.document.write(`<div>Venta ID: ${ticket.ventaId}</div>`);
-    }
-    w.document.write(`<div class="sep"></div><table>${itemsHtml}</table><div class="sep"></div>`);
-    w.document.write(`<table><tr><td>Subtotal</td><td class="right">$${ticket.subtotal.toLocaleString()}</td></tr>`);
-    if (ticket.propina > 0) w.document.write(`<tr><td>Propina</td><td class="right">$${ticket.propina.toLocaleString()}</td></tr>`);
-    w.document.write(`<tr class="bold"><td>TOTAL</td><td class="right">$${ticket.total.toLocaleString()}</td></tr></table>`);
-    w.document.write(`<div class="sep"></div><div>Pago: ${ticket.metodoPago.toUpperCase()}</div>`);
-    if (tipo === 'cliente') w.document.write(`<div class="sep"></div><div class="center">${ticket.mensaje}</div>`);
-    else w.document.write(`<div class="sep"></div><div style="margin-top:30px;border-top:1px solid #000;text-align:center;padding-top:4px">Firma Cajero</div>`);
-    w.document.write(`</body></html>`);
-    w.document.close();
-    setTimeout(() => w.print(), 300);
+    // Todo dato va interpolado en `html`, que lo escapa: un nombre de producto no puede inyectar código.
+    const encabezado =
+      tipo === 'cliente'
+        ? html`<div class="center bold" style="font-size:16px">${ticket.restaurante}</div>
+<div class="center">${ticket.cuit}</div>
+<div class="center">${ticket.direccion}</div>
+<div class="sep"></div>
+<div>Ticket: ${ticket.numeroTicket}</div>
+<div>Fecha: ${formatDate(ticket.fecha, true)}</div>
+<div>Mesa: ${ticket.mesa}</div>`
+        : html`<div class="center bold" style="font-size:14px">COMPROBANTE INTERNO</div>
+<div class="center">Control: ${ticket.numeroControlInterno}</div>
+<div class="sep"></div>
+<div>Ticket: ${ticket.numeroTicket}</div>
+<div>Fecha: ${formatDate(ticket.fecha, true)}</div>
+<div>Mesa: ${ticket.mesa} | Sector: ${ticket.sector}</div>
+<div>Venta ID: ${ticket.ventaId}</div>`;
+    const items = ticket.items.map(
+      (i) => html`<tr><td>${i.cantidad}x ${i.nombre}</td><td style="text-align:right">$${i.subtotal.toLocaleString()}</td></tr>`
+    );
+    const pie =
+      tipo === 'cliente'
+        ? html`<div class="sep"></div><div class="center">${ticket.mensaje}</div>`
+        : html`<div class="sep"></div><div style="margin-top:30px;border-top:1px solid #000;text-align:center;padding-top:4px">Firma Cajero</div>`;
+    imprimir(
+      documentoImpresion(
+        'Ticket',
+        'body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}td{padding:2px 0}.sep{border-top:1px dashed #000;margin:6px 0}.center{text-align:center}.bold{font-weight:bold}.right{text-align:right}',
+        html`${encabezado}
+<div class="sep"></div><table>${items}</table><div class="sep"></div>
+<table><tr><td>Subtotal</td><td class="right">$${ticket.subtotal.toLocaleString()}</td></tr>
+${ticket.propina > 0 && html`<tr><td>Propina</td><td class="right">$${ticket.propina.toLocaleString()}</td></tr>`}
+<tr class="bold"><td>TOTAL</td><td class="right">$${ticket.total.toLocaleString()}</td></tr></table>
+<div class="sep"></div><div>Pago: ${ticket.metodoPago.toUpperCase()}</div>
+${pie}`
+      )
+    );
   };
 
   // Step 1: Select mesa

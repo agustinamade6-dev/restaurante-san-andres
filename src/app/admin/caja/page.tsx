@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
+import { documentoImpresion, html, imprimir } from '@/utils/html';
 
 // Lo que el modal de anulación usa de una fila de GET /api/caja (montos en pesos).
 interface VentaAnulable {
@@ -91,36 +92,30 @@ export default function CajaPage() {
 
   const imprimirCierre = () => {
     if (!data) return;
-    const w = window.open('', '_blank', 'width=320,height=600');
-    if (!w) return;
-    
-    w.document.write(`<!DOCTYPE html><html><head><title>Cierre de Caja</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}td{padding:4px 0}.sep{border-top:1px dashed #000;margin:10px 0}.center{text-align:center}.bold{font-weight:bold}.right{text-align:right}</style></head><body>`);
-    
-    w.document.write(`<div class="center bold" style="font-size:16px">CIERRE DE CAJA</div>`);
-    w.document.write(`<div class="center">Periodo: ${data.resumen.periodo}</div>`);
-    w.document.write(`<div class="center">Fecha: ${formatDate(new Date(), true)}</div>`);
-    w.document.write(`<div class="sep"></div>`);
-    
-    w.document.write(`<table>`);
-    w.document.write(`<tr><td>Total Recaudado</td><td class="right bold">$${data.resumen.totalRecaudado.toLocaleString()}</td></tr>`);
-    w.document.write(`<tr><td>Total Propinas</td><td class="right">$${data.resumen.totalPropinas.toLocaleString()}</td></tr>`);
-    w.document.write(`<tr><td>Cant. Ventas</td><td class="right">${data.resumen.cantidadVentas}</td></tr>`);
-    w.document.write(`</table>`);
-    
-    w.document.write(`<div class="sep"></div>`);
-    w.document.write(`<div class="bold">DESGLOSE POR M\u00c9TODO</div>`);
-    w.document.write(`<table>`);
-    Object.entries(data.resumen.porMetodo).forEach(([metodo, stats]) => {
-      w.document.write(`<tr><td>${metodo.toUpperCase()} (${stats.count})</td><td class="right">$${stats.total.toLocaleString()}</td></tr>`);
-    });
-    w.document.write(`</table>`);
-    
-    w.document.write(`<div class="sep"></div>`);
-    w.document.write(`<div style="margin-top:40px;border-top:1px solid #000;text-align:center;padding-top:4px">Firma Responsable</div>`);
-    
-    w.document.write(`</body></html>`);
-    w.document.close();
-    setTimeout(() => w.print(), 300);
+    // Todo dato va interpolado en `html`, que lo escapa (los métodos de pago vienen de la base).
+    const metodos = Object.entries(data.resumen.porMetodo).map(
+      ([metodo, stats]) => html`<tr><td>${metodo.toUpperCase()} (${stats.count})</td><td class="right">$${stats.total.toLocaleString()}</td></tr>`
+    );
+    imprimir(
+      documentoImpresion(
+        'Cierre de Caja',
+        'body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}td{padding:4px 0}.sep{border-top:1px dashed #000;margin:10px 0}.center{text-align:center}.bold{font-weight:bold}.right{text-align:right}',
+        html`<div class="center bold" style="font-size:16px">CIERRE DE CAJA</div>
+<div class="center">Periodo: ${data.resumen.periodo}</div>
+<div class="center">Fecha: ${formatDate(new Date(), true)}</div>
+<div class="sep"></div>
+<table>
+<tr><td>Total Recaudado</td><td class="right bold">$${data.resumen.totalRecaudado.toLocaleString()}</td></tr>
+<tr><td>Total Propinas</td><td class="right">$${data.resumen.totalPropinas.toLocaleString()}</td></tr>
+<tr><td>Cant. Ventas</td><td class="right">${data.resumen.cantidadVentas}</td></tr>
+</table>
+<div class="sep"></div>
+<div class="bold">DESGLOSE POR MÉTODO</div>
+<table>${metodos}</table>
+<div class="sep"></div>
+<div style="margin-top:40px;border-top:1px solid #000;text-align:center;padding-top:4px">Firma Responsable</div>`
+      )
+    );
   };
 
 
