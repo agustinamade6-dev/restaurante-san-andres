@@ -28,7 +28,7 @@
   },
   "build": {
     "appId": "com.restaurantesanandres.pos",
-    "productName": "Restaurante San Andrés POS",
+    "productName": "AKROS Café POS",
     "directories": {
       "output": "release"
     },
@@ -57,7 +57,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Restaurante San Andrés POS",
+      "shortcutName": "AKROS Café POS",
       "deleteAppDataOnUninstall": false
     }
   },

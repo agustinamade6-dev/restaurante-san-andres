@@ -4,9 +4,9 @@
  * "negocio" del config.json. Si falta alguna, se usa el valor de ejemplo de siempre.
  */
 const POR_DEFECTO = {
-  restaurante: 'Restaurante San Andrés',
+  restaurante: 'AKROS Café',
   cuit: '30-12345678-9',
-  direccion: 'Av. San Martín 1234, San Andrés',
+  direccion: 'Calle y número, Ciudad',
 };
 
 export function datosNegocio() {

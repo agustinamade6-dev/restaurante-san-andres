@@ -312,9 +312,9 @@ describe('POST /api/checkout/pay — datos del comercio en el ticket (AT-16)', (
     const { ticketCliente } = await (await pagar(valido)).json();
 
     expect(ticketCliente).toMatchObject({
-      restaurante: 'Restaurante San Andrés',
+      restaurante: 'AKROS Café',
       cuit: '30-12345678-9',
-      direccion: 'Av. San Martín 1234, San Andrés',
+      direccion: 'Calle y número, Ciudad',
     });
   });
 
@@ -339,7 +339,7 @@ describe('POST /api/checkout/pay — datos del comercio en el ticket (AT-16)', (
 
     const { ticketCliente } = await (await pagar(valido)).json();
 
-    expect(ticketCliente).toMatchObject({ restaurante: 'Restaurante San Andrés', cuit: '30-12345678-9', direccion: 'Calle 1' });
+    expect(ticketCliente).toMatchObject({ restaurante: 'AKROS Café', cuit: '30-12345678-9', direccion: 'Calle 1' });
   });
 
   it('el ticket interno no cambia y conserva todos sus campos', async () => {
