@@ -15,6 +15,7 @@ import {
 import { formatDate } from '@/lib/formatDate';
 import { documentoImpresion, html, imprimir } from '@/utils/html';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { formatPesos } from '@/utils/dinero';
 
 // Lo que el modal de anulación usa de una fila de GET /api/caja (montos en pesos).
 interface VentaAnulable {
@@ -95,7 +96,7 @@ export default function CajaPage() {
     if (!data) return;
     // Todo dato va interpolado en `html`, que lo escapa (los métodos de pago vienen de la base).
     const metodos = Object.entries(data.resumen.porMetodo).map(
-      ([metodo, stats]) => html`<tr><td>${metodo.toUpperCase()} (${stats.count})</td><td class="right">$${stats.total.toLocaleString()}</td></tr>`
+      ([metodo, stats]) => html`<tr><td>${metodo.toUpperCase()} (${stats.count})</td><td class="right">${formatPesos(stats.total)}</td></tr>`
     );
     imprimir(
       documentoImpresion(
@@ -106,8 +107,8 @@ export default function CajaPage() {
 <div class="center">Fecha: ${formatDate(new Date(), true)}</div>
 <div class="sep"></div>
 <table>
-<tr><td>Total Recaudado</td><td class="right bold">$${data.resumen.totalRecaudado.toLocaleString()}</td></tr>
-<tr><td>Total Propinas</td><td class="right">$${data.resumen.totalPropinas.toLocaleString()}</td></tr>
+<tr><td>Total Recaudado</td><td class="right bold">${formatPesos(data.resumen.totalRecaudado)}</td></tr>
+<tr><td>Total Propinas</td><td class="right">${formatPesos(data.resumen.totalPropinas)}</td></tr>
 <tr><td>Cant. Ventas</td><td class="right">${data.resumen.cantidadVentas}</td></tr>
 </table>
 <div class="sep"></div>
@@ -165,7 +166,7 @@ export default function CajaPage() {
                 <div className="p-2 bg-amber-500/10 rounded-lg"><TrendingUp className="w-5 h-5 text-amber-500" /></div>
                 <h3 className="font-bold text-sm text-[var(--muted)]">Total Recaudado</h3>
               </div>
-              <p className="text-3xl font-black text-amber-500 font-mono">${data.resumen.totalRecaudado.toLocaleString()}</p>
+              <p className="text-3xl font-black text-amber-500 font-mono">{formatPesos(data.resumen.totalRecaudado)}</p>
             </div>
             <div className="bg-[var(--card)] p-5 rounded-2xl border border-[var(--border)] shadow-sm">
               <div className="flex items-center gap-3 mb-2">
@@ -179,7 +180,7 @@ export default function CajaPage() {
                 <div className="p-2 bg-emerald-500/10 rounded-lg"><Banknote className="w-5 h-5 text-emerald-500" /></div>
                 <h3 className="font-bold text-sm text-[var(--muted)]">Efectivo</h3>
               </div>
-              <p className="text-3xl font-black text-emerald-500 font-mono">${(data.resumen.porMetodo['efectivo']?.total || 0).toLocaleString()}</p>
+              <p className="text-3xl font-black text-emerald-500 font-mono">{formatPesos(data.resumen.porMetodo['efectivo']?.total || 0)}</p>
             </div>
             <div className="bg-[var(--card)] p-5 rounded-2xl border border-[var(--border)] shadow-sm">
               <div className="flex items-center gap-3 mb-2">
@@ -187,7 +188,7 @@ export default function CajaPage() {
                 <h3 className="font-bold text-sm text-[var(--muted)]">Digital</h3>
               </div>
               <p className="text-3xl font-black text-purple-500 font-mono">
-                ${((data.resumen.porMetodo['tarjeta']?.total || 0) + (data.resumen.porMetodo['transferencia']?.total || 0)).toLocaleString()}
+                {formatPesos((data.resumen.porMetodo['tarjeta']?.total || 0) + (data.resumen.porMetodo['transferencia']?.total || 0))}
               </p>
             </div>
           </div>
@@ -230,9 +231,9 @@ export default function CajaPage() {
                             {v.metodoPago}
                           </span>
                         </td>
-                        <td className="p-4 text-right text-[var(--muted)]">${v.propina.toLocaleString()}</td>
+                        <td className="p-4 text-right text-[var(--muted)]">{formatPesos(v.propina)}</td>
                         <td className={`p-4 text-right font-black font-mono ${v.esAnulacion ? 'text-red-500' : 'text-amber-500'} ${v.anulada ? 'line-through' : ''}`}>
-                          {v.total < 0 ? '-' : ''}${Math.abs(v.total).toLocaleString()}
+                          {formatPesos(v.total)}
                         </td>
                         <td className="p-4 text-right whitespace-nowrap">
                           {v.esAnulacion ? (
@@ -279,7 +280,7 @@ export default function CajaPage() {
             <div className="bg-[var(--background)] rounded-lg p-3 mb-4 text-sm space-y-1">
               <p><span className="text-[var(--muted)]">Ticket:</span> <span className="font-mono">{anulando.numeroTicket || `#${anulando.id}`}</span></p>
               <p><span className="text-[var(--muted)]">Mesa:</span> {anulando.mesaNumero ?? anulando.mesa?.numero ?? anulando.pedido?.mesa?.numero ?? 'S/N'}</p>
-              <p><span className="text-[var(--muted)]">Total:</span> <span className="font-bold">${anulando.total.toLocaleString()}</span></p>
+              <p><span className="text-[var(--muted)]">Total:</span> <span className="font-bold">{formatPesos(anulando.total)}</span></p>
             </div>
 
             <p className="text-sm text-[var(--muted)] mb-3">

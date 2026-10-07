@@ -6,6 +6,7 @@ import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { useAhora } from '@/hooks/useAhora';
 import { Search, Clock, CheckCheck, TrendingUp, Filter } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
+import { formatPesos } from '@/utils/dinero';
 
 interface Pedido {
   id: number;
@@ -104,7 +105,7 @@ export default function AdminHistorialPage() {
             </div>
             <h3 className="font-bold text-[var(--muted)]">Facturación Total</h3>
           </div>
-          <p className="text-3xl font-black">${stats.total.toLocaleString()}</p>
+          <p className="text-3xl font-black">{formatPesos(stats.total)}</p>
         </div>
       </div>
 
@@ -178,7 +179,7 @@ export default function AdminHistorialPage() {
                         {pedido.estado}
                       </span>
                     </td>
-                    <td className="p-4 text-right font-black">${pedido.total.toLocaleString()}</td>
+                    <td className="p-4 text-right font-black">{formatPesos(pedido.total)}</td>
                   </tr>
                 )
               })}

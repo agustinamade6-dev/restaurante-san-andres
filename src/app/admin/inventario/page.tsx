@@ -17,6 +17,7 @@ import AvisoError from '@/components/AvisoError';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import { useEnvio } from '@/hooks/useEnvio';
+import { formatPesos } from '@/utils/dinero';
 
 interface Insumo {
   id: number;
@@ -296,7 +297,7 @@ export default function InventarioPage() {
                     </div>
                   </td>
                   <td className="p-4 text-right text-sm font-semibold">
-                    ${insumo.precioUnitario.toLocaleString()}
+                    {formatPesos(insumo.precioUnitario)}
                   </td>
                   <td className="p-4 text-sm text-[var(--muted)]">
                     {insumo.proveedor?.nombre || '—'}

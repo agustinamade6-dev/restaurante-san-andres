@@ -6,6 +6,7 @@ import AvisoError from '@/components/AvisoError';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import { useEnvio } from '@/hooks/useEnvio';
+import { formatPesos } from '@/utils/dinero';
 import {
   Plus,
   Trash2,
@@ -86,7 +87,7 @@ export default function CostosPage() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Costos Fijos</p>
               <p className="text-2xl font-bold text-[var(--info)]">
-                ${totalFijos.toLocaleString()}
+                {formatPesos(totalFijos)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[var(--info-bg)] flex items-center justify-center">
@@ -101,7 +102,7 @@ export default function CostosPage() {
                 Costos Variables
               </p>
               <p className="text-2xl font-bold text-amber-400">
-                ${totalVariables.toLocaleString()}
+                {formatPesos(totalVariables)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
@@ -114,7 +115,7 @@ export default function CostosPage() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Total Mensual</p>
               <p className="text-2xl font-bold text-[var(--danger)]">
-                ${totalGeneral.toLocaleString()}
+                {formatPesos(totalGeneral)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[var(--danger-bg)] flex items-center justify-center">
@@ -193,7 +194,7 @@ export default function CostosPage() {
                 </td>
                 <td className="p-4 text-right">
                   <span className="font-bold text-[var(--danger)]">
-                    ${costo.monto.toLocaleString()}
+                    {formatPesos(costo.monto)}
                   </span>
                 </td>
                 <td className="p-4 text-right">

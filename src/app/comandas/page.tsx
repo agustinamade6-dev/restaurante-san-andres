@@ -35,6 +35,7 @@ import { useAviso } from '@/hooks/useAviso';
 import { useEnvio } from '@/hooks/useEnvio';
 import { conservarPosiciones } from '@/utils/mesas';
 import { documentoImpresion, html, imprimir } from '@/utils/html';
+import { formatPesos } from '@/utils/dinero';
 
 interface HistorialPedido {
   id: number;
@@ -509,7 +510,7 @@ export default function ComandasPage() {
 <div>Mesa: ${ticket.mesa} | Sector: ${ticket.sector}</div>
 <div>Venta ID: ${ticket.ventaId}</div>`;
     const items = ticket.items.map(
-      (i) => html`<tr><td>${i.cantidad}x ${i.nombre}</td><td style="text-align:right">$${i.subtotal.toLocaleString()}</td></tr>`
+      (i) => html`<tr><td>${i.cantidad}x ${i.nombre}</td><td style="text-align:right">${formatPesos(i.subtotal)}</td></tr>`
     );
     const pie =
       tipo === 'cliente'
@@ -521,9 +522,9 @@ export default function ComandasPage() {
         'body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}td{padding:2px 0}.sep{border-top:1px dashed #000;margin:6px 0}.center{text-align:center}.bold{font-weight:bold}.right{text-align:right}',
         html`${encabezado}
 <div class="sep"></div><table>${items}</table><div class="sep"></div>
-<table><tr><td>Subtotal</td><td class="right">$${ticket.subtotal.toLocaleString()}</td></tr>
-${ticket.propina > 0 && html`<tr><td>Propina</td><td class="right">$${ticket.propina.toLocaleString()}</td></tr>`}
-<tr class="bold"><td>TOTAL</td><td class="right">$${ticket.total.toLocaleString()}</td></tr></table>
+<table><tr><td>Subtotal</td><td class="right">${formatPesos(ticket.subtotal)}</td></tr>
+${ticket.propina > 0 && html`<tr><td>Propina</td><td class="right">${formatPesos(ticket.propina)}</td></tr>`}
+<tr class="bold"><td>TOTAL</td><td class="right">${formatPesos(ticket.total)}</td></tr></table>
 <div class="sep"></div><div>Pago: ${ticket.metodoPago.toUpperCase()}</div>
 ${pie}`
       )
@@ -757,7 +758,7 @@ ${pie}`
                     {total > 0 && (
                       <>
                         <span className="text-neutral-500 text-[10px]">●</span>
-                        <span className="text-xs font-black text-green-400">${total.toLocaleString()}</span>
+                        <span className="text-xs font-black text-green-400">{formatPesos(total)}</span>
                       </>
                     )}
                   </div>
@@ -976,7 +977,7 @@ ${pie}`
                     </div>
                   )}
                   <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded text-amber-400 font-bold text-sm border border-white/10 shadow-sm z-10">
-                    ${producto.precio.toLocaleString()}
+                    {formatPesos(producto.precio)}
                   </div>
                 </div>
                 <div className="p-4 flex-1 flex flex-col justify-between">
@@ -1022,12 +1023,12 @@ ${pie}`
                     </span>
                     <span className="font-bold text-white text-sm">{item.producto?.nombre || 'Producto'}</span>
                   </div>
-                  <span className="font-mono text-amber-500 font-bold text-sm">${((item.producto?.precio || 0) * item.cantidad).toLocaleString()}</span>
+                  <span className="font-mono text-amber-500 font-bold text-sm">{formatPesos((item.producto?.precio || 0) * item.cantidad)}</span>
                 </div>
               ))}
               <div className="flex justify-between items-center px-2 py-1 text-sm font-bold text-neutral-400">
                 <span>Subtotal Ordenado:</span>
-                <span className="font-mono text-white">${mesaSeleccionada.pedidos[0].total.toLocaleString()}</span>
+                <span className="font-mono text-white">{formatPesos(mesaSeleccionada.pedidos[0].total)}</span>
               </div>
             </div>
           )}
@@ -1061,7 +1062,7 @@ ${pie}`
                         {item.nombre}
                       </p>
                       <p className="text-amber-500 font-black font-mono mt-1 text-sm">
-                        ${(item.precio * item.cantidad).toLocaleString()}
+                        {formatPesos(item.precio * item.cantidad)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0 bg-black/50 p-1 rounded-lg border border-neutral-800">
@@ -1133,7 +1134,7 @@ ${pie}`
             <div className="flex items-center justify-between mb-5">
               <span className="text-neutral-400 font-bold uppercase tracking-widest text-sm">Total a Enviar</span>
               <span className="text-3xl font-black text-emerald-500 font-mono tracking-tighter">
-                ${totalComanda.toLocaleString()}
+                {formatPesos(totalComanda)}
               </span>
             </div>
           )}
@@ -1141,7 +1142,7 @@ ${pie}`
             <div className="flex items-center justify-between mb-5">
               <span className="text-neutral-400 font-bold uppercase tracking-widest text-sm">Total Consumo</span>
               <span className="text-3xl font-black text-amber-500 font-mono tracking-tighter">
-                ${mesaSeleccionada.pedidos[0].total.toLocaleString()}
+                {formatPesos(mesaSeleccionada.pedidos[0].total)}
               </span>
             </div>
           )}
@@ -1245,7 +1246,7 @@ ${pie}`
                       {mesaSeleccionada.pedidos[0].items.map((item, i) => (
                         <div key={i} className="flex justify-between items-center text-sm bg-black/30 rounded-lg px-3 py-2 border border-neutral-800">
                           <span className="font-semibold">{item.cantidad}x {item.producto.nombre}</span>
-                          <span className="font-bold text-amber-400 font-mono">${(item.producto.precio * item.cantidad).toLocaleString()}</span>
+                          <span className="font-bold text-amber-400 font-mono">{formatPesos(item.producto.precio * item.cantidad)}</span>
                         </div>
                       ))}
                     </div>
@@ -1291,7 +1292,7 @@ ${pie}`
                               : 'bg-black/30 border-neutral-800 text-neutral-400 hover:border-neutral-600'
                           }`}
                         >
-                          {val === 0 ? 'Sin' : `$${val.toLocaleString()}`}
+                          {val === 0 ? 'Sin' : formatPesos(val)}
                         </button>
                       ))}
                     </div>
@@ -1301,18 +1302,18 @@ ${pie}`
                   <div className="bg-black/50 rounded-xl p-4 border border-neutral-700">
                     <div className="flex justify-between text-sm text-neutral-400 mb-1">
                       <span>Subtotal</span>
-                      <span className="font-mono">${mesaSeleccionada.pedidos[0].total.toLocaleString()}</span>
+                      <span className="font-mono">{formatPesos(mesaSeleccionada.pedidos[0].total)}</span>
                     </div>
                     {propina > 0 && (
                       <div className="flex justify-between text-sm text-emerald-400 mb-1">
                         <span>Propina</span>
-                        <span className="font-mono">+${propina.toLocaleString()}</span>
+                        <span className="font-mono">+{formatPesos(propina)}</span>
                       </div>
                     )}
                     <div className="border-t border-neutral-700 mt-2 pt-2 flex justify-between">
                       <span className="font-bold text-lg">TOTAL</span>
                       <span className="font-black text-2xl text-amber-500 font-mono">
-                        ${(mesaSeleccionada.pedidos[0].total + propina).toLocaleString()}
+                        {formatPesos(mesaSeleccionada.pedidos[0].total + propina)}
                       </span>
                     </div>
                   </div>
@@ -1356,10 +1357,10 @@ ${pie}`
                       <p>{formatDate(ticketData.ticketCliente.fecha, true)}</p>
                       <div className="border-t border-dashed border-neutral-300 my-2" />
                       {ticketData.ticketCliente.items.map((it, i: number) => (
-                        <div key={i} className="flex justify-between"><span>{it.cantidad}x {it.nombre}</span><span>${it.subtotal}</span></div>
+                        <div key={i} className="flex justify-between"><span>{it.cantidad}x {it.nombre}</span><span>{formatPesos(it.subtotal)}</span></div>
                       ))}
                       <div className="border-t border-dashed border-neutral-300 my-2" />
-                      <div className="flex justify-between font-bold text-sm"><span>TOTAL</span><span>${ticketData.ticketCliente.total.toLocaleString()}</span></div>
+                      <div className="flex justify-between font-bold text-sm"><span>TOTAL</span><span>{formatPesos(ticketData.ticketCliente.total)}</span></div>
                       <p className="text-center text-[9px] text-neutral-400 mt-2">{ticketData.ticketCliente.mensaje}</p>
                     </div>
 
@@ -1373,10 +1374,10 @@ ${pie}`
                       <p>{formatDate(ticketData.ticketInterno.fecha, true)}</p>
                       <div className="border-t border-dashed border-neutral-300 my-2" />
                       {ticketData.ticketInterno.items.map((it, i: number) => (
-                        <div key={i} className="flex justify-between"><span>{it.cantidad}x {it.nombre}</span><span>${it.subtotal}</span></div>
+                        <div key={i} className="flex justify-between"><span>{it.cantidad}x {it.nombre}</span><span>{formatPesos(it.subtotal)}</span></div>
                       ))}
                       <div className="border-t border-dashed border-neutral-300 my-2" />
-                      <div className="flex justify-between font-bold text-sm"><span>TOTAL</span><span>${ticketData.ticketInterno.total.toLocaleString()}</span></div>
+                      <div className="flex justify-between font-bold text-sm"><span>TOTAL</span><span>{formatPesos(ticketData.ticketInterno.total)}</span></div>
                       <p className="text-center text-[9px] text-neutral-400 mt-2">Pago: {ticketData.ticketInterno.metodoPago.toUpperCase()}</p>
                       {ticketData.ticketInterno.operadorId && (
                         <p className="text-center text-[9px] text-neutral-400 mt-1">Cajero/Autorizó: Op #{ticketData.ticketInterno.operadorId}</p>

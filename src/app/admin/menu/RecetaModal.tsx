@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ClipboardList, Plus, Save, Trash2, X } from 'lucide-react';
+import { formatPesos } from '@/utils/dinero';
 
 interface Insumo {
   id: number;
@@ -187,16 +188,16 @@ export default function RecetaModal({ producto, onClose }: Props) {
             <div className="bg-[var(--background)] p-3 rounded-xl border border-[var(--border)] text-sm grid grid-cols-3 gap-2">
               <div>
                 <p className="text-xs text-[var(--muted)]">Precio</p>
-                <p className="font-bold">${producto.precio.toLocaleString()}</p>
+                <p className="font-bold">{formatPesos(producto.precio)}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Costo insumos</p>
-                <p className="font-bold">${Math.round(costo).toLocaleString()}</p>
+                <p className="font-bold">{formatPesos(Math.round(costo))}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Margen</p>
                 <p className={`font-bold ${margen < 0 ? 'text-[var(--danger)]' : 'text-amber-400'}`}>
-                  ${Math.round(margen).toLocaleString()}
+                  {formatPesos(Math.round(margen))}
                 </p>
               </div>
             </div>

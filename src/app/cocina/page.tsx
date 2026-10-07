@@ -25,6 +25,7 @@ import { useApi } from '@/hooks/useApi';
 import { useAviso } from '@/hooks/useAviso';
 import { useEnvio } from '@/hooks/useEnvio';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { formatPesos } from '@/utils/dinero';
 import { enviarJson } from '@/lib/api-cliente';
 
 interface HistorialPedido {
@@ -491,7 +492,7 @@ export default function CocinaPage() {
                   <select id="new-item-select" className="flex-1 input bg-[var(--background)] border border-[var(--border)] rounded-xl p-3">
                     <option value="">Seleccionar producto...</option>
                     {productos.map(p => (
-                      <option key={p.id} value={p.id}>{p.nombre} - ${p.precio}</option>
+                      <option key={p.id} value={p.id}>{p.nombre} - {formatPesos(p.precio)}</option>
                     ))}
                   </select>
                   <button onClick={() => {

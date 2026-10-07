@@ -2,6 +2,7 @@
 
 import { useApi } from '@/hooks/useApi';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { formatPesos } from '@/utils/dinero';
 import {
   DollarSign,
   TrendingUp,
@@ -81,9 +82,6 @@ export default function AdminDashboard() {
     pedidosActivos: data.pedidosActivos || 0,
   };
 
-  const formatMoney = (n: number) =>
-    `$${n.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
-
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-8">
@@ -102,7 +100,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Ventas Hoy</p>
               <p className="text-2xl font-bold text-[var(--success)]">
-                {formatMoney(metricas?.ventasHoy?.total ?? 0)}
+                {formatPesos(metricas?.ventasHoy?.total ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
                 {metricas?.ventasHoy?.cantidad ?? 0} pedidos
@@ -119,7 +117,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Ventas Semana</p>
               <p className="text-2xl font-bold text-[var(--info)]">
-                {formatMoney(metricas?.ventasSemana?.total ?? 0)}
+                {formatPesos(metricas?.ventasSemana?.total ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
                 {metricas?.ventasSemana?.cantidad ?? 0} pedidos
@@ -136,7 +134,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Ventas Mes</p>
               <p className="text-2xl font-bold text-[var(--purple)]">
-                {formatMoney(metricas?.ventasMes?.total ?? 0)}
+                {formatPesos(metricas?.ventasMes?.total ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
                 {metricas?.ventasMes?.cantidad ?? 0} pedidos
@@ -159,10 +157,10 @@ export default function AdminDashboard() {
                     : 'text-[var(--danger)]'
                 }`}
               >
-                {formatMoney(metricas?.balanceMes ?? 0)}
+                {formatPesos(metricas?.balanceMes ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
-                Costos: {formatMoney(metricas?.costosMensuales ?? 0)}
+                Costos: {formatPesos(metricas?.costosMensuales ?? 0)}
               </p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
@@ -252,7 +250,7 @@ export default function AdminDashboard() {
                     borderRadius: '10px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number) => [formatMoney(value), 'Total']}
+                  formatter={(value: number) => [formatPesos(value), 'Total']}
                 />
                 <Area
                   type="monotone"
@@ -297,7 +295,7 @@ export default function AdminDashboard() {
                     borderRadius: '10px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number) => [formatMoney(value), 'Total']}
+                  formatter={(value: number) => [formatPesos(value), 'Total']}
                 />
                 <Bar
                   dataKey="total"
@@ -345,7 +343,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-sm text-[var(--success)]">
-                    {formatMoney(plato.ingresos)}
+                    {formatPesos(plato.ingresos)}
                   </p>
                 </div>
               </div>

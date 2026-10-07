@@ -19,6 +19,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import RecetaModal from './RecetaModal';
+import { formatPesos } from '@/utils/dinero';
 
 interface Producto {
   id: number;
@@ -280,7 +281,7 @@ export default function MenuPage() {
                 </td>
                 <td className="p-4 text-right">
                   <span className="font-bold text-amber-400">
-                    ${p.precio.toLocaleString()}
+                    {formatPesos(p.precio)}
                   </span>
                 </td>
                 <td className="p-4 text-center">
