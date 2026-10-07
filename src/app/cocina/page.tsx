@@ -56,10 +56,10 @@ interface Pedido {
 
 export default function CocinaPage() {
   const [nuevoPedido, setNuevoPedido] = useState(false);
-  const [modalEditOpen, setModalEditOpen] = useState<Pedido | null>(null);
-  const [modalHistoryOpen, setModalHistoryOpen] = useState<Pedido | null>(null);
+  const [modalEditId, setModalEditId] = useState<number | null>(null);
+  const [modalHistoryId, setModalHistoryId] = useState<number | null>(null);
   const [modalEntregadosOpen, setModalEntregadosOpen] = useState(false);
-  const [modalCancelarOpen, setModalCancelarOpen] = useState<Pedido | null>(null);
+  const [modalCancelarId, setModalCancelarId] = useState<number | null>(null);
   const [motivoCambio, setMotivoCambio] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
   const [historialTab, setHistorialTab] = useState<'entregados' | 'cancelados'>('entregados');
@@ -75,6 +75,11 @@ export default function CocinaPage() {
   }, []);
 
   const { data: pedidos, recargar: fetchPedidos } = useApi<Pedido[]>('/api/pedidos', []);
+  // Los modales guardan solo el id y leen el pedido de la lista actual: así muestran cada cambio
+  // (el "+" suma de verdad la segunda vez) y se cierran solos si el pedido deja de estar activo.
+  const modalEditOpen = pedidos.find((p) => p.id === modalEditId) ?? null;
+  const modalHistoryOpen = pedidos.find((p) => p.id === modalHistoryId) ?? null;
+  const modalCancelarOpen = pedidos.find((p) => p.id === modalCancelarId) ?? null;
   const { data: productos, recargar: fetchProductos } = useApi<Array<{ id: number; nombre: string; precio: number; categoriaId: number }>>('/api/productos', []);
   // Historial de hoy: solo se pide con su modal abierto (y se vuelve a pedir al reabrirlo)
   const { data: entregados, recargar: fetchEntregados } = useApi<Pedido[]>(
@@ -133,7 +138,7 @@ export default function CocinaPage() {
       });
       if (res.ok) {
         setMotivoCambio('');
-        setModalCancelarOpen(null);
+        setModalCancelarId(null);
         fetchPedidos();
       } else {
         const data = await res.json().catch(() => null);
@@ -206,13 +211,13 @@ export default function CocinaPage() {
                     MODIFICADO
                   </span>
                 )}
-                <button onClick={() => setModalHistoryOpen(pedido)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]" title="Historial">
+                <button onClick={() => setModalHistoryId(pedido.id)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]" title="Historial">
                   <History className="w-4 h-4" />
                 </button>
-                <button onClick={() => setModalEditOpen(pedido)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]" title="Editar Comanda">
+                <button onClick={() => setModalEditId(pedido.id)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]" title="Editar Comanda">
                   <Edit className="w-4 h-4" />
                 </button>
-                <button onClick={() => setModalCancelarOpen(pedido)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-red-950/40 transition-colors text-[var(--muted)] hover:text-red-400" title="Cancelar Pedido">
+                <button onClick={() => { setModalCancelarId(pedido.id); setMotivoCambio(''); setErrorCancelar(''); }} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-red-950/40 transition-colors text-[var(--muted)] hover:text-red-400" title="Cancelar Pedido">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -438,7 +443,7 @@ export default function CocinaPage() {
                 </h2>
                 <p className="text-sm text-[var(--muted)]">Modifica los platos de la orden activa.</p>
               </div>
-              <button onClick={() => setModalEditOpen(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button onClick={() => setModalEditId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -511,7 +516,7 @@ export default function CocinaPage() {
                 <History className="w-5 h-5 text-purple-400" />
                 Historial Mesa {modalHistoryOpen.mesa.numero}
               </h2>
-              <button onClick={() => setModalHistoryOpen(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button onClick={() => setModalHistoryId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -662,7 +667,7 @@ export default function CocinaPage() {
                 <Trash2 className="w-6 h-6" />
                 Cancelar Pedido Mesa {modalCancelarOpen.mesa.numero}
               </h3>
-              <button onClick={() => { setModalCancelarOpen(null); setMotivoCambio(''); setErrorCancelar(''); }} className="p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)]">
+              <button onClick={() => { setModalCancelarId(null); setMotivoCambio(''); setErrorCancelar(''); }} className="p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)]">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -690,7 +695,7 @@ export default function CocinaPage() {
               )}
               <div className="flex gap-3">
                 <button 
-                  onClick={() => { setModalCancelarOpen(null); setMotivoCambio(''); setErrorCancelar(''); }} 
+                  onClick={() => { setModalCancelarId(null); setMotivoCambio(''); setErrorCancelar(''); }} 
                   className="flex-1 btn bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] py-3 font-bold hover:bg-[var(--card-hover)]"
                 >
                   Conservar

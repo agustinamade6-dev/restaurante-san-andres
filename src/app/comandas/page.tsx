@@ -31,6 +31,7 @@ import {
 import { useSSE } from '@/hooks/useSSE';
 import { enviarJson } from '@/lib/api-cliente';
 import { useApi } from '@/hooks/useApi';
+import { conservarPosiciones } from '@/utils/mesas';
 
 interface HistorialPedido {
   id: number;
@@ -117,8 +118,8 @@ export default function ComandasPage() {
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const { data: productos, recargar: fetchProductos } = useApi<Producto[]>('/api/productos', []);
   const { data: categorias, recargar: fetchCategorias } = useApi<Categoria[]>('/api/categorias', []);
-  const [mesaSeleccionada, setMesaSeleccionada] = useState<Mesa | null>(null);
-  const [modalHistoryOpen, setModalHistoryOpen] = useState<Mesa | null>(null);
+  const [mesaSeleccionadaId, setMesaSeleccionadaId] = useState<number | null>(null);
+  const [modalHistoryId, setModalHistoryId] = useState<number | null>(null);
   const [filtroZona, setFiltroZona] = useState<'todas' | 'salon' | 'barra'>('todas');
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null);
   const [busqueda, setBusqueda] = useState('');
@@ -153,13 +154,57 @@ export default function ComandasPage() {
   const [ticketData, setTicketData] = useState<{ ticketCliente: Ticket; ticketInterno: Ticket } | null>(null);
 
 
+  // La mesa abierta y la del historial se guardan por id y se leen de la lista actual,
+  // así muestran cada cambio que llega por SSE en vez de una copia del momento en que se abrieron.
+  const mesaSeleccionada = mesas.find((m) => m.id === mesaSeleccionadaId) ?? null;
+  const modalHistoryOpen = mesas.find((m) => m.id === modalHistoryId) ?? null;
+
+  // Refs para leer el estado actual desde fetchMesas sin recrearlo (lo usa la conexión SSE).
+  const editandoPlanoRef = useRef(false);
+  const mesaSeleccionadaIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    editandoPlanoRef.current = isEditorMode;
+    mesaSeleccionadaIdRef.current = mesaSeleccionadaId;
+  }, [isEditorMode, mesaSeleccionadaId]);
+
   // Las mesas se piden acá y se guardan en estado local, porque el editor del plano las modifica
   // (arrastre, deshacer, eliminar) antes de guardar.
-  const pedirMesas = useCallback(async (): Promise<Mesa[]> => (await fetch('/api/mesas')).json(), []);
+  const pedirMesas = useCallback(async (): Promise<Mesa[]> => {
+    const res = await fetch('/api/mesas').catch(() => {
+      throw new Error('No se pudo conectar con el servidor');
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error(data?.error || 'No se pudieron cargar las mesas');
+    }
+    return data;
+  }, []);
+
+  const aplicarMesas = useCallback((nuevas: Mesa[]) => {
+    // Con el editor abierto se conservan las posiciones que el admin movió y todavía no guardó.
+    setMesas((prev) => (editandoPlanoRef.current ? conservarPosiciones(prev, nuevas) : nuevas));
+    // La mesa abierta ya no existe (la eliminaron desde otra terminal): volver al plano sin arrastrar su comanda.
+    const abierta = mesaSeleccionadaIdRef.current;
+    if (abierta !== null && !nuevas.some((m) => m.id === abierta)) {
+      setMesaSeleccionadaId(null);
+      setComanda([]);
+      setNotaItem({});
+      setShowCheckout(false);
+      setTicketData(null);
+      setNotificacion({ msg: 'La mesa que estaba abierta ya no existe', tipo: 'error' });
+      setTimeout(() => setNotificacion(null), 4000);
+    }
+  }, []);
 
   const fetchMesas = useCallback(async () => {
-    setMesas(await pedirMesas());
-  }, [pedirMesas]);
+    try {
+      aplicarMesas(await pedirMesas());
+    } catch (e) {
+      // Se conservan las mesas que ya estaban en pantalla.
+      setNotificacion({ msg: (e as Error).message, tipo: 'error' });
+      setTimeout(() => setNotificacion(null), 4000);
+    }
+  }, [pedirMesas, aplicarMesas]);
 
   useEffect(() => {
     let vigente = true;
@@ -167,7 +212,10 @@ export default function ComandasPage() {
       .then((data) => {
         if (vigente) setMesas(data);
       })
-      .catch(() => {});
+      .catch((e) => {
+        if (!vigente) return;
+        setNotificacion({ msg: (e as Error).message, tipo: 'error' });
+      });
     return () => {
       vigente = false;
     };
@@ -258,7 +306,7 @@ export default function ComandasPage() {
         setNotificacion({ msg: '✅ Comanda enviada a cocina!', tipo: 'success' });
         setComanda([]);
         setNotaItem({});
-        setMesaSeleccionada(null);
+        setMesaSeleccionadaId(null);
         fetchMesas();
         setTimeout(() => setNotificacion(null), 3000);
       } else {
@@ -365,6 +413,7 @@ export default function ComandasPage() {
     });
     if (res.ok) {
       setNotificacion({ msg: 'Distribución guardada', tipo: 'success' });
+      editandoPlanoRef.current = false;
       setIsEditorMode(false);
       fetchMesas();
       setTimeout(() => setNotificacion(null), 3000);
@@ -532,7 +581,7 @@ export default function ComandasPage() {
                 <button onClick={guardarLayout} className="px-3 py-1.5 text-xs font-bold bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/50 rounded-lg flex items-center gap-1 transition-colors">
                   <Save className="w-4 h-4" /> Guardar
                 </button>
-                <button onClick={() => { setMesas(mesasBackup); setIsEditorMode(false); }} className="px-3 py-1.5 text-xs font-bold bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/50 rounded-lg flex items-center gap-1 transition-colors">
+                <button onClick={() => { editandoPlanoRef.current = false; setMesas(mesasBackup); setIsEditorMode(false); fetchMesas(); }} className="px-3 py-1.5 text-xs font-bold bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/50 rounded-lg flex items-center gap-1 transition-colors">
                   <XCircle className="w-4 h-4" /> Cancelar
                 </button>
               </div>
@@ -652,7 +701,7 @@ export default function ComandasPage() {
             return (
               <div
                 key={mesa.id}
-                onClick={() => !isEditorMode && setMesaSeleccionada(mesa)}
+                onClick={() => !isEditorMode && setMesaSeleccionadaId(mesa.id)}
                 onPointerDown={isEditorMode ? (e) => handlePointerDown(e, mesa.id) : undefined}
                 onPointerMove={isEditorMode ? handlePointerMove : undefined}
                 onPointerUp={isEditorMode ? handlePointerUp : undefined}
@@ -720,7 +769,7 @@ export default function ComandasPage() {
                 {/* History button if occupied and has history */}
                 {isOcupada && mesa.pedidos?.[0]?.historial?.length > 0 && (
                   <button 
-                    onClick={(e) => { e.stopPropagation(); setModalHistoryOpen(mesa); }}
+                    onClick={(e) => { e.stopPropagation(); setModalHistoryId(mesa.id); }}
                     className="absolute -top-3 -right-3 z-40 bg-purple-600 hover:bg-purple-500 text-white p-1.5 rounded-full shadow-lg border border-purple-400 transition-transform hover:scale-110"
                     title="Ver Historial"
                   >
@@ -851,7 +900,7 @@ export default function ComandasPage() {
         <div className="flex items-center gap-4 mb-6">
           <button
             onClick={() => {
-              setMesaSeleccionada(null);
+              setMesaSeleccionadaId(null);
               setComanda([]);
               setNotaItem({});
             }}
@@ -1142,7 +1191,7 @@ export default function ComandasPage() {
                 <History className="w-5 h-5 text-purple-400" />
                 Historial Mesa {modalHistoryOpen.numero}
               </h2>
-              <button onClick={() => setModalHistoryOpen(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button onClick={() => setModalHistoryId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1171,7 +1220,8 @@ export default function ComandasPage() {
       )}
 
       {/* Checkout / Cobro Modal */}
-      {showCheckout && mesaSeleccionada && mesaSeleccionada.pedidos?.[0] && (
+      {/* Después de cobrar la mesa queda sin pedido, pero los comprobantes tienen que seguir a la vista. */}
+      {showCheckout && mesaSeleccionada && (ticketData || mesaSeleccionada.pedidos?.[0]) && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-lg rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
             {/* Header */}
@@ -1181,7 +1231,7 @@ export default function ComandasPage() {
                   <Receipt className="w-5 h-5 text-amber-500" />
                   {ticketData ? 'Comprobantes de Pago' : `Cobrar Mesa ${mesaSeleccionada.numero}`}
                 </h2>
-                <button onClick={() => { setShowCheckout(false); setTicketData(null); if (ticketData) { setMesaSeleccionada(null); } }} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+                <button onClick={() => { setShowCheckout(false); setTicketData(null); if (ticketData) { setMesaSeleccionadaId(null); } }} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1347,7 +1397,7 @@ export default function ComandasPage() {
                   </button>
                 </div>
                 <div className="px-4 pb-4">
-                  <button onClick={() => { setShowCheckout(false); setTicketData(null); setMesaSeleccionada(null); }} className="w-full btn btn-secondary py-3">
+                  <button onClick={() => { setShowCheckout(false); setTicketData(null); setMesaSeleccionadaId(null); }} className="w-full btn btn-secondary py-3">
                     Cerrar y Volver al Salón
                   </button>
                 </div>
