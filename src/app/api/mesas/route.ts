@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import eventEmitter from '@/lib/events';
 import { enPesos } from '@/lib/money';
 import { ApiError } from '@/lib/api-error';
@@ -57,7 +58,7 @@ export async function PATCH(request: Request) {
     }
     const { id, estado } = parsed.data;
 
-    const mesa = await prisma.$transaction(async (tx) => {
+    const mesa = await transaccion(async (tx) => {
       const actual = await tx.mesa.findUnique({ where: { id }, select: { id: true, activa: true } });
       if (!actual || !actual.activa) throw new ApiError(404, 'Mesa no encontrada');
 
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
     }
     const { numero, capacidad, sector, forma, posX, posY } = parsed.data;
 
-    const mesa = await prisma.$transaction(async (tx) => {
+    const mesa = await transaccion(async (tx) => {
       const exists = await tx.mesa.findUnique({ where: { numero } });
       if (exists) {
         if (exists.activa) throw new ApiError(400, 'El número de mesa ya está en uso');

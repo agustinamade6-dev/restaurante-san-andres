@@ -16,6 +16,7 @@ vi.mock('next/headers', async () => (await import('./helpers/session')).nextHead
 
 import * as RECETA from '@/app/api/productos/[id]/receta/route';
 import * as INVENTARIO from '@/app/api/inventario/route';
+import { POST as AJUSTAR } from '@/app/api/inventario/ajuste/route';
 import { POST as PAGAR } from '@/app/api/checkout/pay/route';
 import { POST as ANULAR } from '@/app/api/ventas/[id]/anular/route';
 import { PATCH as CANCELAR } from '@/app/api/pedidos/[id]/cancel/route';
@@ -260,5 +261,50 @@ describe('redondearCantidad', () => {
     expect(redondearCantidad(0.1 + 0.2)).toBe(0.3);
     expect(redondearCantidad(25 - 3 * 0.2)).toBe(24.4);
     expect(redondearCantidad(-0.00004)).toBe(-0);
+  });
+});
+
+describe('POST /api/inventario/ajuste', () => {
+  const ajustar = (body: unknown) => AJUSTAR(json('POST', body));
+
+  it('suma o resta sobre el stock ACTUAL de la base y registra el movimiento con su motivo', async () => {
+    await pagar(1); // la venta deja carne en 24 y pan en 44
+    const res = await ajustar({ insumoId: 100, delta: 5.5, motivo: 'Compra recibida' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: 100, stockActual: 29.5, precioUnitario: 3200 });
+    expect(stock(100)).toBe(29.5); // 24 + 5,5: no pisa el descuento de la venta
+    expect(db.state.movimientos.at(-1)).toMatchObject({ insumoId: 100, cantidad: 5.5, motivo: 'AJUSTE', detalle: 'Compra recibida', ventaId: null, usuarioId: 1 });
+
+    expect((await ajustar({ insumoId: 101, delta: -4, motivo: 'Merma: pan vencido' })).status).toBe(200);
+    expect(stock(101)).toBe(40);
+  });
+
+  it('redondea la cantidad a 4 decimales', async () => {
+    await ajustar({ insumoId: 100, delta: 0.1 + 0.2, motivo: 'conteo' });
+    expect(stock(100)).toBe(25.3);
+  });
+
+  it.each([
+    ['delta 0', { insumoId: 100, delta: 0, motivo: 'nada' }, /distinto de 0/],
+    ['sin motivo', { insumoId: 100, delta: 1 }, /motivo/],
+    ['motivo corto', { insumoId: 100, delta: 1, motivo: 'x' }, /mínimo 3/],
+    ['delta no numérico', { insumoId: 100, delta: 'mucho', motivo: 'conteo' }, /delta/],
+    ['delta absurdo', { insumoId: 100, delta: 1e9, motivo: 'conteo' }, /demasiado grande/],
+  ])('400: %s', async (_n, body, mensaje) => {
+    const res = await ajustar(body);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(mensaje);
+    expect(stock(100)).toBe(25);
+    expect(db.state.movimientos).toHaveLength(0);
+  });
+
+  it('404 si el insumo no existe', async () => {
+    expect((await ajustar({ insumoId: 999, delta: 1, motivo: 'conteo' })).status).toBe(404);
+  });
+
+  it('si falla el registro del movimiento, el stock no cambia', async () => {
+    db.failOn.add('movimientoStock.create');
+    expect((await ajustar({ insumoId: 100, delta: 3, motivo: 'conteo' })).status).toBe(500);
+    expect(stock(100)).toBe(25);
   });
 });

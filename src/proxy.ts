@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SESSION_COOKIE, verifySession } from '@/lib/session';
+import { SESSION_COOKIE } from '@/lib/session';
+import { sesionVigente } from '@/lib/auth';
 
 export async function proxy(request: NextRequest) {
-  // La cookie está firmada: una cookie fabricada o alterada no pasa verifySession.
-  const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
+  // Cookie firmada (una fabricada o alterada no pasa) y usuario todavía activo en la base (el proxy corre en Node.js).
+  const session = await sesionVigente(request.cookies.get(SESSION_COOKIE)?.value);
 
   if (!session) {
     return NextResponse.redirect(new URL('/', request.url));

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { escritura } from '@/lib/transaccion';
 import { crearProveedorSchema, editarProveedorSchema } from '@/lib/catalogo';
 import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
 
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     if (!parsed.success) return error(mensajeZod(parsed.error), 400);
     const body = parsed.data;
 
-    const proveedor = await prisma.proveedor.create({
+    const proveedor = await escritura(() => prisma.proveedor.create({
       data: {
         nombre: body.nombre,
         contacto: body.contacto || '',
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
         direccion: body.direccion || '',
         notas: body.notas || '',
       },
-    });
+    }));
     return NextResponse.json(proveedor, { status: 201 });
   } catch (e) {
     console.error('Error creating proveedor:', e);
@@ -61,7 +62,7 @@ export async function PUT(request: Request) {
     if (!parsed.success) return error(mensajeZod(parsed.error), 400);
     const { id, ...datos } = parsed.data;
 
-    const proveedor = await prisma.proveedor.update({ where: { id }, data: datos });
+    const proveedor = await escritura(() => prisma.proveedor.update({ where: { id }, data: datos }));
     return NextResponse.json(proveedor);
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Proveedor no encontrado', 404);
@@ -79,7 +80,7 @@ export async function DELETE(request: Request) {
     if (id === undefined) return error('ID requerido', 400);
     if (id === null) return error('ID inválido', 400);
 
-    await prisma.proveedor.delete({ where: { id } });
+    await escritura(() => prisma.proveedor.delete({ where: { id } }));
     return NextResponse.json({ success: true });
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Proveedor no encontrado', 404);

@@ -38,13 +38,14 @@ export async function GET(request: Request) {
     });
 
     // Resumen neto: las anulaciones (asientos con importe negativo) restan de los totales y de la cantidad.
-    const { totalRecaudado, totalPropinas, cantidadVentas, porMetodo } = resumirVentas(ventas);
+    const { totalRecaudado, totalPropinas, totalVentas, cantidadVentas, porMetodo } = resumirVentas(ventas);
 
     return NextResponse.json({
       ventas: enPesos(marcarAnuladas(ventas)),
       resumen: {
         totalRecaudado,
         totalPropinas,
+        totalVentas,
         cantidadVentas,
         porMetodo,
         periodo: days === 1 ? 'Hoy' : `Últimos ${days} días`,

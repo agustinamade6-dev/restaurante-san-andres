@@ -18,6 +18,10 @@ y qué debe tener en cuenta.
 | 8 | `chore(repo): eliminar temp.tsx, copia sin uso de la pantalla de Comandas` | [commit-08-borrar-temp.md](commit-08-borrar-temp.md) | AT-17 (completo) |
 | 9 | `fix(dinero): montos en centavos enteros y migración automática de la base al arrancar` | [commit-09-dinero-en-centavos.md](commit-09-dinero-en-centavos.md) | AT-13 (completo), AT-20 |
 | 10 | `feat(inventario): recetas de productos, descuento de stock al cobrar y reintegro al anular` | [commit-10-recetas-y-stock.md](commit-10-recetas-y-stock.md) | AT-12 (completo), AT-09 (completo) |
+| 11 | `fix(seguridad): límite de PIN no evadible, sesiones revocables, CSRF y endpoints sin datos de más` (rama `fix/revision-pr1`) | [commit-11-seguridad-revision-pr1.md](commit-11-seguridad-revision-pr1.md) | AT-21 a AT-27 |
+| 12 | `fix(metricas): propinas fuera del ingreso, costos por periodicidad y montos dentro del rango de la base` | [commit-12-propinas-costos-rango.md](commit-12-propinas-costos-rango.md) | AT-28 a AT-30 |
+| 13 | `fix(pedidos): transiciones de estado explícitas, eventos de mesa correctos, cobro idempotente y ajuste de stock` | [commit-13-estados-eventos-cobro-stock.md](commit-13-estados-eventos-cobro-stock.md) | AT-31 a AT-34 |
+| 14 | `fix(concurrencia): transacciones de escritura en fila para SQLite y tests de integración contra la base real` | [commit-14-sqlite-concurrencia.md](commit-14-sqlite-concurrencia.md) | AT-35 |
 
 ## Estado de los hallazgos
 
@@ -43,6 +47,21 @@ y qué debe tener en cuenta.
 | AT-18 | Pedido cobrado reabrible y sin anulación de ventas (hallado en prueba manual) | Muy Alto | ✅ Commit 4 (falta el botón en el frontend) |
 | AT-19 | "Hoy" en Caja incluye las ventas de ayer (período desplazado un día) | Medio | ✅ Commit 7 |
 | AT-20 | Instalaciones existentes sin migración de esquema (hallado al hacer AT-13) | Alto | ✅ Commit 9 |
+| AT-21 | Límite de intentos de PIN evadible con `X-Forwarded-For` (revisión del PR #1) | Alto | ✅ Commit 11 |
+| AT-22 | `check-admin-pin` revelaba nombre y rol, y aceptaba roles inexistentes | Medio | ✅ Commit 11 |
+| AT-23 | `/api/hub-metrics` sin autenticación | Bajo | ✅ Commit 11 |
+| AT-24 | Usuario desactivado o con rol cambiado seguía operando hasta 12 h | Alto | ✅ Commit 11 |
+| AT-25 | Conexión SSE abierta tras vencer la sesión | Medio | ✅ Commit 11 |
+| AT-26 | Secreto de sesión por defecto publicado en el repositorio | Medio | ✅ Commit 11 |
+| AT-27 | Sin protección CSRF más allá de `SameSite=Lax` | Medio | ✅ Commit 11 |
+| AT-28 | Propinas contadas como ingreso del negocio | Medio | ✅ Commit 12 |
+| AT-29 | Costos sumados sin mirar la periodicidad | Medio | ✅ Commit 12 |
+| AT-30 | Montos fuera del rango de la columna (error 500) | Bajo | ✅ Commit 12 |
+| AT-31 | Cualquier salto entre estados abiertos del pedido | Medio | ✅ Commit 13 |
+| AT-32 | Eventos `mesa:actualizada` ausentes o con el estado viejo | Bajo | ✅ Commit 13 |
+| AT-33 | El reintento de un cobro exitoso respondía error | Medio | ✅ Commit 13 |
+| AT-34 | Editar el stock pisaba las ventas y no dejaba registro | Medio | ✅ Commit 13 (falta la pantalla) |
+| AT-35 | Cobros simultáneos fallaban con 500 en SQLite real (hallado por el test de integración) | Alto | ✅ Commit 14 |
 
 ## Convenciones
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import { ApiError } from '@/lib/api-error';
 import { recetaSchema } from '@/lib/catalogo';
 import { aPesos } from '@/lib/money';
@@ -69,7 +70,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (!parsed.success) return error(mensajeZod(parsed.error), 400);
     const { items } = parsed.data;
 
-    await prisma.$transaction(async (tx) => {
+    await transaccion(async (tx) => {
       const producto = await tx.producto.findUnique({ where: { id }, select: { id: true } });
       if (!producto) throw new ApiError(404, 'Producto no encontrado');
 

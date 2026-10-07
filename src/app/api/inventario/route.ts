@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { escritura } from '@/lib/transaccion';
 import { enPesos } from '@/lib/money';
 import { crearInsumoSchema, editarInsumoSchema } from '@/lib/catalogo';
 import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
@@ -39,10 +40,10 @@ export async function POST(request: Request) {
       if (!proveedor) return error('El proveedor no existe', 400);
     }
 
-    const insumo = await prisma.insumo.create({
+    const insumo = await escritura(() => prisma.insumo.create({
       data: { ...datos, proveedorId: datos.proveedorId ?? null },
       include: { proveedor: true },
-    });
+    }));
     return NextResponse.json(enPesos(insumo), { status: 201 });
   } catch (e) {
     console.error('Error creating insumo:', e);
@@ -64,16 +65,24 @@ export async function PUT(request: Request) {
     const existente = await prisma.insumo.findUnique({ where: { id } });
     if (!existente) return error('Insumo no encontrado', 404);
 
-    if (datos.proveedorId) {
-      const proveedor = await prisma.proveedor.findUnique({ where: { id: datos.proveedorId } });
+    // El stock no se reemplaza por esta vía: un valor absoluto pisaba los descuentos de ventas hechas mientras la
+    // pantalla estaba abierta, y el cambio no quedaba registrado. Para cambiarlo: POST /api/inventario/ajuste.
+    // Si llega el mismo valor que ya tiene (la pantalla manda el insumo completo), se ignora.
+    const { stockActual, ...cambios } = datos;
+    if (stockActual !== undefined && stockActual !== existente.stockActual) {
+      return error('El stock no se edita acá: usá "Ajustar stock" (POST /api/inventario/ajuste) con la diferencia y un motivo.', 400);
+    }
+
+    if (cambios.proveedorId) {
+      const proveedor = await prisma.proveedor.findUnique({ where: { id: cambios.proveedorId } });
       if (!proveedor) return error('El proveedor no existe', 400);
     }
 
-    const insumo = await prisma.insumo.update({
+    const insumo = await escritura(() => prisma.insumo.update({
       where: { id },
-      data: datos,
+      data: cambios,
       include: { proveedor: true },
-    });
+    }));
     return NextResponse.json(enPesos(insumo));
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Insumo no encontrado', 404);
@@ -111,7 +120,7 @@ export async function DELETE(request: Request) {
       return error('No se puede eliminar un insumo con movimientos de stock registrados.', 400);
     }
 
-    await prisma.insumo.delete({ where: { id } });
+    await escritura(() => prisma.insumo.delete({ where: { id } }));
     return NextResponse.json({ success: true });
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Insumo no encontrado', 404);

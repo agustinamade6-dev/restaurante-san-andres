@@ -133,6 +133,7 @@ const DDL_MOVIMIENTOS = [
     "insumoId" INTEGER NOT NULL,
     "cantidad" REAL NOT NULL,
     "motivo" TEXT NOT NULL,
+    "detalle" TEXT NOT NULL DEFAULT '',
     "ventaId" INTEGER,
     "usuarioId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -151,8 +152,38 @@ const recetasYStock: Paso = {
   ],
 };
 
+/* ───────────── Paso 3: detalle de los movimientos de stock (ajustes manuales) ───────────── */
+
+// Reconstrucción generada por `prisma migrate diff` (la columna nueva va en su posición del esquema).
+const DDL_MOVIMIENTOS_CON_DETALLE = [
+  `CREATE TABLE "new_MovimientoStock" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "insumoId" INTEGER NOT NULL,
+    "cantidad" REAL NOT NULL,
+    "motivo" TEXT NOT NULL,
+    "detalle" TEXT NOT NULL DEFAULT '',
+    "ventaId" INTEGER,
+    "usuarioId" INTEGER,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "MovimientoStock_insumoId_fkey" FOREIGN KEY ("insumoId") REFERENCES "Insumo" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "MovimientoStock_ventaId_fkey" FOREIGN KEY ("ventaId") REFERENCES "Venta" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+)`,
+  `INSERT INTO "new_MovimientoStock" ("cantidad", "createdAt", "id", "insumoId", "motivo", "usuarioId", "ventaId") SELECT "cantidad", "createdAt", "id", "insumoId", "motivo", "usuarioId", "ventaId" FROM "MovimientoStock"`,
+  `DROP TABLE "MovimientoStock"`,
+  `ALTER TABLE "new_MovimientoStock" RENAME TO "MovimientoStock"`,
+  `CREATE INDEX "MovimientoStock_ventaId_idx" ON "MovimientoStock"("ventaId")`,
+];
+
+const detalleDeMovimientos: Paso = {
+  nombre: 'Detalle en los movimientos de stock (ajustes manuales)',
+  necesario: async (db) =>
+    (await existeTabla(db, 'MovimientoStock')) &&
+    !(await columnas(db, 'MovimientoStock')).some((c) => c.name === 'detalle'),
+  sentencias: async () => DDL_MOVIMIENTOS_CON_DETALLE,
+};
+
 /** Pasos en orden de aplicación. Los siguientes cambios de esquema se agregan al final. */
-export const PASOS: Paso[] = [montosEnCentavos, recetasYStock];
+export const PASOS: Paso[] = [montosEnCentavos, recetasYStock, detalleDeMovimientos];
 
 /* ───────────── Ejecución ───────────── */
 

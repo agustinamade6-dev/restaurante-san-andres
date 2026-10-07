@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import eventEmitter from '@/lib/events';
-import { enPesos, subtotalCentavos } from '@/lib/money';
+import { dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, cantidadItem } from '@/lib/api-error';
+import { ESTADOS_FINALES } from '@/lib/pedidos';
 
 
 const idPositivo = z.coerce.number().int().positive();
@@ -24,7 +25,6 @@ const accionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('UPDATE_QUANTITY'), itemId: idPositivo, cantidad, motivo: texto }),
 ]);
 
-const ESTADOS_CERRADOS = ['pagado', 'cancelado'];
 
 export async function PATCH(
   request: Request,
@@ -57,10 +57,10 @@ export async function PATCH(
     }
     const data = parsed.data;
 
-    const updatedPedido = await prisma.$transaction(async (tx) => {
+    const updatedPedido = await transaccion(async (tx) => {
       // Guard: toma el lock de escritura y rechaza pedidos cerrados de forma atómica.
       const claimed = await tx.pedido.updateMany({
-        where: { id: pedidoId, estado: { notIn: ESTADOS_CERRADOS } },
+        where: { id: pedidoId, estado: { notIn: ESTADOS_FINALES } },
         data: { actualizadoEn: new Date() },
       });
       if (claimed.count === 0) {
@@ -114,6 +114,7 @@ export async function PATCH(
         select: { precio: true, cantidad: true },
       });
       const total = subtotalCentavos(lineas);
+      if (!dentroDeRango(total)) throw new ApiError(400, 'El total del pedido supera el máximo que se puede registrar');
 
       const actualizado = await tx.pedido.update({
         where: { id: pedidoId },

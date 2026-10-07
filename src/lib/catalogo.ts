@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { aCentavos } from '@/lib/money';
+import { MAX_MONTO_PESOS, aCentavos } from '@/lib/money';
 
 const vacioANulo = (v: unknown) => (v === '' || v === null ? undefined : v);
 
@@ -11,13 +11,13 @@ const texto = (max: number) => z.string().trim().max(max);
 const montoPositivo = z.coerce
   .number()
   .finite()
-  .max(1_000_000_000)
+  .max(MAX_MONTO_PESOS, `no puede superar $${MAX_MONTO_PESOS.toLocaleString('es-AR')}`)
   .transform(aCentavos)
   .refine((c) => c > 0, 'debe ser mayor que 0');
 const montoNoNegativo = z.coerce
   .number()
   .finite()
-  .max(1_000_000_000)
+  .max(MAX_MONTO_PESOS, `no puede superar $${MAX_MONTO_PESOS.toLocaleString('es-AR')}`)
   .transform(aCentavos)
   .refine((c) => c >= 0, 'no puede ser negativo');
 const cantidadStock = z.coerce.number().finite().min(0, 'no puede ser negativo').max(1_000_000_000);
@@ -109,6 +109,17 @@ export const editarInsumoSchema = z.object({
   stockMinimo: cantidadStock.optional(),
   precioUnitario: montoNoNegativo.optional(),
   proveedorId: idPositivo.nullish(),
+});
+
+// Ajuste manual de stock: delta (positivo suma, negativo resta) y motivo obligatorio. Ver lib/stock.ts.
+export const ajusteStockSchema = z.object({
+  insumoId: idPositivo,
+  delta: z.coerce
+    .number()
+    .finite()
+    .refine((d) => d !== 0, 'debe ser distinto de 0')
+    .refine((d) => Math.abs(d) <= 1_000_000, 'es demasiado grande'),
+  motivo: z.string().trim().min(3, 'es obligatorio (mínimo 3 caracteres)').max(200),
 });
 
 // Alta de insumo (antes no había forma de crear insumos fuera del seed de desarrollo).

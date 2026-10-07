@@ -339,19 +339,28 @@ describe('/api/proveedores', () => {
 /* ──────────────────────────── INVENTARIO ──────────────────────────── */
 
 describe('PUT /api/inventario', () => {
-  it('actualiza el stock con el objeto completo que envía la pantalla (con proveedor anidado y fechas)', async () => {
+  it('acepta el objeto completo que envía la pantalla (con proveedor anidado, fechas y el MISMO stock)', async () => {
     const insumoCompleto = {
       ...db.state.insumos[0],
+      precioUnitario: 900,
       proveedor: { id: 3, nombre: 'Distribuidora Sur' },
       createdAt: '2026-10-06T11:12:43.000Z',
       updatedAt: '2026-10-06T11:12:43.000Z',
     };
 
-    const res = await INVENTARIO.PUT(pedir('PUT', { ...insumoCompleto, stockActual: 25.5 }));
+    const res = await INVENTARIO.PUT(pedir('PUT', { ...insumoCompleto, stockMinimo: 3 }));
 
     expect(res.status).toBe(200);
-    expect(db.state.insumos[0]).toMatchObject({ stockActual: 25.5, nombre: 'Harina', unidad: 'kg' });
+    expect(db.state.insumos[0]).toMatchObject({ stockActual: 10, stockMinimo: 3, nombre: 'Harina', unidad: 'kg' });
     expect((await res.json()).proveedor.nombre).toBe('Distribuidora Sur');
+  });
+
+  it('REGRESIÓN: un stock distinto por PUT es 400 (pisaba las ventas hechas con la pantalla abierta) y no cambia nada', async () => {
+    db.state.insumos[0].stockActual = 8.5; // una venta descontó mientras la pantalla mostraba 10
+    const res = await INVENTARIO.PUT(pedir('PUT', { ...db.state.insumos[0], stockActual: 10, stockMinimo: 3 }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Ajustar stock/);
+    expect(db.state.insumos[0]).toMatchObject({ stockActual: 8.5, stockMinimo: 5 });
   });
 
   it('permite desvincular el proveedor (null) y cambiar el resto de los campos', async () => {
@@ -463,5 +472,21 @@ describe('montos: la API habla en pesos y la base guarda centavos enteros', () =
     const insumo = await (await INVENTARIO.PUT(pedir('PUT', { id: 7, precioUnitario: 950.25 }))).json();
     expect(insumo.precioUnitario).toBe(950.25);
     expect(db.state.insumos[0].precioUnitario).toBe(95025);
+  });
+});
+
+describe('rango de montos (Prisma Int de 32 bits: máximo 2.147.483.647 centavos)', () => {
+  beforeEach(() => loginAs('ADMIN'));
+
+  it('un precio o costo mayor a $10.000.000 es 400 con mensaje claro (antes, 500 al guardar)', async () => {
+    const res = await PRODUCTOS.POST(pedir('POST', { nombre: 'Caro', precio: 50_000_000, categoriaId: 1 }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/precio: no puede superar/);
+    expect((await COSTOS.POST(pedir('POST', { concepto: 'X', monto: 1e9 }))).status).toBe(400);
+    expect((await INVENTARIO.PUT(pedir('PUT', { id: 7, precioUnitario: 2e7 }))).status).toBe(400);
+  });
+
+  it('$10.000.000 justo se acepta', async () => {
+    expect((await PRODUCTOS.POST(pedir('POST', { nombre: 'Tope', precio: 10_000_000, categoriaId: 1 }))).status).toBe(201);
   });
 });

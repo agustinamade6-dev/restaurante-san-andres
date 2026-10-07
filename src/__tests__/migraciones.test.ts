@@ -218,3 +218,32 @@ describe('migrarBase: base en centavos sin recetas (estado del commit 9)', () =>
     expect(r.status).toBe(0);
   }, 60_000);
 });
+
+describe('migrarBase: movimientos de stock sin "detalle" (estado del commit 12)', () => {
+  it('agrega la columna conservando los movimientos y queda igual al esquema', async () => {
+    const url = urlDe('commit12.db');
+    const ddl = readFileSync(join(__dirname, 'fixtures', 'esquema-movimientos-sin-detalle.sql'), 'utf8');
+    const db = await crearBase(url, ddl);
+    const t = `'2026-10-06 12:00:00'`;
+    for (const sql of [
+      `INSERT INTO "Insumo" (id, nombre, stockActual, updatedAt) VALUES (1, 'Carne', 23.8, ${t})`,
+      `INSERT INTO "Venta" (id, total, numeroTicket) VALUES (1, 1000, 'T-1')`,
+      `INSERT INTO "MovimientoStock" (id, insumoId, cantidad, motivo, ventaId) VALUES (1, 1, -1.2, 'VENTA', 1)`,
+    ]) {
+      await db.$executeRawUnsafe(sql);
+    }
+    await db.$disconnect();
+
+    expect(await migrarBase(url)).toEqual(['Detalle en los movimientos de stock (ajustes manuales)']);
+
+    const db2 = new PrismaClient({ datasourceUrl: url });
+    expect(await db2.movimientoStock.findMany()).toEqual([
+      expect.objectContaining({ id: 1, insumoId: 1, cantidad: -1.2, motivo: 'VENTA', ventaId: 1, detalle: '' }),
+    ]);
+    await db2.$disconnect();
+
+    const r = prismaCli(['migrate', 'diff', '--from-url', `"${url}"`, '--to-schema-datamodel', 'prisma/schema.prisma', '--exit-code']);
+    expect(r.status).toBe(0);
+    expect(await migrarBase(url)).toEqual([]);
+  }, 60_000);
+});

@@ -9,6 +9,17 @@ import { detectarImagen, MAX_IMAGEN_BYTES } from '@/lib/imagen';
 const dir = vi.hoisted(() => ({ path: '' }));
 vi.mock('@/lib/uploads', () => ({ getUploadsDir: () => dir.path }));
 vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
+// requireAuth busca al usuario en la base: el de la sesión existe y está activo (sin tocar la base real).
+vi.mock('@/lib/prisma', async () => {
+  const { usuarioDeLaCookie } = await import('./helpers/session');
+  const usuario = {
+    findUnique: async ({ where }: any) => {
+      const u = usuarioDeLaCookie();
+      return u && u.id === where.id ? { ...u, activo: true } : null;
+    },
+  };
+  return { default: { usuario } };
+});
 
 import { POST } from '@/app/api/upload/route';
 import { GET as SERVIR } from '@/app/uploads/[...path]/route';

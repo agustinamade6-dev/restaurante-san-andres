@@ -46,9 +46,14 @@ export function resumirVentas(ventas: VentaMinima[]) {
   const porMetodo = Object.fromEntries(
     Object.entries(centavosPorMetodo).map(([metodo, m]) => [metodo, { count: m.count, total: aPesos(m.total) }])
   );
+  const recaudado = ventas.reduce((s, v) => s + v.total, 0);
+  const propinas = ventas.reduce((s, v) => s + v.propina, 0);
   return {
-    totalRecaudado: aPesos(ventas.reduce((s, v) => s + v.total, 0)),
-    totalPropinas: aPesos(ventas.reduce((s, v) => s + v.propina, 0)),
+    // Lo que entró a caja (incluye propinas): sirve para el arqueo.
+    totalRecaudado: aPesos(recaudado),
+    totalPropinas: aPesos(propinas),
+    // Ingreso del negocio por ventas: sin propinas (son del personal).
+    totalVentas: aPesos(recaudado - propinas),
     cantidadVentas: contarVentasNetas(ventas),
     porMetodo,
   };
@@ -62,4 +67,15 @@ export function marcarAnuladas<T extends VentaMinima>(ventas: T[]): (T & { esAnu
     esAnulacion: esAnulacion(v),
     anulada: v.id !== undefined && anuladas.has(v.id),
   }));
+}
+
+/** Prefijo AAAAMMDD de los números de ticket (hora local del servidor). */
+export function prefijoFecha(fecha: Date = new Date()): string {
+  const mm = (fecha.getMonth() + 1).toString().padStart(2, '0');
+  return `${fecha.getFullYear()}${mm}${fecha.getDate().toString().padStart(2, '0')}`;
+}
+
+/** Monto en pesos con formato fijo (es-AR), igual en cualquier equipo; se guarda en el historial. */
+export function formatoPesos(pesos: number): string {
+  return pesos.toLocaleString('es-AR');
 }

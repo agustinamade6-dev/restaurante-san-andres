@@ -19,13 +19,19 @@ type Tx = Prisma.TransactionClient;
 
 export const MOTIVO_VENTA = 'VENTA';
 export const MOTIVO_ANULACION = 'ANULACION';
+export const MOTIVO_AJUSTE = 'AJUSTE';
 
 /** Las cantidades de insumo son decimales (0,2 kg): se redondean a 4 decimales para no acumular ruido binario. */
 export function redondearCantidad(valor: number): number {
   return Math.round(valor * 10_000) / 10_000;
 }
 
-async function moverStock(tx: Tx, insumoId: number, cantidad: number, datos: { motivo: string; ventaId: number; usuarioId: number | null }) {
+async function moverStock(
+  tx: Tx,
+  insumoId: number,
+  cantidad: number,
+  datos: { motivo: string; ventaId: number | null; usuarioId: number | null; detalle?: string }
+) {
   const insumo = await tx.insumo.findUnique({ where: { id: insumoId }, select: { stockActual: true } });
   if (!insumo) return;
   await tx.insumo.update({
@@ -73,4 +79,17 @@ export async function reintegrarStockDeVenta(
     await moverStock(tx, m.insumoId, -m.cantidad, { motivo: MOTIVO_ANULACION, ventaId: anulacionId, usuarioId });
   }
   return movimientos.length;
+}
+
+/**
+ * Ajuste manual de stock (conteo físico, merma, compra recibida): SUMA o RESTA `delta` sobre el valor actual de la
+ * base, en vez de reemplazarlo. Así no se pisan los descuentos de ventas hechas entre que se abrió la pantalla y se
+ * guardó, y el ajuste queda registrado con su motivo y su usuario.
+ */
+export async function ajustarStock(
+  tx: Tx,
+  { insumoId, delta, detalle, usuarioId }: { insumoId: number; delta: number; detalle: string; usuarioId: number | null }
+) {
+  await moverStock(tx, insumoId, redondearCantidad(delta), { motivo: MOTIVO_AJUSTE, ventaId: null, usuarioId, detalle });
+  return tx.insumo.findUnique({ where: { id: insumoId }, include: { proveedor: true } });
 }

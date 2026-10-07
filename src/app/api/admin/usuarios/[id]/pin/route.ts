@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { escritura } from '@/lib/transaccion';
 import { requireAuth } from '@/lib/auth';
 import { hashPin, pinEnUso, PIN_REGEX } from '@/lib/pin';
 
@@ -39,10 +40,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Este PIN ya está en uso por otro usuario' }, { status: 400 });
     }
 
-    await prisma.usuario.update({
-      where: { id: userId },
-      data: { pin: await hashPin(pin) },
-    });
+    const nuevoHash = await hashPin(pin);
+    await escritura(() => prisma.usuario.update({ where: { id: userId }, data: { pin: nuevoHash } }));
 
     return NextResponse.json({ success: true, message: 'PIN actualizado correctamente' });
   } catch (error) {

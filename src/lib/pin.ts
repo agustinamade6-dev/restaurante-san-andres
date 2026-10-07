@@ -1,6 +1,7 @@
 import { scrypt as scryptCb, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import prisma from '@/lib/prisma';
+import { escritura } from '@/lib/transaccion';
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
@@ -38,7 +39,8 @@ export async function autenticarPin(pin: string) {
   for (const u of usuarios) {
     if (await verificarPin(pin, u.pin)) {
       if (!u.pin.startsWith(PREFIX)) {
-        await prisma.usuario.update({ where: { id: u.id }, data: { pin: await hashPin(pin) } });
+        const nuevoHash = await hashPin(pin);
+        await escritura(() => prisma.usuario.update({ where: { id: u.id }, data: { pin: nuevoHash } }));
       }
       return u;
     }

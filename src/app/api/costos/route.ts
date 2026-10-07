@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { escritura } from '@/lib/transaccion';
 import { enPesos } from '@/lib/money';
 import { crearCostoSchema } from '@/lib/catalogo';
 import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     const parsed = crearCostoSchema.safeParse(raw);
     if (!parsed.success) return error(mensajeZod(parsed.error), 400);
 
-    const costo = await prisma.costoFijo.create({ data: parsed.data });
+    const costo = await escritura(() => prisma.costoFijo.create({ data: parsed.data }));
     return NextResponse.json(enPesos(costo), { status: 201 });
   } catch (e) {
     console.error('Error creating costo:', e);
@@ -49,7 +50,7 @@ export async function DELETE(request: Request) {
     if (id === undefined) return error('ID requerido', 400);
     if (id === null) return error('ID inválido', 400);
 
-    await prisma.costoFijo.delete({ where: { id } });
+    await escritura(() => prisma.costoFijo.delete({ where: { id } }));
     return NextResponse.json({ success: true });
   } catch (e) {
     if (codigoPrisma(e) === 'P2025') return error('Costo no encontrado', 404);
