@@ -88,12 +88,12 @@ export default function CostosPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Costos Fijos</p>
-              <p className="text-2xl font-bold text-[var(--info)]">
+              <p className="text-2xl font-bold text-[var(--info-text)]">
                 {formatPesos(totalFijos)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[var(--info-bg)] flex items-center justify-center">
-              <TrendingDown className="w-5 h-5 text-[var(--info)]" />
+              <TrendingDown className="w-5 h-5 text-[var(--info-text)]" />
             </div>
           </div>
         </div>
@@ -116,12 +116,12 @@ export default function CostosPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Total Mensual</p>
-              <p className="text-2xl font-bold text-[var(--danger)]">
+              <p className="text-2xl font-bold text-[var(--danger-text)]">
                 {formatPesos(totalGeneral)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[var(--danger-bg)] flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-[var(--danger)]" />
+              <DollarSign className="w-5 h-5 text-[var(--danger-text)]" />
             </div>
           </div>
         </div>
@@ -170,7 +170,7 @@ export default function CostosPage() {
                       <DollarSign
                         className={`w-4 h-4 ${
                           costo.tipo === 'fijo'
-                            ? 'text-[var(--info)]'
+                            ? 'text-[var(--info-text)]'
                             : 'text-amber-400'
                         }`}
                       />
@@ -195,14 +195,14 @@ export default function CostosPage() {
                   {costo.periodicidad}
                 </td>
                 <td className="p-4 text-right">
-                  <span className="font-bold text-[var(--danger)]">
+                  <span className="font-bold text-[var(--danger-text)]">
                     {formatPesos(costo.monto)}
                   </span>
                 </td>
                 <td className="p-4 text-right">
                   <button aria-label={`Eliminar ${costo.concepto}`}
                     onClick={() => eliminar(costo.id)}
-                    className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors ml-auto min-w-11 min-h-11"
+                    className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors ml-auto min-w-11 min-h-11"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -299,7 +299,7 @@ export default function CostosPage() {
               </div>
             </div>
 
-            {errorModal && <p role="alert" className="text-sm text-[var(--danger)] mt-4">{errorModal}</p>}
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger-text)] mt-4">{errorModal}</p>}
 
             <div className="flex gap-3 mt-6">
               <button

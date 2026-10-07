@@ -233,7 +233,7 @@ export default function InventarioPage() {
                     <div className="flex items-center justify-center gap-2">
                       <span
                         className={`font-bold text-sm ${
-                          esBajo ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'
+                          esBajo ? 'text-[var(--danger-text)]' : 'text-[var(--foreground)]'
                         }`}
                       >
                         {insumo.stockActual} {insumo.unidad}
@@ -264,7 +264,7 @@ export default function InventarioPage() {
                       <span
                         className={`text-xs font-medium ${
                           esBajo
-                            ? 'text-[var(--danger)]'
+                            ? 'text-[var(--danger-text)]'
                             : 'text-[var(--success)]'
                         }`}
                       >
@@ -289,7 +289,7 @@ export default function InventarioPage() {
                   <td className="p-4 text-right">
                     <button
                       onClick={() => eliminarInsumo(insumo)}
-                      className="btn btn-sm btn-secondary text-[var(--danger)] min-w-11 min-h-11"
+                      className="btn btn-sm btn-secondary text-[var(--danger-text)] min-w-11 min-h-11"
                       title="Eliminar insumo"
                       aria-label={`Eliminar ${insumo.nombre}`}
                     >
@@ -408,7 +408,7 @@ export default function InventarioPage() {
               </div>
             </div>
 
-            {errorNuevo && <p className="text-sm text-[var(--danger)] mt-4">{errorNuevo}</p>}
+            {errorNuevo && <p className="text-sm text-[var(--danger-text)] mt-4">{errorNuevo}</p>}
 
             <div className="flex gap-3 mt-6">
               <button onClick={() => setNuevo(null)} className="btn btn-secondary flex-1">

@@ -168,7 +168,7 @@ export default function HomePage() {
             <div className="text-2xl font-black tracking-tighter font-mono text-white/90">
               {now ? now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
             </div>
-            <div className="text-xs font-bold text-white/40 uppercase tracking-widest">
+            <div className="text-xs font-bold text-white/60 uppercase tracking-widest">
               {now ? now.toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'short' }) : '---'}
             </div>
           </div>
@@ -194,7 +194,7 @@ export default function HomePage() {
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">1</div>
               </div>
               <h2 className="text-2xl font-black mb-2 text-white/90 tracking-tight">Sala / Comandas</h2>
-              <p className="text-white/40 text-xs leading-relaxed mb-4 pr-2">
+              <p className="text-white/60 text-xs leading-relaxed mb-4 pr-2">
                 Plano interactivo de mesas, toma rápida de comandas táctil, edición de órdenes y control de cuentas.
               </p>
               
@@ -203,7 +203,7 @@ export default function HomePage() {
                 <div className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-xl p-3 mb-4">
                   <Activity className="w-5 h-5 text-amber-500" />
                   <div>
-                    <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider mb-0.5">Estado en vivo</div>
+                    <div className="text-[10px] text-white/60 font-bold uppercase tracking-wider mb-0.5">Estado en vivo</div>
                     <div className="text-sm font-black text-amber-400">
                       {metricas.mesas.ocupadas} Ocupadas <span className="text-white/20 mx-2">|</span> <span className="text-green-400">{metricas.mesas.libres} Libres</span>
                     </div>
@@ -232,7 +232,7 @@ export default function HomePage() {
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">2</div>
               </div>
               <h2 className="text-2xl font-black mb-2 text-white/90 tracking-tight">Cocina / KDS</h2>
-              <p className="text-white/40 text-xs leading-relaxed mb-4 pr-2">
+              <p className="text-white/60 text-xs leading-relaxed mb-4 pr-2">
                 Monitor interactivo de comandas (Kitchen Display System). Gestión de tickets, alertas de demoras y despacho.
               </p>
               
@@ -241,7 +241,7 @@ export default function HomePage() {
                 <div className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-xl p-3 mb-4">
                   <Activity className="w-5 h-5 text-cyan-500" />
                   <div>
-                    <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider mb-0.5">Carga de Trabajo</div>
+                    <div className="text-[10px] text-white/60 font-bold uppercase tracking-wider mb-0.5">Carga de Trabajo</div>
                     <div className="text-sm font-black text-cyan-400 flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
                       {metricas.cocina.preparando} Comandas en preparación
@@ -271,7 +271,7 @@ export default function HomePage() {
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">3</div>
               </div>
               <h2 className="text-2xl font-black mb-2 text-white/90 tracking-tight">Administración</h2>
-              <p className="text-white/40 text-xs leading-relaxed mb-4 pr-2">
+              <p className="text-white/60 text-xs leading-relaxed mb-4 pr-2">
                 Panel de control gerencial. Métricas financieras, menú, inventario, costos, caja y auditoría de personal.
               </p>
               
@@ -279,7 +279,7 @@ export default function HomePage() {
                 <div className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-xl p-3 mb-4">
                   <Lock className="w-5 h-5 text-purple-500" />
                   <div>
-                    <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider mb-0.5">Nivel de Acceso</div>
+                    <div className="text-[10px] text-white/60 font-bold uppercase tracking-wider mb-0.5">Nivel de Acceso</div>
                     <div className="text-sm font-black text-purple-400">
                       Requiere PIN Administrador
                     </div>
@@ -314,7 +314,7 @@ export default function HomePage() {
                   <Lock className="w-8 h-8 text-white/60" />
                 </div>
                 <h2 className="text-2xl font-black mb-1 text-white">Identificación</h2>
-                <p className="text-sm font-bold text-white/40 uppercase tracking-widest">
+                <p className="text-sm font-bold text-white/60 uppercase tracking-widest">
                   Ingreso a {targetModule === 'comandas' ? 'Sala' : targetModule === 'cocina' ? 'Cocina' : 'Admin'}
                 </p>
               </div>

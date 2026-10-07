@@ -131,13 +131,13 @@ export default function ProveedoresPage() {
               <div className="flex items-center gap-1">
                 <button aria-label={`Editar ${prov.nombre}`}
                   onClick={() => abrirModal(prov)}
-                  className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors min-w-11 min-h-11"
+                  className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info-text)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors min-w-11 min-h-11"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
                 <button aria-label={`Eliminar ${prov.nombre}`}
                   onClick={() => eliminar(prov.id)}
-                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors min-w-11 min-h-11"
+                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors min-w-11 min-h-11"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -282,7 +282,7 @@ export default function ProveedoresPage() {
               </div>
             </div>
 
-            {errorModal && <p role="alert" className="text-sm text-[var(--danger)] mt-4">{errorModal}</p>}
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger-text)] mt-4">{errorModal}</p>}
 
             <div className="flex gap-3 mt-6">
               <button

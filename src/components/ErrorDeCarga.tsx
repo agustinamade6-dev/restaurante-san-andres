@@ -20,7 +20,7 @@ export default function ErrorDeCarga({
   if (!error) return null;
   return (
     <div role="alert" className="glass-card p-4 mb-4 flex items-center gap-3 border-red-500/30">
-      <AlertTriangle className="w-5 h-5 text-[var(--danger)] shrink-0" aria-hidden="true" />
+      <AlertTriangle className="w-5 h-5 text-[var(--danger-text)] shrink-0" aria-hidden="true" />
       <p className="text-sm flex-1">
         No se pudieron cargar {que}: {error}
       </p>

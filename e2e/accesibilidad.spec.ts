@@ -14,13 +14,21 @@ import { PIN, ingresarPin } from './ayudas';
 type Conocidas = Record<string, number>;
 
 const CONOCIDAS = {
-  // 2026-10-07: sin violaciones de button-name (nombres accesibles y se quitó el botón Power, que no tenía acción).
+  // 2026-10-07: sin violaciones conocidas (AT-36 cerrado: nombres accesibles, botón Power quitado y contraste AA).
   inicio: {},
-  modalPin: { 'color-contrast': 1 },
-  comandas: { 'color-contrast': 4 },
+  modalPin: {},
+  comandas: {},
 } satisfies Record<string, Conocidas>;
 
 async function violaciones(page: Page): Promise<Conocidas> {
+  // Las animaciones de entrada (fade-in de 0,3 s) bajan la opacidad: medir en medio daba contrastes que dependían
+  // del momento. Se espera a las animaciones finitas; las infinitas (animate-pulse) no terminan nunca.
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+      .every((a) => a.playState === 'finished')
+  );
   const resultado = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   return Object.fromEntries(resultado.violations.map((v) => [v.id, v.nodes.length]));
 }

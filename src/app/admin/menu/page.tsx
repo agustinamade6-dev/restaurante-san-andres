@@ -306,13 +306,13 @@ export default function MenuPage() {
                     </button>
                     <button aria-label={`Editar ${p.nombre}`}
                       onClick={() => abrirModal(p)}
-                      className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors min-w-11 min-h-11"
+                      className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info-text)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors min-w-11 min-h-11"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button aria-label={`Eliminar ${p.nombre}`}
                       onClick={() => eliminar(p)}
-                      className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors min-w-11 min-h-11"
+                      className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors min-w-11 min-h-11"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -486,7 +486,7 @@ export default function MenuPage() {
               </div>
             </div>
 
-            {errorModal && <p role="alert" className="text-sm text-[var(--danger)] mt-4">{errorModal}</p>}
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger-text)] mt-4">{errorModal}</p>}
             {!errorModal && faltaParaGuardar && <p className="text-sm text-[var(--muted)] mt-4">{faltaParaGuardar}</p>}
 
             <div className="flex gap-3 mt-6">

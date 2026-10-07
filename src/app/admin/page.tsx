@@ -116,7 +116,7 @@ export default function AdminDashboard() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Ventas Semana</p>
-              <p className="text-2xl font-bold text-[var(--info)]">
+              <p className="text-2xl font-bold text-[var(--info-text)]">
                 {formatPesos(metricas?.ventasSemana?.total ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
@@ -124,7 +124,7 @@ export default function AdminDashboard() {
               </p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-[var(--info-bg)] flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-[var(--info)]" />
+              <TrendingUp className="w-5 h-5 text-[var(--info-text)]" />
             </div>
           </div>
         </div>
@@ -154,7 +154,7 @@ export default function AdminDashboard() {
                 className={`text-2xl font-bold ${
                   (metricas?.balanceMes ?? 0) >= 0
                     ? 'text-[var(--success)]'
-                    : 'text-[var(--danger)]'
+                    : 'text-[var(--danger-text)]'
                 }`}
               >
                 {formatPesos(metricas?.balanceMes ?? 0)}
@@ -187,7 +187,7 @@ export default function AdminDashboard() {
         )}
         <div className="glass-card p-4 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-[var(--info-bg)] flex items-center justify-center shrink-0">
-            <ChefHat className="w-5 h-5 text-[var(--info)]" />
+            <ChefHat className="w-5 h-5 text-[var(--info-text)]" />
           </div>
           <div>
             <p className="font-semibold text-sm">Pedidos Activos</p>
@@ -203,7 +203,7 @@ export default function AdminDashboard() {
         {/* Ventas por día */}
         <div className="glass-card p-6">
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-[var(--info)]" />
+            <TrendingUp className="w-5 h-5 text-[var(--info-text)]" />
             Ventas Últimos 7 Días
           </h3>
           <div className="h-64">
