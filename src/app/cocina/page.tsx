@@ -75,7 +75,7 @@ export default function CocinaPage() {
   }, []);
 
   const { data: pedidos, recargar: fetchPedidos } = useApi<Pedido[]>('/api/pedidos', []);
-  const { data: productos } = useApi<Array<{ id: number; nombre: string; precio: number; categoriaId: number }>>('/api/productos', []);
+  const { data: productos, recargar: fetchProductos } = useApi<Array<{ id: number; nombre: string; precio: number; categoriaId: number }>>('/api/productos', []);
   // Historial de hoy: solo se pide con su modal abierto (y se vuelve a pedir al reabrirlo)
   const { data: entregados, recargar: fetchEntregados } = useApi<Pedido[]>(
     modalEntregadosOpen ? '/api/pedidos/history?days=1' : null,
@@ -93,7 +93,13 @@ export default function CocinaPage() {
         fetchPedidos();
       },
       [fetchPedidos]
-    )
+    ),
+    // Al volver la conexión: lo que pasó mientras estuvo caída no llegó por SSE.
+    useCallback(() => {
+      fetchPedidos();
+      fetchProductos();
+      fetchEntregados();
+    }, [fetchPedidos, fetchProductos, fetchEntregados])
   );
 
   const handleModifyItem = async (pedidoId: number, action: string, data: Record<string, unknown>) => {

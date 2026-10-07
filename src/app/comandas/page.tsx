@@ -115,8 +115,8 @@ interface Categoria {
 
 export default function ComandasPage() {
   const [mesas, setMesas] = useState<Mesa[]>([]);
-  const { data: productos } = useApi<Producto[]>('/api/productos', []);
-  const { data: categorias } = useApi<Categoria[]>('/api/categorias', []);
+  const { data: productos, recargar: fetchProductos } = useApi<Producto[]>('/api/productos', []);
+  const { data: categorias, recargar: fetchCategorias } = useApi<Categoria[]>('/api/categorias', []);
   const [mesaSeleccionada, setMesaSeleccionada] = useState<Mesa | null>(null);
   const [modalHistoryOpen, setModalHistoryOpen] = useState<Mesa | null>(null);
   const [filtroZona, setFiltroZona] = useState<'todas' | 'salon' | 'barra'>('todas');
@@ -177,7 +177,13 @@ export default function ComandasPage() {
   useSSE(
     useCallback(() => {
       fetchMesas();
-    }, [fetchMesas])
+    }, [fetchMesas]),
+    // Al volver la conexión: lo que pasó mientras estuvo caída no llegó por SSE.
+    useCallback(() => {
+      fetchMesas();
+      fetchProductos();
+      fetchCategorias();
+    }, [fetchMesas, fetchProductos, fetchCategorias])
   );
 
   const productosFiltrados = productos.filter((p) => {
