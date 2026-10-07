@@ -15,10 +15,12 @@ import {
 } from 'lucide-react';
 import { moduloDePagina } from '@/lib/sesion-vencida';
 import { useAhora } from '@/hooks/useAhora';
+import { useDialogo } from '@/hooks/useDialogo';
 
 export default function HomePage() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
+  const dlgPin = useDialogo('Ingresar PIN', () => setModalOpen(false));
   const [targetModule, setTargetModule] = useState<'comandas' | 'cocina' | 'admin' | null>(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -293,7 +295,7 @@ export default function HomePage() {
 
       {/* PIN Modal / Keypad overlay */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fade-in">
+        <div {...dlgPin} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fade-in">
           <div className="w-full max-w-sm transform transition-all animate-scale-in">
             <div className="bg-[#111625] rounded-[32px] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] p-8 relative">
               

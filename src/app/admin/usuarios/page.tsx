@@ -5,6 +5,7 @@ import { useApi } from '@/hooks/useApi';
 import { useAviso } from '@/hooks/useAviso';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { User, CheckCircle2, AlertTriangle, Shield, KeyRound, Eye, EyeOff, X, Delete } from 'lucide-react';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface Usuario {
   id: number;
@@ -42,6 +43,7 @@ export default function UsuariosPage() {
     setModalOpen(false);
     setSelectedUser(null);
   };
+  const dlgPin = useDialogo('Cambiar PIN', () => closePinModal());
 
   const addDigit = (digit: string) => {
     setError('');
@@ -190,7 +192,7 @@ export default function UsuariosPage() {
 
       {/* Modal Modificar PIN */}
       {modalOpen && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+        <div {...dlgPin} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-sm rounded-3xl border border-[var(--border)] shadow-2xl relative overflow-hidden flex flex-col">
             
             <button 

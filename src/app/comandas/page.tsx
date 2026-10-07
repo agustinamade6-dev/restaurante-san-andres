@@ -36,6 +36,7 @@ import { useEnvio } from '@/hooks/useEnvio';
 import { conservarPosiciones } from '@/utils/mesas';
 import { documentoImpresion, html, imprimir } from '@/utils/html';
 import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface HistorialPedido {
   id: number;
@@ -155,6 +156,20 @@ export default function ComandasPage() {
   const [propina, setPropina] = useState(0);
   const procesandoCobro = ocupado('cobro');
   const [ticketData, setTicketData] = useState<{ ticketCliente: Ticket; ticketInterno: Ticket } | null>(null);
+  // Modales: Escape los cierra, el foco entra al abrirlos y vuelve al cerrarlos.
+  const dlgMesa = useDialogo('Editar mesa', () => setMesaEditorOpen(null));
+  const dlgPinEditor = useDialogo('PIN de administrador', () => {
+    setShowPinModal(false);
+    setPinAdmin('');
+  });
+  const dlgEliminar = useDialogo('Eliminar mesa', () => setMesaAEliminar(null));
+  const dlgHistorial = useDialogo('Historial de la mesa', () => setModalHistoryId(null));
+  const dlgCobro = useDialogo('Cobrar mesa', () => {
+    if (procesandoCobro) return; // con el cobro en curso no se cierra: llegarían los comprobantes a un modal cerrado
+    setShowCheckout(false);
+    setTicketData(null);
+    if (ticketData) setMesaSeleccionadaId(null);
+  });
 
 
   // La mesa abierta y la del historial se guardan por id y se leen de la lista actual,
@@ -781,7 +796,7 @@ ${pie}`
 
       {/* Editor/Crear Mesa Modal */}
       {mesaEditorOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div {...dlgMesa} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-sm rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col">
             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h2 className="text-lg font-bold flex items-center gap-2">
@@ -827,7 +842,7 @@ ${pie}`
 
       {/* PIN Admin Modal for Editor Mode */}
       {showPinModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div {...dlgPinEditor} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-sm rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col p-6">
             <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
               <Settings2 className="w-5 h-5 text-amber-500" />
@@ -853,7 +868,7 @@ ${pie}`
 
       {/* Delete Confirmation Modal */}
       {mesaAEliminar && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div {...dlgEliminar} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-sm rounded-2xl border border-red-500/30 shadow-2xl flex flex-col overflow-hidden">
             <div className="p-5 border-b border-[var(--border)] bg-red-500/5">
               <h2 className="text-lg font-bold flex items-center gap-2 text-red-400">
@@ -1182,7 +1197,7 @@ ${pie}`
 
       {/* History Modal */}
       {modalHistoryOpen && modalHistoryOpen.pedidos?.[0] && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div {...dlgHistorial} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-lg rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[80vh]">
             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
@@ -1220,7 +1235,7 @@ ${pie}`
       {/* Checkout / Cobro Modal */}
       {/* Después de cobrar la mesa queda sin pedido, pero los comprobantes tienen que seguir a la vista. */}
       {showCheckout && mesaSeleccionada && (ticketData || mesaSeleccionada.pedidos?.[0]) && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
+        <div {...dlgCobro} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-lg rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
             {/* Header */}
             <div className="p-5 border-b border-[var(--border)] bg-gradient-to-r from-amber-500/10 to-transparent">

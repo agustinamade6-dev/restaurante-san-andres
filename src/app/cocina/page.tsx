@@ -27,6 +27,7 @@ import { useEnvio } from '@/hooks/useEnvio';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { formatPesos } from '@/utils/dinero';
 import { enviarJson } from '@/lib/api-cliente';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface HistorialPedido {
   id: number;
@@ -71,6 +72,15 @@ export default function CocinaPage() {
   // Una acción a la vez por pedido: el segundo toque (antes del re-render) se ignora.
   const { ejecutar, ocupado } = useEnvio();
   const [errorCancelar, setErrorCancelar] = useState('');
+  // Modales: Escape los cierra, el foco entra al abrirlos y vuelve al cerrarlos.
+  const dlgEditar = useDialogo('Editar comanda', () => setModalEditId(null));
+  const dlgHistorial = useDialogo('Historial del pedido', () => setModalHistoryId(null));
+  const dlgEntregados = useDialogo('Pedidos de hoy', () => setModalEntregadosOpen(false));
+  const dlgCancelar = useDialogo('Cancelar pedido', () => {
+    setModalCancelarId(null);
+    setMotivoCambio('');
+    setErrorCancelar('');
+  });
   // Hora que avanza sola: refresca "hace X min" y la marca de demorado aunque no lleguen eventos
   const ahora = useAhora();
 
@@ -441,7 +451,7 @@ export default function CocinaPage() {
 
       {/* Edit Modal */}
       {modalEditOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div {...dlgEditar} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-2xl rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <div>
@@ -517,7 +527,7 @@ export default function CocinaPage() {
 
       {/* History Modal */}
       {modalHistoryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div {...dlgHistorial} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-lg rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[80vh]">
             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
@@ -554,7 +564,7 @@ export default function CocinaPage() {
 
       {/* Entregados Modal */}
       {modalEntregadosOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+        <div {...dlgEntregados} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
           <div className="bg-[var(--background)] w-full max-w-6xl h-[90vh] rounded-3xl border border-[var(--border)] shadow-2xl flex flex-col overflow-hidden">
             <div className="p-6 bg-[var(--card)] border-b border-[var(--border)] flex items-center justify-between shrink-0 flex-wrap gap-4">
               <h2 className="text-2xl font-bold flex items-center gap-3 text-[var(--foreground)]">
@@ -672,7 +682,7 @@ export default function CocinaPage() {
 
       {/* Cancel Order Modal */}
       {modalCancelarOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div {...dlgCancelar} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-md rounded-2xl border border-red-500/30 overflow-hidden shadow-2xl flex flex-col">
             <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-red-500/10">
               <h3 className="font-black text-xl text-red-500 flex items-center gap-2">

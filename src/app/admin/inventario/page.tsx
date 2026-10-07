@@ -18,6 +18,7 @@ import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import { useEnvio } from '@/hooks/useEnvio';
 import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface Insumo {
   id: number;
@@ -41,6 +42,7 @@ export default function InventarioPage() {
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [stockEdit, setStockEdit] = useState<number>(0);
   const [nuevo, setNuevo] = useState<typeof insumoVacio | null>(null);
+  const dlgInsumo = useDialogo('Nuevo insumo', () => setNuevo(null));
   const [proveedores, setProveedores] = useState<{ id: number; nombre: string }[]>([]);
   const [errorNuevo, setErrorNuevo] = useState('');
   const [errorTabla, setErrorTabla] = useState('');
@@ -328,7 +330,7 @@ export default function InventarioPage() {
       </div>
 
       {nuevo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgInsumo} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">

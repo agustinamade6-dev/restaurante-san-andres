@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/formatDate';
 import { documentoImpresion, html, imprimir } from '@/utils/html';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 
 // Lo que el modal de anulación usa de una fila de GET /api/caja (montos en pesos).
 interface VentaAnulable {
@@ -55,6 +56,7 @@ export default function CajaPage() {
   const [motivo, setMotivo] = useState('');
   const [errorAnular, setErrorAnular] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const dlgAnular = useDialogo('Anular venta', () => setAnulando(null));
 
   const abrirAnular = (venta: VentaAnulable) => {
     setAnulando(venta);
@@ -261,7 +263,7 @@ export default function CajaPage() {
       ) : null}
 
       {anulando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgAnular} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl w-full max-w-md p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold flex items-center gap-2">

@@ -7,6 +7,7 @@ import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import { useEnvio } from '@/hooks/useEnvio';
 import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 import {
   Plus,
   Trash2,
@@ -30,6 +31,7 @@ export default function CostosPage() {
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
   const [errorModal, setErrorModal] = useState('');
   const { ejecutar, enviando } = useEnvio();
+  const dlgCosto = useDialogo('Nuevo costo', () => setModal(false));
   const [errorLista, setErrorLista] = useState('');
   const [form, setForm] = useState({
     concepto: '',
@@ -213,7 +215,7 @@ export default function CostosPage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgCosto} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">

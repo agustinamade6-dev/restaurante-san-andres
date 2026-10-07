@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ClipboardList, Plus, Save, Trash2, X } from 'lucide-react';
 import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface Insumo {
   id: number;
@@ -33,6 +34,7 @@ export default function RecetaModal({ producto, onClose }: Props) {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  const dlgReceta = useDialogo(`Receta de ${producto.nombre}`, () => onClose());
 
   useEffect(() => {
     let cancelado = false;
@@ -111,7 +113,7 @@ export default function RecetaModal({ producto, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div {...dlgReceta} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="glass-card w-full max-w-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-xl font-bold flex items-center gap-2">

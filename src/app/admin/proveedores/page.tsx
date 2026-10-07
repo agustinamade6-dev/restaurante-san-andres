@@ -6,6 +6,7 @@ import AvisoError from '@/components/AvisoError';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import { useEnvio } from '@/hooks/useEnvio';
+import { useDialogo } from '@/hooks/useDialogo';
 import {
   Plus,
   Pencil,
@@ -33,6 +34,7 @@ interface Proveedor {
 export default function ProveedoresPage() {
   const [modal, setModal] = useState(false);
   const { ejecutar, enviando } = useEnvio();
+  const dlgProveedor = useDialogo('Proveedor', () => setModal(false));
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
   const [errorModal, setErrorModal] = useState('');
   const [errorLista, setErrorLista] = useState('');
@@ -181,7 +183,7 @@ export default function ProveedoresPage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgProveedor} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">

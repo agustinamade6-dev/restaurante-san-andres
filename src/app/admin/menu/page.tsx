@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import RecetaModal from './RecetaModal';
 import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface Producto {
   id: number;
@@ -50,6 +51,7 @@ export default function MenuPage() {
   // Producto que no se pudo eliminar: se ofrece marcarlo como no disponible
   const [noEliminado, setNoEliminado] = useState<Producto | null>(null);
   const [editando, setEditando] = useState<Producto | null>(null);
+  const dlgProducto = useDialogo(editando ? 'Editar producto' : 'Nuevo producto', () => setModal(false));
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
@@ -324,7 +326,7 @@ export default function MenuPage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgProducto} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">
