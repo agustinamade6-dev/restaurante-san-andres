@@ -13,7 +13,8 @@ test('pedido → cocina → cobro → anulación, con tres roles y la base real'
   const admin = await sesionDe(playwright, baseURL!, 'ADMIN');
 
   // Mesa libre y productos del catálogo.
-  const mesas = (await (await mozo.get('/api/mesas')).json()) as { id: number; numero: number; pedidos: unknown[] }[];
+  const mesas = (await (await mozo.get('/api/mesas')).json()) as { id: number; numero: number; estado: string; pedidos: unknown[] }[];
+  const estadoDeLaMesa = async () => ((await (await mozo.get('/api/mesas')).json()) as typeof mesas).find((m) => m.id === mesa!.id)!.estado;
   const mesa = mesas.find((m) => m.pedidos.length === 0);
   expect(mesa, 'el seed trae mesas libres').toBeTruthy();
   const productos = (await (await mozo.get('/api/productos')).json()) as { id: number; nombre: string; precio: number }[];
@@ -35,6 +36,7 @@ test('pedido → cocina → cobro → anulación, con tres roles y la base real'
   expect((await cocina.patch('/api/pedidos', { data: { id: pedido.id, estado: 'preparando' } })).status()).toBe(200);
   expect((await cocina.patch('/api/pedidos', { data: { id: pedido.id, estado: 'listo' } })).status()).toBe(200);
   expect((await admin.patch('/api/pedidos', { data: { id: pedido.id, estado: 'entregado' } })).status()).toBe(200);
+  expect(await estadoDeLaMesa()).toBe('ocupada'); // servido pero sin cobrar: la mesa sigue ocupada
 
   // 3. El mozo cobra con propina. Total: 8200 + 10,50 = 8210,50.
   const cobro = await mozo.post('/api/checkout/pay', {
@@ -45,6 +47,7 @@ test('pedido → cocina → cobro → anulación, con tres roles y la base real'
   expect(venta.ticketInterno.total).toBe(8210.5);
   expect(venta.ticketInterno.propina).toBe(10.5);
   const ventaId = venta.ticketInterno.ventaId as number;
+  expect(await estadoDeLaMesa()).toBe('libre'); // recién el cobro la libera
 
   // 4. Reintento del mismo cobro (se cortó la red antes de la respuesta): misma venta, no una segunda.
   const reintento = await mozo.post('/api/checkout/pay', {

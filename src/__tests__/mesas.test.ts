@@ -279,6 +279,16 @@ describe('PATCH /api/mesas — cambiar el estado', () => {
     expect(db.state.mesas[0].estado).toBe(est);
   });
 
+  it('REGRESIÓN: tampoco deja marcar libre una mesa con un pedido ENTREGADO sin cobrar', async () => {
+    db.state.mesas[0].estado = 'ocupada';
+    db.addPedido({ id: 51, mesaId: 1, estado: 'entregado', total: 1, items: [] });
+
+    const res = await estado({ id: 1, estado: 'libre' });
+
+    expect(res.status).toBe(400);
+    expect(db.state.mesas[0].estado).toBe('ocupada');
+  });
+
   it('no deja marcar libre una mesa con un pedido en curso', async () => {
     db.state.mesas[0].estado = 'ocupada';
     db.addPedido({ id: 50, mesaId: 1, estado: 'preparando', total: 1, items: [] });

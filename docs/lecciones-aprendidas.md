@@ -39,6 +39,7 @@ Al cerrar un bloque de trabajo: si hubo una corrección a mano, agregar una fila
 | 29 | Escribí en un test que el precio de las Papas Fritas era $32; el seed usa pesos (`aCentavos(3200)` = $3.200). | Releer el seed y corregir los valores esperados antes de dar el test por bueno. | L-050 | commit 15 |
 | 30 | Un heredoc de bash se comió una barra invertida de una expresión regular (la barra invertida del patrón desapareció y el script no compilaba) y un escape octal (barra invertida + 01) en una cadena de Python se volvió un carácter de control dentro de un archivo de memoria. | Archivos con la herramienta de escritura de archivos; sin regex con barras (`replaceAll` con dos barras en el código fuente); cadenas de Python crudas. | L-054 | commit 15 |
 | 31 | Una prueba de migraciones falló solo en el CI (`FOREIGN KEY constraint failed` al insertar una fila huérfana): `PRAGMA foreign_keys = OFF` vale por conexión y Prisma usa un pool. No se pudo reproducir en el equipo de desarrollo. | El INSERT huérfano se hace con una conexión directa (`node:sqlite`), donde PRAGMA e INSERT comparten conexión. | L-074 | commit 18 |
+| 32 | Una prueba de accesibilidad de /admin fallaba 1 de cada 6 veces: esperaba a que "terminaran las animaciones" pero justo tras navegar la lista estaba vacía y se medía a mitad de un fade-in. | Se congelan animaciones y transiciones antes de medir; 24 de 24 repeticiones en verde. | L-078 | commit 19 |
 
 
 ## Reemplazos masivos con script (cierre de calidad, 2026-10-06)

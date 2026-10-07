@@ -4,10 +4,13 @@ export const SECTORES = ['salon', 'barra'] as const;
 export const FORMAS = ['round', 'square', 'tall-bar'] as const;
 export const ESTADOS_MESA = ['libre', 'ocupada', 'esperando'] as const;
 
-/** Pedidos que "retienen" la mesa (la mesa no puede quedar libre). */
-export const PEDIDOS_QUE_OCUPAN_MESA = ['pendiente', 'preparando', 'listo'];
-/** Pedidos que impiden eliminar la mesa: además de los activos, el entregado que aún no se cobró. */
-export const PEDIDOS_QUE_BLOQUEAN_BORRADO = [...PEDIDOS_QUE_OCUPAN_MESA, 'entregado'];
+/**
+ * Pedidos que "retienen" la mesa (la mesa no puede quedar libre). `entregado` incluido: la comida ya se sirvió pero el
+ * cliente sigue en la mesa hasta que se cobra; recién `pagado` (o `cancelado`) la libera.
+ */
+export const PEDIDOS_QUE_OCUPAN_MESA = ['pendiente', 'preparando', 'listo', 'entregado'];
+/** Pedidos que impiden eliminar la mesa: los mismos que la ocupan. */
+export const PEDIDOS_QUE_BLOQUEAN_BORRADO = PEDIDOS_QUE_OCUPAN_MESA;
 
 // Los números negativos están reservados para mesas eliminadas "archivadas" (ver PATCH /api/mesas/[id]).
 const numero = z.coerce.number().int().min(1).max(9999);

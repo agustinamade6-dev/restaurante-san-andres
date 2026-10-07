@@ -27,14 +27,12 @@ const CONOCIDAS = {
 };
 
 async function violaciones(page: Page): Promise<Conocidas> {
-  // Las animaciones de entrada (fade-in de 0,3 s) bajan la opacidad: medir en medio daba contrastes que dependían
-  // del momento. Se espera a las animaciones finitas; las infinitas (animate-pulse) no terminan nunca.
-  await page.waitForFunction(() =>
-    document
-      .getAnimations()
-      .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
-      .every((a) => a.playState === 'finished')
-  );
+  // Las animaciones de entrada (fade-in de 0,3 s) bajan la opacidad: medir en medio daba contrastes que dependían del momento.
+  // Esperar a "animaciones terminadas" no alcanza: justo después de navegar todavía no se registraron y la lista está vacía (falló
+  // 1 de cada 6 veces en /admin). Se congelan animaciones y transiciones (lo que recomienda la documentación de axe) y se
+  // mide el estado final, que es el mismo en cualquier momento.
+  await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
+  await page.evaluate(() => new Promise<void>((listo) => requestAnimationFrame(() => requestAnimationFrame(() => listo()))));
   const resultado = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   return Object.fromEntries(resultado.violations.map((v) => [v.id, v.nodes.length]));
 }

@@ -7,7 +7,6 @@ import eventEmitter from '@/lib/events';
 import { dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { ApiError, cantidadItem } from '@/lib/api-error';
 import { ESTADOS_FINALES, TRANSICIONES } from '@/lib/pedidos';
-import { PEDIDOS_QUE_OCUPAN_MESA } from '@/lib/mesas';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -236,10 +235,8 @@ export async function PATCH(request: Request) {
       // Estado de la mesa según el estado del pedido (null = la mesa no cambia).
       let nuevoEstadoMesa: string | null;
       if (estado === 'entregado') {
-        const activos = await tx.pedido.count({
-          where: { mesaId: pedido.mesaId, estado: { in: PEDIDOS_QUE_OCUPAN_MESA } },
-        });
-        nuevoEstadoMesa = activos === 0 ? 'libre' : null;
+        // Servido pero sin cobrar: la mesa sigue ocupada hasta el cobro (POST /api/checkout/pay) o la cancelación.
+        nuevoEstadoMesa = 'ocupada';
       } else if (estado === 'listo') {
         nuevoEstadoMesa = 'esperando';
       } else {
