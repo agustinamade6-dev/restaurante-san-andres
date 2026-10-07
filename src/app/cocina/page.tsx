@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { formatDate } from '@/lib/formatDate';
 import {
-  ChefHat,
   Clock,
   Flame,
   CheckCircle2,
@@ -25,6 +24,7 @@ import { useApi } from '@/hooks/useApi';
 import { useAviso } from '@/hooks/useAviso';
 import { useEnvio } from '@/hooks/useEnvio';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
+import Logo from '@/components/Logo';
 import { formatPesos } from '@/utils/dinero';
 import { enviarJson } from '@/lib/api-cliente';
 import { useDialogo } from '@/hooks/useDialogo';
@@ -341,9 +341,7 @@ export default function CocinaPage() {
           <LogOut className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-            <ChefHat className="w-5 h-5 text-white" />
-          </div>
+          <Logo alto={44} />
           <div>
             <h1 className="text-2xl font-bold">Cocina — Monitor KDS</h1>
             <p className="text-[var(--muted)] text-sm">

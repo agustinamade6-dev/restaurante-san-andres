@@ -31,6 +31,7 @@ import {
 import { useSSE } from '@/hooks/useSSE';
 import { enviarJson } from '@/lib/api-cliente';
 import { useApi } from '@/hooks/useApi';
+import Logo from '@/components/Logo';
 import { useAviso } from '@/hooks/useAviso';
 import { useEnvio } from '@/hooks/useEnvio';
 import { useSesion } from '@/hooks/useSesion';
@@ -583,6 +584,7 @@ ${pie}`
           >
             <LogOut className="w-6 h-6" />
           </button>
+          <Logo alto={44} />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Floor Plan — Salón</h1>
             <p className="text-[var(--muted)] text-sm mt-0.5">
