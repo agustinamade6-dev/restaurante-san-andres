@@ -40,7 +40,12 @@ export async function GET(request: Request) {
 
       // Heartbeat cada 30 s. También revalida la sesión: una conexión abierta no debe seguir recibiendo eventos
       // si la sesión venció o el usuario fue desactivado. En ese caso avisa ("sesion-vencida") y cierra.
+      // Si la revalidación tarda más que el intervalo (base lenta), no se solapan: un segundo tick escribiría
+      // en un stream ya cerrado y su controller.error() descartaría el aviso "sesion-vencida" aún sin leer.
+      let revalidando = false;
       heartbeat = setInterval(async () => {
+        if (revalidando) return;
+        revalidando = true;
         try {
           if (!(await sesionVigente(token))) {
             controller.enqueue(encoder.encode('data: {"type":"sesion-vencida"}\n\n'));
@@ -58,6 +63,8 @@ export async function GET(request: Request) {
           } catch {
             /* ya cerrado */
           }
+        } finally {
+          revalidando = false;
         }
       }, 30000);
 

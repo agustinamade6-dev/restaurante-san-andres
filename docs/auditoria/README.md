@@ -27,6 +27,7 @@ y qué debe tener en cuenta.
 | 17 | `test(accesibilidad): axe en Cocina y las 8 pantallas de Administración; registrar AT-38` (ramas `frontend/contraste` y `chore/cierre-at36`) | [commit-17-contraste-y-cobertura-axe.md](commit-17-contraste-y-cobertura-axe.md) | AT-36 (cerrado), AT-38 (hallado; abierto) |
 | 18 | `fix(pruebas): el test de la fila huérfana usa una conexión directa de SQLite (intermitente en el CI)` (rama `fix/migraciones-intermitente`) | [commit-18-test-migraciones-intermitente.md](commit-18-test-migraciones-intermitente.md) | Hallado por el primer CI |
 | 19 | `fix(mesas): un pedido entregado y sin cobrar mantiene la mesa ocupada hasta el cobro o la cancelación` (rama `fix/entregado-mantiene-mesa`) | [commit-19-entregado-mantiene-la-mesa.md](commit-19-entregado-mantiene-la-mesa.md) | AT-39 |
+| 20 | `fix(sse): una sola revalidación de sesión a la vez en /api/events (test intermitente en el CI)` (rama `fix/sse-vencimiento-intermitente`) | [commit-20-sse-revalidaciones-solapadas.md](commit-20-sse-revalidaciones-solapadas.md) | Hallado por el CI del PR #15 |
 
 ## Estado de los hallazgos
 
