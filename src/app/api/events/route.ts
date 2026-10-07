@@ -1,15 +1,28 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { requireAuth, sesionVigente } from '@/lib/auth';
+import { SESSION_COOKIE } from '@/lib/session';
 import eventEmitter from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
+  // Se guarda el token para revalidarlo durante la conexión (ver el heartbeat).
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
 
   const encoder = new TextEncoder();
   let unsubscribe: (() => void) | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+
+  // Libera TODO lo que la conexión dejó abierto. Es idempotente: se puede llamar varias veces.
+  const limpiar = () => {
+    if (heartbeat) clearInterval(heartbeat);
+    heartbeat = null;
+    if (unsubscribe) unsubscribe();
+    unsubscribe = null;
+  };
 
   const stream = new ReadableStream({
     start(controller) {
@@ -21,21 +34,52 @@ export async function GET() {
         try {
           controller.enqueue(encoder.encode(`data: ${data}\n\n`));
         } catch {
-          // Stream closed
+          limpiar(); // el stream ya está cerrado
         }
       });
 
-      // Heartbeat every 30 seconds
-      const heartbeat = setInterval(() => {
+      // Heartbeat cada 30 s. También revalida la sesión: una conexión abierta no debe seguir recibiendo eventos
+      // si la sesión venció o el usuario fue desactivado. En ese caso avisa ("sesion-vencida") y cierra.
+      // Si la revalidación tarda más que el intervalo (base lenta), no se solapan: un segundo tick escribiría
+      // en un stream ya cerrado y su controller.error() descartaría el aviso "sesion-vencida" aún sin leer.
+      let revalidando = false;
+      heartbeat = setInterval(async () => {
+        if (revalidando) return;
+        revalidando = true;
         try {
+          if (!(await sesionVigente(token))) {
+            controller.enqueue(encoder.encode('data: {"type":"sesion-vencida"}\n\n'));
+            limpiar();
+            controller.close();
+            return;
+          }
           controller.enqueue(encoder.encode('data: {"type":"heartbeat"}\n\n'));
-        } catch {
-          clearInterval(heartbeat);
+        } catch (error) {
+          // Error transitorio (p. ej. base ocupada): se cierra con error para que el cliente reconecte
+          // en vez de quedar con un stream abierto que ya no recibe eventos.
+          limpiar();
+          try {
+            controller.error(error);
+          } catch {
+            /* ya cerrado */
+          }
+        } finally {
+          revalidando = false;
         }
       }, 30000);
+
+      // El cliente cerró la pestaña o perdió la conexión.
+      request.signal.addEventListener('abort', () => {
+        limpiar();
+        try {
+          controller.close();
+        } catch {
+          /* ya cerrado */
+        }
+      });
     },
     cancel() {
-      if (unsubscribe) unsubscribe();
+      limpiar();
     },
   });
 

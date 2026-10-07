@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
+import { enPesos } from '@/lib/money';
+import { PEDIDOS_QUE_OCUPAN_MESA } from '@/lib/mesas';
 import eventEmitter from '@/lib/events';
 import { ApiError } from '@/lib/api-error';
+import { ESTADOS_FINALES } from '@/lib/pedidos';
 
 const bodySchema = z.object({ motivo: z.string().max(500).nullish() });
 
-const ESTADOS_FINALES = ['pagado', 'cancelado'];
 
 export async function PATCH(
   request: Request,
@@ -37,7 +39,7 @@ export async function PATCH(
     }
     const motivo = parsed.data.motivo?.trim() || 'Cancelado sin motivo especificado';
 
-    const pedido = await prisma.$transaction(async (tx) => {
+    const { cancelado: pedido, mesa: mesaLiberada } = await transaccion(async (tx) => {
       // Guard atómico: solo se cancela un pedido que no esté ya pagado ni cancelado.
       const claimed = await tx.pedido.updateMany({
         where: { id: pedidoId, estado: { notIn: ESTADOS_FINALES } },
@@ -70,25 +72,24 @@ export async function PATCH(
         },
       });
 
-      // Liberar mesa si no hay más pedidos activos
-      const activeOrders = await tx.pedido.count({
-        where: { mesaId: cancelado.mesaId, estado: { in: ['pendiente', 'preparando', 'listo'] } },
+      // Liberar la mesa si no le quedan pedidos que la ocupen.
+      const activos = await tx.pedido.count({
+        where: { mesaId: cancelado.mesaId, estado: { in: PEDIDOS_QUE_OCUPAN_MESA } },
       });
-      if (activeOrders === 0) {
-        await tx.mesa.update({ where: { id: cancelado.mesaId }, data: { estado: 'libre' } });
-      }
+      const mesa =
+        activos === 0 && cancelado.mesa.estado !== 'libre'
+          ? await tx.mesa.update({ where: { id: cancelado.mesaId }, data: { estado: 'libre' } })
+          : null;
 
-      // Nota: Lógica de reintegro de stock de insumos iría aquí si Producto tuviera
-      // mapeada su receta/insumos asociados.
-      return cancelado;
+      // El stock no se toca: un pedido sin cobrar nunca lo descontó (se descuenta al cobrar, ver lib/stock.ts).
+      return { cancelado, mesa };
     });
 
-    // Emitir eventos para la actualización en tiempo real
-    eventEmitter.emit('pedido:actualizado', pedido);
-    // Disparar un evento para refrescar las mesas (y que el plano se ponga verde)
-    eventEmitter.emit('mesa:actualizada', pedido.mesa);
+    // Tiempo real: el pedido cancelado y, solo si cambió, la mesa con su estado ya actualizado.
+    eventEmitter.emit('pedido:actualizado', enPesos(pedido));
+    if (mesaLiberada) eventEmitter.emit('mesa:actualizada', mesaLiberada);
 
-    return NextResponse.json(pedido);
+    return NextResponse.json(enPesos(pedido));
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json({ success: false, error: error.message }, { status: error.status });

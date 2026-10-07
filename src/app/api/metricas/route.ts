@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { aPesos } from '@/lib/money';
+import { montoMensualCentavos } from '@/lib/costos';
 import { contarVentasNetas } from '@/lib/ventas';
+
+/**
+ * Ingreso por ventas = total cobrado MENOS la propina: la propina es del personal, no del negocio. Contarla como
+ * ingreso inflaba las ventas y el balance del mes. Las propinas se informan aparte.
+ */
+const ingreso = (v: { total: number; propina: number }) => (v.total || 0) - (v.propina || 0);
+const sumarIngresos = (ventas: { total: number; propina: number }[]) => ventas.reduce((s, v) => s + ingreso(v), 0);
 
 export async function GET() {
   const auth = await requireAuth(['ADMIN']);
@@ -14,27 +23,28 @@ export async function GET() {
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Ventas del día
-    const ventasHoy = await prisma.venta.findMany({
-      where: { fechaCobro: { gte: todayStart } },
-    });
-    const totalHoy = ventasHoy.reduce((sum, v) => sum + (v.total || 0), 0);
+    // Una sola consulta: desde el inicio más antiguo que necesita algún bloque (mes, semana, 7 días o 4 semanas);
+    // hoy, semana, mes y cada día/semana se obtienen filtrando en memoria.
+    const inicioSemanas = new Date(todayStart);
+    inicioSemanas.setDate(inicioSemanas.getDate() - inicioSemanas.getDay() - 3 * 7);
+    const inicioDias = new Date(todayStart);
+    inicioDias.setDate(inicioDias.getDate() - 6);
+    const desde = new Date(Math.min(monthStart.getTime(), weekStart.getTime(), inicioSemanas.getTime(), inicioDias.getTime()));
+    const ventas = await prisma.venta.findMany({ where: { fechaCobro: { gte: desde } } });
+    const entre = (ini: Date, fin?: Date) =>
+      ventas.filter((v) => v.fechaCobro >= ini && (!fin || v.fechaCobro < fin));
 
-    // Ventas de la semana
-    const ventasSemana = await prisma.venta.findMany({
-      where: { fechaCobro: { gte: weekStart } },
-    });
-    const totalSemana = ventasSemana.reduce((sum, v) => sum + (v.total || 0), 0);
+    const ventasHoy = entre(todayStart);
+    const totalHoy = sumarIngresos(ventasHoy);
+    const ventasSemana = entre(weekStart);
+    const totalSemana = sumarIngresos(ventasSemana);
+    const ventasMes = entre(monthStart);
+    const totalMes = sumarIngresos(ventasMes);
+    const propinasMes = ventasMes.reduce((s, v) => s + (v.propina || 0), 0);
 
-    // Ventas del mes
-    const ventasMes = await prisma.venta.findMany({
-      where: { fechaCobro: { gte: monthStart } },
-    });
-    const totalMes = ventasMes.reduce((sum, v) => sum + (v.total || 0), 0);
-
-    // Costos fijos mensuales
+    // Costos llevados a su equivalente mensual según la periodicidad (diario, semanal o mensual).
     const costos = await prisma.costoFijo.findMany();
-    const totalCostosMensuales = costos.reduce((sum, c) => sum + c.monto, 0);
+    const totalCostosMensuales = costos.reduce((sum, c) => sum + montoMensualCentavos(c.monto, c.periodicidad), 0);
 
     // Platos más vendidos (últimos 30 días)
     const thirtyDaysAgo = new Date(todayStart);
@@ -60,7 +70,8 @@ export async function GET() {
     });
     const platosMasVendidos = Object.values(platosContador)
       .sort((a, b) => b.cantidad - a.cantidad)
-      .slice(0, 5);
+      .slice(0, 5)
+      .map((p) => ({ ...p, ingresos: aPesos(p.ingresos) }));
 
     // Ventas por día (últimos 7 días)
     const ventasPorDia = [];
@@ -69,12 +80,10 @@ export async function GET() {
       dia.setDate(dia.getDate() - i);
       const finDia = new Date(dia);
       finDia.setDate(finDia.getDate() + 1);
-      const ventasDia = await prisma.venta.findMany({
-        where: { fechaCobro: { gte: dia, lt: finDia } },
-      });
+      const ventasDia = entre(dia, finDia);
       ventasPorDia.push({
         dia: dia.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }),
-        total: ventasDia.reduce((sum, v) => sum + (v.total || 0), 0),
+        total: aPesos(sumarIngresos(ventasDia)),
         cantidad: contarVentasNetas(ventasDia),
       });
     }
@@ -86,23 +95,15 @@ export async function GET() {
       inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay() - i * 7);
       const finSemana = new Date(inicioSemana);
       finSemana.setDate(finSemana.getDate() + 7);
-      const ventasS = await prisma.venta.findMany({
-        where: { fechaCobro: { gte: inicioSemana, lt: finSemana } },
-      });
+      const ventasS = entre(inicioSemana, finSemana);
       ventasPorSemana.push({
         semana: `Sem ${4 - i}`,
-        total: ventasS.reduce((sum, v) => sum + (v.total || 0), 0),
+        total: aPesos(sumarIngresos(ventasS)),
         cantidad: contarVentasNetas(ventasS),
       });
     }
 
-    // Insumos con bajo stock
-    const insumoBajoStock = await prisma.insumo.findMany({
-      where: {
-        stockActual: { lte: prisma.insumo.fields.stockMinimo } as unknown as number,
-      },
-    });
-    // Fallback: fetch all and filter in JS
+    // Insumos con bajo stock (SQLite no compara dos columnas en un filtro de Prisma: se filtra en memoria).
     const todosInsumos = await prisma.insumo.findMany();
     const alertasStock = todosInsumos.filter((i) => i.stockActual <= i.stockMinimo);
 
@@ -112,11 +113,13 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      ventasHoy: { total: totalHoy, cantidad: contarVentasNetas(ventasHoy) },
-      ventasSemana: { total: totalSemana, cantidad: contarVentasNetas(ventasSemana) },
-      ventasMes: { total: totalMes, cantidad: contarVentasNetas(ventasMes) },
-      costosMensuales: totalCostosMensuales,
-      balanceMes: totalMes - totalCostosMensuales,
+      // Los totales se suman en centavos (exacto) y se responden en pesos.
+      ventasHoy: { total: aPesos(totalHoy), cantidad: contarVentasNetas(ventasHoy) },
+      ventasSemana: { total: aPesos(totalSemana), cantidad: contarVentasNetas(ventasSemana) },
+      ventasMes: { total: aPesos(totalMes), cantidad: contarVentasNetas(ventasMes) },
+      propinasMes: aPesos(propinasMes),
+      costosMensuales: aPesos(totalCostosMensuales),
+      balanceMes: aPesos(totalMes - totalCostosMensuales),
       platosMasVendidos,
       ventasPorDia,
       ventasPorSemana,

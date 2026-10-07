@@ -1,8 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useApi } from '@/hooks/useApi';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { useAhora } from '@/hooks/useAhora';
 import { Search, Clock, CheckCheck, TrendingUp, Filter } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
+import { formatPesos } from '@/utils/dinero';
 
 interface Pedido {
   id: number;
@@ -20,21 +24,12 @@ interface Pedido {
 }
 
 export default function AdminHistorialPage() {
-  const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [dias, setDias] = useState('1'); // Por defecto, hoy
-
-  const fetchHistorial = useCallback(async () => {
-    const res = await fetch(`/api/pedidos/history?days=${dias}`);
-    const data = await res.json();
-    if (Array.isArray(data)) {
-      setPedidos(data);
-    }
-  }, [dias]);
-
-  useEffect(() => {
-    fetchHistorial();
-  }, [fetchHistorial]);
+  const { data, error: errorCarga, recargar } = useApi<Pedido[]>(`/api/pedidos/history?days=${dias}`, []);
+  const pedidos = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+  // Duración de pedidos aún sin entregar: se mide contra una hora que avanza sola
+  const ahora = useAhora();
 
   const pedidosFiltrados = useMemo(() => {
     return pedidos.filter((pedido) => {
@@ -79,6 +74,8 @@ export default function AdminHistorialPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="el historial" onReintentar={recargar} />
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card p-5 border border-[var(--border)] bg-gradient-to-br from-[var(--card)] to-[var(--background)]">
@@ -108,7 +105,7 @@ export default function AdminHistorialPage() {
             </div>
             <h3 className="font-bold text-[var(--muted)]">Facturación Total</h3>
           </div>
-          <p className="text-3xl font-black">${stats.total.toLocaleString()}</p>
+          <p className="text-3xl font-black">{formatPesos(stats.total)}</p>
         </div>
       </div>
 
@@ -127,6 +124,7 @@ export default function AdminHistorialPage() {
         <div className="relative w-full sm:w-48">
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
           <select 
+            aria-label="Período"
             value={dias}
             onChange={(e) => setDias(e.target.value)}
             className="input w-full pl-9 bg-[var(--background)] border border-[var(--border)] appearance-none"
@@ -140,7 +138,8 @@ export default function AdminHistorialPage() {
 
       {/* Table */}
       <div className="card overflow-hidden border border-[var(--border)]">
-        <div className="overflow-x-auto">
+        {/* Con scroll horizontal en pantallas chicas: enfocable para poder desplazarla con el teclado. */}
+        <div className="overflow-x-auto" tabIndex={0} aria-label="Tabla de comandas despachadas">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--background)]">
@@ -154,7 +153,7 @@ export default function AdminHistorialPage() {
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
               {pedidosFiltrados.map((pedido) => {
-                const end = pedido.entregadoEn ? new Date(pedido.entregadoEn).getTime() : Date.now();
+                const end = pedido.entregadoEn ? new Date(pedido.entregadoEn).getTime() : ahora;
                 const start = new Date(pedido.creadoEn).getTime();
                 const durationMins = Math.floor((end - start) / 60000);
                 const isFast = durationMins <= 15;
@@ -164,7 +163,8 @@ export default function AdminHistorialPage() {
                     <td className="p-4 font-black">#{pedido.id}</td>
                     <td className="p-4">
                       <span className="bg-neutral-800 text-white px-3 py-1 rounded-md font-bold text-sm">
-                        Mesa {pedido.mesa.numero}
+                        {/* Una mesa eliminada con historial queda archivada con número negativo */}
+                        {pedido.mesa.numero < 0 ? 'Mesa eliminada' : `Mesa ${pedido.mesa.numero}`}
                       </span>
                     </td>
                     <td className="p-4 text-sm text-[var(--muted)]">
@@ -181,11 +181,11 @@ export default function AdminHistorialPage() {
                         {pedido.estado}
                       </span>
                     </td>
-                    <td className="p-4 text-right font-black">${pedido.total.toLocaleString()}</td>
+                    <td className="p-4 text-right font-black">{formatPesos(pedido.total)}</td>
                   </tr>
                 )
               })}
-              {pedidosFiltrados.length === 0 && (
+              {pedidosFiltrados.length === 0 && !errorCarga && (
                 <tr>
                   <td colSpan={6} className="p-12 text-center text-[var(--muted)]">
                     <CheckCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />

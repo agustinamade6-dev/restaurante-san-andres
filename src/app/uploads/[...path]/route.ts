@@ -27,7 +27,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
   try {
     const data = await readFile(filePath);
     return new NextResponse(data, {
-      headers: { 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable' },
+      headers: {
+        'Content-Type': type,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        // El navegador no debe "adivinar" otro tipo de contenido distinto del declarado.
+        'X-Content-Type-Options': 'nosniff',
+      },
     });
   } catch {
     return new NextResponse('Not found', { status: 404 });

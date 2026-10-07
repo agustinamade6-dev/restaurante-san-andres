@@ -30,7 +30,7 @@ const venta = (over: Record<string, unknown> = {}) => ({
   pedidoId: 1,
   mesaId: 10,
   mesaNumero: 5,
-  total: 25000,
+  total: 2500000, // montos de la base en centavos ($25.000)
   propina: 0,
   metodoPago: 'efectivo',
   numeroTicket: 'T-20261006-0001',
@@ -41,7 +41,7 @@ const venta = (over: Record<string, unknown> = {}) => ({
 
 describe('lib/ventas — anulación por asiento inverso', () => {
   const original = venta();
-  const asiento = venta({ id: 2, total: -25000, numeroTicket: 'A-1', numeroControlInterno: 'ANUL-V1' });
+  const asiento = venta({ id: 2, total: -2500000, numeroTicket: 'A-1', numeroControlInterno: 'ANUL-V1' });
 
   it('reconoce los asientos de anulación y a qué venta corresponden', () => {
     expect(esAnulacion(asiento)).toBe(true);
@@ -57,9 +57,10 @@ describe('lib/ventas — anulación por asiento inverso', () => {
   });
 
   it('el resumen netea totales, propinas y desglose por método', () => {
-    const conPropina = venta({ propina: 500 });
-    const inversa = venta({ id: 2, total: -25000, propina: -500, numeroControlInterno: 'ANUL-V1' });
-    const otra = venta({ id: 3, total: 800.1, metodoPago: 'tarjeta', numeroControlInterno: 'CI-2' });
+    // Entra en centavos (como sale de la base) y el resumen sale en pesos.
+    const conPropina = venta({ propina: 50000 });
+    const inversa = venta({ id: 2, total: -2500000, propina: -50000, numeroControlInterno: 'ANUL-V1' });
+    const otra = venta({ id: 3, total: 80010, metodoPago: 'tarjeta', numeroControlInterno: 'CI-2' });
 
     const r = resumirVentas([conPropina, inversa, otra]);
 
@@ -81,10 +82,10 @@ describe('lib/ventas — anulación por asiento inverso', () => {
 describe('POST /api/ventas/[id]/anular', () => {
   beforeEach(async () => {
     db = createFakeDb({
-      pedidos: [{ id: 1, mesaId: 10, estado: 'pagado', total: 25000, items: [] }],
+      pedidos: [{ id: 1, mesaId: 10, estado: 'pagado', total: 2500000, items: [] }],
       mesas: [{ id: 10, numero: 5, estado: 'libre', activa: true }],
       usuarios: [{ id: 1, nombre: 'Admin' }],
-      ventas: [venta({ propina: 500 })],
+      ventas: [venta({ propina: 50000 })],
     });
     resetCookies();
     await loginAs('ADMIN', 1);
@@ -97,14 +98,15 @@ describe('POST /api/ventas/[id]/anular', () => {
 
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(data.ventaOriginal).toMatchObject({ id: 1, total: 25000 });
+    expect(data.ventaOriginal).toMatchObject({ id: 1, total: 25000 }); // respuesta en pesos
+    expect(data.anulacion).toMatchObject({ total: -25000, propina: -500 });
     expect(db.state.ventas).toHaveLength(2);
-    expect(db.state.ventas[0]).toMatchObject({ id: 1, total: 25000, propina: 500 }); // intacta
+    expect(db.state.ventas[0]).toMatchObject({ id: 1, total: 2500000, propina: 50000 }); // intacta (centavos)
     expect(db.state.ventas[1]).toMatchObject({
       pedidoId: 1,
       mesaNumero: 5,
-      total: -25000,
-      propina: -500,
+      total: -2500000,
+      propina: -50000,
       metodoPago: 'efectivo',
       cajeroId: 1,
       numeroControlInterno: 'ANUL-V1',
@@ -202,9 +204,9 @@ describe('GET /api/caja — con anulaciones', () => {
   beforeEach(async () => {
     db = createFakeDb({
       ventas: [
-        venta({ id: 1, total: 25000, numeroControlInterno: 'CI-1' }),
-        venta({ id: 2, total: 5000, metodoPago: 'tarjeta', numeroTicket: 'T-2', numeroControlInterno: 'CI-2' }),
-        venta({ id: 3, total: -25000, numeroTicket: 'A-1', numeroControlInterno: 'ANUL-V1' }),
+        venta({ id: 1, total: 2500000, numeroControlInterno: 'CI-1' }),
+        venta({ id: 2, total: 500000, metodoPago: 'tarjeta', numeroTicket: 'T-2', numeroControlInterno: 'CI-2' }),
+        venta({ id: 3, total: -2500000, numeroTicket: 'A-1', numeroControlInterno: 'ANUL-V1' }),
       ],
     });
     resetCookies();
@@ -232,7 +234,7 @@ describe('escenario real: corregir un cobro (5 ensaladas cobradas, quedó 1)', (
   beforeEach(() => {
     db = createFakeDb({
       mesas: [{ id: 2, numero: 2, estado: 'libre', activa: true }],
-      productos: [{ id: 9, nombre: 'Ensalada César', precio: 5000, disponible: true }],
+      productos: [{ id: 9, nombre: 'Ensalada César', precio: 500000, disponible: true }],
       usuarios: [
         { id: 1, nombre: 'Admin' },
         { id: 2, nombre: 'Cocinero' },
@@ -272,7 +274,10 @@ describe('escenario real: corregir un cobro (5 ensaladas cobradas, quedó 1)', (
     expect(edicion.status).toBe(400);
     expect((await CANCELAR(json('http://x', 'PATCH', { motivo: 'x' }), { params: Promise.resolve({ id: String(creado.id) }) })).status).toBe(400);
     await loginAs('MOZO', 3);
-    expect((await PAGAR(json('http://x/api/checkout/pay', 'POST', { pedidoId: creado.id, mesaId: 2 }))).status).toBe(400);
+    // Volver a cobrarlo es un reintento: devuelve la MISMA venta, no registra otra.
+    const otraVez = await PAGAR(json('http://x/api/checkout/pay', 'POST', { pedidoId: creado.id, mesaId: 2 }));
+    expect(otraVez.status).toBe(200);
+    expect((await otraVez.json()).reintento).toBe(true);
     expect(db.state.items[0].cantidad).toBe(5); // el pedido pagado quedó intacto
     expect(db.state.ventas).toHaveLength(1);
 

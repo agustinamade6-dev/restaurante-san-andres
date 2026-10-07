@@ -1,6 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
+import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
+import { useDialogo } from '@/hooks/useDialogo';
 import {
   Plus,
   Pencil,
@@ -26,8 +32,12 @@ interface Proveedor {
 }
 
 export default function ProveedoresPage() {
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [modal, setModal] = useState(false);
+  const { ejecutar, enviando } = useEnvio();
+  const dlgProveedor = useDialogo('Proveedor', () => setModal(false));
+  // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
+  const [errorModal, setErrorModal] = useState('');
+  const [errorLista, setErrorLista] = useState('');
   const [editando, setEditando] = useState<Proveedor | null>(null);
   const [form, setForm] = useState({
     nombre: '',
@@ -38,14 +48,7 @@ export default function ProveedoresPage() {
     notas: '',
   });
 
-  const fetchProveedores = useCallback(async () => {
-    const res = await fetch('/api/proveedores');
-    setProveedores(await res.json());
-  }, []);
-
-  useEffect(() => {
-    fetchProveedores();
-  }, [fetchProveedores]);
+  const { data: proveedores, error: errorCarga, recargar: fetchProveedores } = useApi<Proveedor[]>('/api/proveedores', []);
 
   const abrirModal = (prov?: Proveedor) => {
     if (prov) {
@@ -69,30 +72,25 @@ export default function ProveedoresPage() {
         notas: '',
       });
     }
+    setErrorModal('');
     setModal(true);
   };
 
-  const guardar = async () => {
-    if (editando) {
-      await fetch('/api/proveedores', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editando.id, ...form }),
-      });
-    } else {
-      await fetch('/api/proveedores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-    }
+  const guardar = () => ejecutar(async () => {
+    setErrorModal('');
+    const error = editando
+      ? await enviarJson('/api/proveedores', 'PUT', { id: editando.id, ...form }, 'No se pudo guardar el proveedor')
+      : await enviarJson('/api/proveedores', 'POST', form, 'No se pudo crear el proveedor');
+    if (error) return setErrorModal(error);
     setModal(false);
     fetchProveedores();
-  };
+  });
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar este proveedor?')) return;
-    await fetch(`/api/proveedores?id=${id}`, { method: 'DELETE' });
+    setErrorLista('');
+    const error = await enviar(`/api/proveedores?id=${id}`, { method: 'DELETE' }, 'No se pudo eliminar el proveedor');
+    if (error) return setErrorLista(error);
     fetchProveedores();
   };
 
@@ -111,6 +109,9 @@ export default function ProveedoresPage() {
         </button>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="los proveedores" onReintentar={fetchProveedores} />
+      <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
+
       {/* Cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {proveedores.map((prov) => (
@@ -128,15 +129,15 @@ export default function ProveedoresPage() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button
+                <button aria-label={`Editar ${prov.nombre}`}
                   onClick={() => abrirModal(prov)}
-                  className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors"
+                  className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info-text)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors min-w-11 min-h-11"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
-                <button
+                <button aria-label={`Eliminar ${prov.nombre}`}
                   onClick={() => eliminar(prov.id)}
-                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors"
+                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors min-w-11 min-h-11"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -182,16 +183,16 @@ export default function ProveedoresPage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgProveedor} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Truck className="w-5 h-5 text-amber-400" />
                 {editando ? 'Editar Proveedor' : 'Nuevo Proveedor'}
               </h2>
-              <button
+              <button aria-label="Cerrar"
                 onClick={() => setModal(false)}
-                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center"
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center min-w-11 min-h-11"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -281,6 +282,8 @@ export default function ProveedoresPage() {
               </div>
             </div>
 
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger-text)] mt-4">{errorModal}</p>}
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setModal(false)}
@@ -288,7 +291,7 @@ export default function ProveedoresPage() {
               >
                 Cancelar
               </button>
-              <button onClick={guardar} className="btn btn-primary flex-1">
+              <button onClick={guardar} disabled={enviando} className="btn btn-primary flex-1 disabled:opacity-50">
                 <Save className="w-4 h-4" />
                 Guardar
               </button>

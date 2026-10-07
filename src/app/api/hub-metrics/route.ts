@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
+// Ocupación del salón y pedidos en cocina: dato del negocio, solo para usuarios con sesión.
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
+
   try {
     const mesas = await prisma.mesa.findMany();
     const ocupadas = mesas.filter(m => m.estado === 'ocupada').length;

@@ -22,9 +22,10 @@ const seed = () =>
       { id: 11, numero: 6, estado: 'libre', activa: false },
     ],
     productos: [
-      { id: 1, nombre: 'Milanesa', precio: 1500, disponible: true },
-      { id: 2, nombre: 'Gaseosa', precio: 800.5, disponible: true },
-      { id: 3, nombre: 'Flan', precio: 900, disponible: false },
+      // Precios en CENTAVOS, como los guarda la base: $1.500, $800,50 y $900.
+      { id: 1, nombre: 'Milanesa', precio: 150000, disponible: true },
+      { id: 2, nombre: 'Gaseosa', precio: 80050, disponible: true },
+      { id: 3, nombre: 'Flan', precio: 90000, disponible: false },
     ],
   });
 
@@ -57,8 +58,10 @@ describe('POST /api/pedidos — precios del servidor', () => {
     const pedido = await res.json();
 
     expect(res.status).toBe(201);
-    expect(pedido.total).toBe(3800.5); // 2 x 1500 + 800.5
-    expect(db.state.items.map((i) => i.precio)).toEqual([1500, 800.5]);
+    expect(pedido.total).toBe(3800.5); // respuesta en pesos: 2 x 1500 + 800.5
+    expect(pedido.items.map((i: any) => i.precio)).toEqual([1500, 800.5]);
+    expect(db.state.items.map((i) => i.precio)).toEqual([150000, 80050]); // base en centavos
+    expect(db.state.pedidos[0].total).toBe(380050);
   });
 
   it('acepta el payload actual del frontend (con precio y campos extra) y mantiene el contrato', async () => {
@@ -87,6 +90,14 @@ describe('POST /api/pedidos — precios del servidor', () => {
     expect(emit).toHaveBeenCalledWith('pedido:nuevo', expect.objectContaining({ mesaId: 10 }));
   });
 
+  it('el evento en tiempo real (SSE) lleva los montos en pesos, igual que la respuesta', async () => {
+    await crear({ mesaId: 10, items: [{ productoId: 2, cantidad: 2 }] });
+    expect(emit).toHaveBeenCalledWith(
+      'pedido:nuevo',
+      expect.objectContaining({ total: 1601, items: [expect.objectContaining({ precio: 800.5 })] })
+    );
+  });
+
   it('permite el mismo producto en varias líneas', async () => {
     const res = await crear({
       mesaId: 10,
@@ -98,8 +109,8 @@ describe('POST /api/pedidos — precios del servidor', () => {
     expect((await res.json()).total).toBe(3000);
   });
 
-  it('redondea el total a centavos', async () => {
-    db.state.productos[0].precio = 0.1;
+  it('suma exacta en centavos (sin error de punto flotante)', async () => {
+    db.state.productos[0].precio = 10; // $0,10
     const res = await crear({ mesaId: 10, items: [{ productoId: 1, cantidad: 3 }] });
     expect((await res.json()).total).toBe(0.3); // sin 0.30000000000000004
   });
@@ -130,6 +141,17 @@ describe('POST /api/pedidos — validación', () => {
     expect(emit).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [0, 'items.0.cantidad: debe ser al menos 1'],
+    [1.5, 'items.0.cantidad: debe ser un número entero'],
+    [101, 'items.0.cantidad: no puede superar 100'],
+    ['abc', 'items.0.cantidad: debe ser un número'],
+  ])('crear: el error de cantidad %s está en español', async (cantidad, mensaje) => {
+    const res = await crear({ mesaId: 10, items: [{ productoId: 1, cantidad }] });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(mensaje);
+  });
+
   it('400 ante JSON inválido (antes era 500)', async () => {
     expect((await crear('{roto')).status).toBe(400);
   });
@@ -150,8 +172,8 @@ describe('PATCH /api/pedidos/[id]/items — precios y totales del servidor', () 
     id: 1,
     mesaId: 10,
     estado: 'pendiente',
-    total: 1, // desfasado a propósito
-    items: [{ id: 501, productoId: 1, cantidad: 2, precio: 1500 }],
+    total: 100, // desfasado a propósito
+    items: [{ id: 501, productoId: 1, cantidad: 2, precio: 150000 }],
     ...over,
   });
 
@@ -200,7 +222,7 @@ describe('PATCH /api/pedidos/[id]/items — precios y totales del servidor', () 
 
     expect(res.status).toBe(200);
     expect((await res.json()).total).toBe(4500);
-    expect(db.state.pedidos[0].total).toBe(4500);
+    expect(db.state.pedidos[0].total).toBe(450000); // centavos
   });
 
   it('UPDATE_QUANTITY con la misma cantidad no cambia nada', async () => {
@@ -217,6 +239,15 @@ describe('PATCH /api/pedidos/[id]/items — precios y totales del servidor', () 
     expect(db.state.items[0].cantidad).toBe(2);
   });
 
+  it.each([
+    [0, 'cantidad: debe ser al menos 1'],
+    [101, 'cantidad: no puede superar 100'],
+    ['abc', 'cantidad: debe ser un número'],
+  ])('UPDATE_QUANTITY: el error de cantidad %s está en español', async (cantidad, mensaje) => {
+    const res = await modificar(1, { action: 'UPDATE_QUANTITY', itemId: 501, cantidad });
+    expect((await res.json()).error).toBe(mensaje);
+  });
+
   it('REMOVE_ITEM quita el ítem y deja el total en 0 si era el último', async () => {
     const res = await modificar(1, { action: 'REMOVE_ITEM', itemId: 501 });
 
@@ -226,7 +257,7 @@ describe('PATCH /api/pedidos/[id]/items — precios y totales del servidor', () 
   });
 
   it('no permite tocar ítems de otro pedido', async () => {
-    db.addPedido(pedidoAbierto({ id: 2, items: [{ id: 777, productoId: 2, cantidad: 1, precio: 800.5 }] }));
+    db.addPedido(pedidoAbierto({ id: 2, items: [{ id: 777, productoId: 2, cantidad: 1, precio: 80050 }] }));
 
     const res = await modificar(1, { action: 'REMOVE_ITEM', itemId: 777 });
 
@@ -268,5 +299,16 @@ describe('PATCH /api/pedidos/[id]/items — precios y totales del servidor', () 
     expect((await res.json()).error).toBe('Error al modificar ítems');
     expect(db.state.items).toHaveLength(1);
     expect(db.state.historial).toHaveLength(0);
+  });
+});
+
+describe('rango de montos del pedido', () => {
+  it('un pedido cuyo total no entra en la columna (Int de 32 bits) es 400 y no se crea', async () => {
+    db.state.productos[0].precio = 1_000_000_000; // $10.000.000 (el máximo por producto)
+    const res = await crear({ mesaId: 10, items: [{ productoId: 1, cantidad: 3 }] }); // $30.000.000
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/supera el máximo/);
+    expect(db.state.pedidos).toHaveLength(0);
+    expect(db.state.mesas[0].estado).toBe('libre');
   });
 });

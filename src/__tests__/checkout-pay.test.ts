@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeDb } from './helpers/fakeDb';
 import { loginAs, logout, resetCookies } from './helpers/session';
 
@@ -12,6 +12,7 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('next/headers', async () => (await import('./helpers/session')).nextHeadersMock());
 
 import { POST } from '@/app/api/checkout/pay/route';
+import eventEmitter from '@/lib/events';
 
 const hoy = () => {
   const d = new Date();
@@ -22,10 +23,10 @@ const pedidoBase = (over: Record<string, unknown> = {}) => ({
   id: 1,
   mesaId: 10,
   estado: 'entregado',
-  total: 999, // total acumulado "desfasado" a propósito
+  total: 99900, // total acumulado "desfasado" a propósito (montos de la base en centavos)
   items: [
-    { id: 1, productoId: 1, cantidad: 2, precio: 1500, producto: { nombre: 'Milanesa' } },
-    { id: 2, productoId: 2, cantidad: 1, precio: 800.5, producto: { nombre: 'Gaseosa' } },
+    { id: 1, productoId: 1, cantidad: 2, precio: 150000, producto: { nombre: 'Milanesa' } },
+    { id: 2, productoId: 2, cantidad: 1, precio: 80050, producto: { nombre: 'Gaseosa' } },
   ],
   ...over,
 });
@@ -71,13 +72,20 @@ describe('POST /api/checkout/pay — camino feliz', () => {
     expect(db.state.historial.map((h) => h.accion)).toContain('COBRADO');
   });
 
+  it('el texto del historial usa el formato de pesos de las pantallas (punto de miles, coma y $)', async () => {
+    // 2 × 1.500 + 800,50 + propina 100 = 3.900,50. Antes salía "3.900,5" sin signo propio: ahora es el mismo formateador único.
+    await pagar(valido);
+    expect(db.state.historial.find((h) => h.accion === 'COBRADO')?.detalle).toBe('Cobro registrado por $3.900,50 — EFECTIVO');
+  });
+
   it('calcula subtotal desde los ítems (no desde pedido.total) y suma la propina', async () => {
     const data = await (await pagar(valido)).json();
 
     // 2 x 1500 + 800.5 = 3800.5 ; + propina 100 = 3900.5
     expect(data.ticketCliente.subtotal).toBe(3800.5);
     expect(data.venta.total).toBe(3900.5);
-    expect(db.state.pedidos[0].total).toBe(3800.5); // corrige el total desfasado
+    expect(db.state.pedidos[0].total).toBe(380050); // corrige el total desfasado (centavos)
+    expect(db.state.ventas[0]).toMatchObject({ total: 390050, propina: 10000 }); // la venta se guarda en centavos
   });
 
   it('mantiene el contrato de respuesta que consume el frontend', async () => {
@@ -127,7 +135,7 @@ describe('POST /api/checkout/pay — numeración de tickets', () => {
   });
 
   it('ignora ventas legadas sin ticket al numerar', async () => {
-    db.state.ventas.push({ id: 1, pedidoId: 99, total: 10, numeroTicket: '' });
+    db.state.ventas.push({ id: 1, pedidoId: 99, total: 1000, numeroTicket: '' });
 
     const data = await (await pagar(valido)).json();
 
@@ -136,21 +144,51 @@ describe('POST /api/checkout/pay — numeración de tickets', () => {
 });
 
 describe('POST /api/checkout/pay — idempotencia y concurrencia (modelo single-writer)', () => {
-  it('rechaza cobrar dos veces el mismo pedido', async () => {
-    await pagar(valido);
+  it('cobrar dos veces el mismo pedido NO registra otra venta: el reintento devuelve la misma', async () => {
+    const primera = await (await pagar(valido)).json();
     const res = await pagar(valido);
+    const data = await res.json();
 
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe('Este pedido ya fue cerrado o cancelado');
-    expect(db.state.ventas).toHaveLength(1);
-  });
-
-  it('con dos cobros simultáneos solo uno gana y se crea una sola venta', async () => {
-    const [r1, r2] = await Promise.all([pagar(valido), pagar(valido)]);
-
-    expect([r1.status, r2.status].sort()).toEqual([200, 400]);
+    expect(res.status).toBe(200);
+    expect(data.reintento).toBe(true);
+    expect(data.venta.id).toBe(primera.venta.id);
+    expect(data.ticketCliente.numeroTicket).toBe(primera.ticketCliente.numeroTicket);
+    expect(data.ticketCliente.total).toBe(primera.ticketCliente.total);
     expect(db.state.ventas).toHaveLength(1);
     expect(db.state.historial.filter((h) => h.accion === 'COBRADO')).toHaveLength(1);
+  });
+
+  it('con dos cobros simultáneos solo uno registra la venta; el otro recibe la misma', async () => {
+    const [r1, r2] = await Promise.all([pagar(valido), pagar(valido)]);
+    const [d1, d2] = [await r1.json(), await r2.json()];
+
+    expect([r1.status, r2.status]).toEqual([200, 200]);
+    expect([d1.reintento, d2.reintento].filter(Boolean)).toHaveLength(1);
+    expect(d1.venta.id).toBe(d2.venta.id);
+    expect(db.state.ventas).toHaveLength(1);
+    expect(db.state.historial.filter((h) => h.accion === 'COBRADO')).toHaveLength(1);
+  });
+
+  it('un reintento no vuelve a emitir eventos', async () => {
+    await pagar(valido);
+    const emit = vi.spyOn(eventEmitter, 'emit');
+    await pagar(valido);
+    expect(emit).not.toHaveBeenCalled();
+    emit.mockRestore();
+  });
+
+  it('una venta ANULADA no se devuelve como reintento: el pedido sigue cerrado (400)', async () => {
+    await pagar(valido);
+    const ventaId = db.state.ventas[0].id;
+    db.state.ventas.push({ id: 999, pedidoId: 1, total: -390050, propina: -10000, metodoPago: 'efectivo', numeroTicket: 'A-1', numeroControlInterno: `ANUL-V${ventaId}` });
+    const res = await pagar(valido);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Este pedido ya fue cerrado o cancelado');
+  });
+
+  it('un reintento desde OTRA mesa no devuelve la venta (400)', async () => {
+    await pagar(valido);
+    expect((await pagar({ ...valido, mesaId: 99 })).status).toBe(400);
   });
 
   it('cobros simultáneos de pedidos distintos no repiten el número de ticket', async () => {
@@ -212,10 +250,11 @@ describe('POST /api/checkout/pay — reglas de negocio y rollback', () => {
     expect(db.state.ventas).toHaveLength(0);
   });
 
-  it('400 si el usuario de la sesión ya no existe y hace rollback', async () => {
+  it('401 si el usuario de la sesión ya no existe (lo frena requireAuth) y no toca nada', async () => {
     await loginAs('MOZO', 999);
     const res = await pagar(valido);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
+    expect(db.state.ventas).toHaveLength(0);
     expect(db.state.pedidos[0].estado).toBe('entregado');
   });
 
@@ -261,5 +300,95 @@ describe('POST /api/checkout/pay — autenticación y roles', () => {
   it('ADMIN también puede cobrar', async () => {
     await loginAs('ADMIN', 7);
     expect((await pagar(valido)).status).toBe(200);
+  });
+});
+
+describe('POST /api/checkout/pay — datos del comercio en el ticket (AT-16)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sin configuración usa los valores de ejemplo de siempre (no cambia nada hasta configurar)', async () => {
+    const { ticketCliente } = await (await pagar(valido)).json();
+
+    expect(ticketCliente).toMatchObject({
+      restaurante: 'AKROS Café',
+      cuit: '30-12345678-9',
+      direccion: 'Calle y número, Ciudad',
+    });
+  });
+
+  it('usa los datos configurados del comercio', async () => {
+    vi.stubEnv('NEGOCIO_NOMBRE', 'La Parrilla de Tucumán');
+    vi.stubEnv('NEGOCIO_CUIT', '20-11222333-4');
+    vi.stubEnv('NEGOCIO_DIRECCION', 'Av. Mate de Luna 100, San Miguel de Tucumán');
+
+    const { ticketCliente } = await (await pagar(valido)).json();
+
+    expect(ticketCliente).toMatchObject({
+      restaurante: 'La Parrilla de Tucumán',
+      cuit: '20-11222333-4',
+      direccion: 'Av. Mate de Luna 100, San Miguel de Tucumán',
+    });
+  });
+
+  it('un valor vacío o solo espacios vuelve al de ejemplo; los espacios de los costados se recortan', async () => {
+    vi.stubEnv('NEGOCIO_NOMBRE', '   ');
+    vi.stubEnv('NEGOCIO_CUIT', '');
+    vi.stubEnv('NEGOCIO_DIRECCION', '  Calle 1  ');
+
+    const { ticketCliente } = await (await pagar(valido)).json();
+
+    expect(ticketCliente).toMatchObject({ restaurante: 'AKROS Café', cuit: '30-12345678-9', direccion: 'Calle 1' });
+  });
+
+  it('el ticket interno no cambia y conserva todos sus campos', async () => {
+    const { ticketInterno } = await (await pagar(valido)).json();
+    expect(Object.keys(ticketInterno)).toEqual(
+      expect.arrayContaining(['tipo', 'numeroControlInterno', 'numeroTicket', 'fecha', 'mesa', 'sector', 'items', 'subtotal', 'propina', 'total', 'metodoPago', 'ventaId', 'operadorId'])
+    );
+  });
+});
+
+describe('POST /api/checkout/pay — tiempo real (SSE)', () => {
+  it('emite el pedido cobrado con los montos en pesos y la mesa liberada', async () => {
+    const emit = vi.spyOn(eventEmitter, 'emit');
+    expect((await pagar(valido)).status).toBe(200);
+    expect(emit).toHaveBeenCalledWith(
+      'pedido:actualizado',
+      expect.objectContaining({ id: 1, estado: 'pagado', total: 3800.5, items: expect.arrayContaining([expect.objectContaining({ precio: 1500 })]) })
+    );
+    expect(emit).toHaveBeenCalledWith('mesa:actualizada', expect.objectContaining({ id: 10, estado: 'libre' }));
+    emit.mockRestore();
+  });
+
+  it('si la mesa sigue con otro pedido activo, no la anuncia como libre', async () => {
+    db.addPedido({ id: 2, mesaId: 10, estado: 'preparando', total: 0, items: [] });
+    const emit = vi.spyOn(eventEmitter, 'emit');
+    expect((await pagar(valido)).status).toBe(200);
+    expect(emit).toHaveBeenCalledWith('pedido:actualizado', expect.anything());
+    expect(emit).not.toHaveBeenCalledWith('mesa:actualizada', expect.anything());
+    emit.mockRestore();
+  });
+
+  it('un cobro rechazado no emite eventos', async () => {
+    const emit = vi.spyOn(eventEmitter, 'emit');
+    expect((await pagar({ ...valido, pedidoId: 999 })).status).toBe(404);
+    expect(emit).not.toHaveBeenCalled();
+    emit.mockRestore();
+  });
+});
+
+describe('POST /api/checkout/pay — rango de montos', () => {
+  it('propina mayor a $10.000.000 es 400', async () => {
+    expect((await pagar({ ...valido, propina: 2e7 })).status).toBe(400);
+  });
+
+  it('si subtotal + propina no entra en la columna, 400 y rollback (antes, 500 al guardar)', async () => {
+    db.state.items.forEach((i) => (i.precio = 1_000_000_000));
+    const res = await pagar({ ...valido, propina: 0 });
+    expect(res.status).toBe(400);
+    expect(db.state.ventas).toHaveLength(0);
+    expect(db.state.pedidos[0].estado).toBe('entregado');
   });
 });

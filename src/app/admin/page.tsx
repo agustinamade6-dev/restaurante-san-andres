@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useApi } from '@/hooks/useApi';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { formatPesos } from '@/utils/dinero';
 import {
   DollarSign,
   TrendingUp,
@@ -44,44 +46,9 @@ interface Metricas {
 }
 
 export default function AdminDashboard() {
-  const [loading, setLoading] = useState(true);
-  const [metricas, setMetricas] = useState<Metricas>({
-    ventasHoy: { total: 0, cantidad: 0 },
-    ventasSemana: { total: 0, cantidad: 0 },
-    ventasMes: { total: 0, cantidad: 0 },
-    costosMensuales: 0,
-    balanceMes: 0,
-    platosMasVendidos: [],
-    ventasPorDia: [],
-    ventasPorSemana: [],
-    alertasStock: 0,
-    pedidosActivos: 0,
-  });
+  const { data, cargando: loading, error, recargar } = useApi<Partial<Metricas> | null>('/api/metricas', null);
 
-  useEffect(() => {
-    fetch('/api/metricas')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setMetricas({
-            ventasHoy: data.ventasHoy || { total: 0, cantidad: 0 },
-            ventasSemana: data.ventasSemana || { total: 0, cantidad: 0 },
-            ventasMes: data.ventasMes || { total: 0, cantidad: 0 },
-            costosMensuales: data.costosMensuales || 0,
-            balanceMes: data.balanceMes || 0,
-            platosMasVendidos: data.platosMasVendidos || [],
-            ventasPorDia: data.ventasPorDia || [],
-            ventasPorSemana: data.ventasPorSemana || [],
-            alertasStock: data.alertasStock || 0,
-            pedidosActivos: data.pedidosActivos || 0,
-          });
-        }
-      })
-      .catch((err) => console.error('[API /api/metricas] Error fetching metrics:', err))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-4">
@@ -92,17 +59,39 @@ export default function AdminDashboard() {
     );
   }
 
-  const formatMoney = (n: number) =>
-    `$${n.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
+  // Si las métricas no cargaron, no se muestran tarjetas en $0 como si no hubiera habido ventas.
+  if (!data) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+        <ErrorDeCarga error={error || 'Respuesta vacía del servidor'} que="las métricas" onReintentar={recargar} />
+      </div>
+    );
+  }
+
+  const metricas: Metricas = {
+    ventasHoy: data.ventasHoy || { total: 0, cantidad: 0 },
+    ventasSemana: data.ventasSemana || { total: 0, cantidad: 0 },
+    ventasMes: data.ventasMes || { total: 0, cantidad: 0 },
+    costosMensuales: data.costosMensuales || 0,
+    balanceMes: data.balanceMes || 0,
+    platosMasVendidos: data.platosMasVendidos || [],
+    ventasPorDia: data.ventasPorDia || [],
+    ventasPorSemana: data.ventasPorSemana || [],
+    alertasStock: data.alertasStock || 0,
+    pedidosActivos: data.pedidosActivos || 0,
+  };
 
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-[var(--muted)] text-sm mt-1">
-          Resumen de rendimiento — Restaurante San Andrés
+          Resumen de rendimiento — AKROS Café
         </p>
       </div>
+
+      <ErrorDeCarga error={error} que="las métricas" onReintentar={recargar} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -111,7 +100,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Ventas Hoy</p>
               <p className="text-2xl font-bold text-[var(--success)]">
-                {formatMoney(metricas?.ventasHoy?.total ?? 0)}
+                {formatPesos(metricas?.ventasHoy?.total ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
                 {metricas?.ventasHoy?.cantidad ?? 0} pedidos
@@ -127,15 +116,15 @@ export default function AdminDashboard() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Ventas Semana</p>
-              <p className="text-2xl font-bold text-[var(--info)]">
-                {formatMoney(metricas?.ventasSemana?.total ?? 0)}
+              <p className="text-2xl font-bold text-[var(--info-text)]">
+                {formatPesos(metricas?.ventasSemana?.total ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
                 {metricas?.ventasSemana?.cantidad ?? 0} pedidos
               </p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-[var(--info-bg)] flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-[var(--info)]" />
+              <TrendingUp className="w-5 h-5 text-[var(--info-text)]" />
             </div>
           </div>
         </div>
@@ -145,7 +134,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Ventas Mes</p>
               <p className="text-2xl font-bold text-[var(--purple)]">
-                {formatMoney(metricas?.ventasMes?.total ?? 0)}
+                {formatPesos(metricas?.ventasMes?.total ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
                 {metricas?.ventasMes?.cantidad ?? 0} pedidos
@@ -165,13 +154,13 @@ export default function AdminDashboard() {
                 className={`text-2xl font-bold ${
                   (metricas?.balanceMes ?? 0) >= 0
                     ? 'text-[var(--success)]'
-                    : 'text-[var(--danger)]'
+                    : 'text-[var(--danger-text)]'
                 }`}
               >
-                {formatMoney(metricas?.balanceMes ?? 0)}
+                {formatPesos(metricas?.balanceMes ?? 0)}
               </p>
               <p className="text-xs text-[var(--muted)] mt-1">
-                Costos: {formatMoney(metricas?.costosMensuales ?? 0)}
+                Costos: {formatPesos(metricas?.costosMensuales ?? 0)}
               </p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
@@ -198,7 +187,7 @@ export default function AdminDashboard() {
         )}
         <div className="glass-card p-4 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-[var(--info-bg)] flex items-center justify-center shrink-0">
-            <ChefHat className="w-5 h-5 text-[var(--info)]" />
+            <ChefHat className="w-5 h-5 text-[var(--info-text)]" />
           </div>
           <div>
             <p className="font-semibold text-sm">Pedidos Activos</p>
@@ -214,7 +203,7 @@ export default function AdminDashboard() {
         {/* Ventas por día */}
         <div className="glass-card p-6">
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-[var(--info)]" />
+            <TrendingUp className="w-5 h-5 text-[var(--info-text)]" />
             Ventas Últimos 7 Días
           </h3>
           <div className="h-64">
@@ -261,7 +250,7 @@ export default function AdminDashboard() {
                     borderRadius: '10px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number) => [formatMoney(value), 'Total']}
+                  formatter={(value: number) => [formatPesos(value), 'Total']}
                 />
                 <Area
                   type="monotone"
@@ -306,7 +295,7 @@ export default function AdminDashboard() {
                     borderRadius: '10px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number) => [formatMoney(value), 'Total']}
+                  formatter={(value: number) => [formatPesos(value), 'Total']}
                 />
                 <Bar
                   dataKey="total"
@@ -354,7 +343,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-sm text-[var(--success)]">
-                    {formatMoney(plato.ingresos)}
+                    {formatPesos(plato.ingresos)}
                   </p>
                 </div>
               </div>

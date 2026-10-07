@@ -11,7 +11,10 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const pedidoId = parseInt(id, 10);
+    const pedidoId = Number(id);
+    if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+      return NextResponse.json({ error: 'ID de pedido inválido' }, { status: 400 });
+    }
 
     const historial = await prisma.historialPedido.findMany({
       where: { pedidoId },

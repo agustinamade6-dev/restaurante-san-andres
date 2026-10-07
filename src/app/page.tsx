@@ -9,52 +9,52 @@ import {
   Lock,
   X,
   Delete,
-  Power,
-  Wifi,
   Activity,
-  Utensils
 } from 'lucide-react';
-import { formatDate } from '@/lib/formatDate';
+import { moduloDePagina } from '@/lib/sesion-vencida';
+import { useAhora } from '@/hooks/useAhora';
+import { useDialogo } from '@/hooks/useDialogo';
+import { useSesion } from '@/hooks/useSesion';
+import Logo from '@/components/Logo';
 
 export default function HomePage() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
+  const dlgPin = useDialogo('Ingresar PIN', () => setModalOpen(false));
   const [targetModule, setTargetModule] = useState<'comandas' | 'cocina' | 'admin' | null>(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
   // Real-time info
-  const [now, setNow] = useState<Date | null>(null);
-  const [metrics, setMetrics] = useState({
-    mesas: { ocupadas: 0, libres: 0 },
-    cocina: { preparando: 0 }
-  });
+  // Reloj de la pantalla: avanza cada segundo; null hasta hidratar (en el servidor no hay hora "actual")
+  const ahora = useAhora(1000);
+  const now = ahora ? new Date(ahora) : null;
+  // Estado en vivo (mesas y cocina): /api/hub-metrics exige sesión, así que solo se pide y se muestra
+  // con alguien logueado en esta terminal. Sin sesión no se muestran contadores en 0.
+  const { usuario } = useSesion();
+  const conSesion = usuario !== null;
+  const [metrics, setMetrics] = useState<{ mesas: { ocupadas: number; libres: number }; cocina: { preparando: number } } | null>(null);
 
-  // Fetch metrics periodically
   useEffect(() => {
+    if (!conSesion) return;
+    let vigente = true;
     const fetchMetrics = async () => {
       try {
         const res = await fetch('/api/hub-metrics');
-        if (res.ok) {
-          const data = await res.json();
-          setMetrics(data);
-        }
-      } catch (e) {
-        console.error(e);
+        if (res.ok && vigente) setMetrics(await res.json());
+      } catch {
+        // Sin conexión: se sigue mostrando el último valor y se reintenta en 5 s.
       }
     };
     fetchMetrics();
     const interval = setInterval(fetchMetrics, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Real-time clock
-  useEffect(() => {
-    setNow(new Date());
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    return () => {
+      vigente = false;
+      clearInterval(interval);
+    };
+  }, [conSesion]);
+  const metricas = conSesion ? metrics : null;
 
   // Keyboard shortcuts
   const handleModuleClick = useCallback((module: 'comandas' | 'cocina' | 'admin') => {
@@ -64,25 +64,18 @@ export default function HomePage() {
     setModalOpen(true);
   }, []);
 
+  // Llegada desde una sesión vencida (lib/sesion-vencida.ts): reabrir el PIN del módulo donde estaba.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!modalOpen) {
-        if (e.key === '1') handleModuleClick('comandas');
-        if (e.key === '2') handleModuleClick('cocina');
-        if (e.key === '3') handleModuleClick('admin');
-      } else {
-        if (e.key === 'Escape') {
-          setModalOpen(false);
-        } else if (/^[0-9]$/.test(e.key)) {
-          addDigit(e.key);
-        } else if (e.key === 'Backspace') {
-          removeDigit();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [modalOpen, handleModuleClick, pin]);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('sesion') !== 'vencida') return;
+    window.history.replaceState(null, '', '/');
+    const modulo = moduloDePagina(`/${params.get('modulo') ?? ''}`);
+    // Excepción intencional: esta página se prerenderiza estática, así que la URL solo se puede leer en el
+    // navegador, una vez, después de montar; y desde ahí hay que abrir el modal del PIN con el aviso.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (modulo) handleModuleClick(modulo);
+    setError('Tu sesión venció. Ingresá tu PIN de nuevo.');
+  }, [handleModuleClick]);
 
   const handlePinSubmit = async (overridePin?: string) => {
     const finalPin = overridePin || pin;
@@ -125,6 +118,27 @@ export default function HomePage() {
 
   const removeDigit = () => setPin(prev => prev.slice(0, -1));
 
+  // Atajos de teclado (van después de addDigit/removeDigit, que usan)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!modalOpen) {
+        if (e.key === '1') handleModuleClick('comandas');
+        if (e.key === '2') handleModuleClick('cocina');
+        if (e.key === '3') handleModuleClick('admin');
+      } else {
+        if (e.key === 'Escape') {
+          setModalOpen(false);
+        } else if (/^[0-9]$/.test(e.key)) {
+          addDigit(e.key);
+        } else if (e.key === 'Backspace') {
+          removeDigit();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modalOpen, handleModuleClick, pin, addDigit, removeDigit]);
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#0a0f1c] to-[#04060a] relative overflow-hidden select-none">
       {/* Background Texture & Glows */}
@@ -134,11 +148,9 @@ export default function HomePage() {
       {/* Top Header Bar */}
       <header className="relative z-10 w-full px-8 py-5 flex items-center justify-between border-b border-white/5 bg-black/20 backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.3)]">
-            <Utensils className="w-6 h-6 text-white" />
-          </div>
+          <Logo alto={56} />
           <div>
-            <h1 className="text-xl font-black tracking-tight text-white/90">Restaurante San Andrés</h1>
+            <h1 className="text-xl font-black tracking-tight text-white/90">AKROS Café</h1>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-[10px] font-bold text-green-400 uppercase tracking-widest">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
@@ -154,14 +166,10 @@ export default function HomePage() {
             <div className="text-2xl font-black tracking-tighter font-mono text-white/90">
               {now ? now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
             </div>
-            <div className="text-xs font-bold text-white/40 uppercase tracking-widest">
+            <div className="text-xs font-bold text-white/60 uppercase tracking-widest">
               {now ? now.toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'short' }) : '---'}
             </div>
           </div>
-          <div className="h-10 w-[1px] bg-white/10 mx-2"></div>
-          <button className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all text-white/50 active:scale-95">
-            <Power className="w-5 h-5" />
-          </button>
         </div>
       </header>
 
@@ -184,20 +192,22 @@ export default function HomePage() {
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">1</div>
               </div>
               <h2 className="text-2xl font-black mb-2 text-white/90 tracking-tight">Sala / Comandas</h2>
-              <p className="text-white/40 text-xs leading-relaxed mb-4 pr-2">
+              <p className="text-white/60 text-xs leading-relaxed mb-4 pr-2">
                 Plano interactivo de mesas, toma rápida de comandas táctil, edición de órdenes y control de cuentas.
               </p>
               
               <div className="mt-auto">
+                {metricas && (
                 <div className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-xl p-3 mb-4">
                   <Activity className="w-5 h-5 text-amber-500" />
                   <div>
-                    <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider mb-0.5">Estado en vivo</div>
+                    <div className="text-[10px] text-white/60 font-bold uppercase tracking-wider mb-0.5">Estado en vivo</div>
                     <div className="text-sm font-black text-amber-400">
-                      {metrics.mesas.ocupadas} Ocupadas <span className="text-white/20 mx-2">|</span> <span className="text-green-400">{metrics.mesas.libres} Libres</span>
+                      {metricas.mesas.ocupadas} Ocupadas <span className="text-white/20 mx-2">|</span> <span className="text-green-400">{metricas.mesas.libres} Libres</span>
                     </div>
                   </div>
                 </div>
+                )}
                 
                 <div className="w-full h-12 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center font-black text-base tracking-wide group-hover:bg-amber-500 group-hover:text-black group-hover:border-amber-400 transition-all duration-300">
                   Acceder a Sala
@@ -220,21 +230,23 @@ export default function HomePage() {
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">2</div>
               </div>
               <h2 className="text-2xl font-black mb-2 text-white/90 tracking-tight">Cocina / KDS</h2>
-              <p className="text-white/40 text-xs leading-relaxed mb-4 pr-2">
+              <p className="text-white/60 text-xs leading-relaxed mb-4 pr-2">
                 Monitor interactivo de comandas (Kitchen Display System). Gestión de tickets, alertas de demoras y despacho.
               </p>
               
               <div className="mt-auto">
+                {metricas && (
                 <div className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-xl p-3 mb-4">
                   <Activity className="w-5 h-5 text-cyan-500" />
                   <div>
-                    <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider mb-0.5">Carga de Trabajo</div>
+                    <div className="text-[10px] text-white/60 font-bold uppercase tracking-wider mb-0.5">Carga de Trabajo</div>
                     <div className="text-sm font-black text-cyan-400 flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
-                      {metrics.cocina.preparando} Comandas en preparación
+                      {metricas.cocina.preparando} Comandas en preparación
                     </div>
                   </div>
                 </div>
+                )}
                 
                 <div className="w-full h-12 rounded-xl bg-cyan-500/10 text-cyan-500 border border-cyan-500/20 flex items-center justify-center font-black text-base tracking-wide group-hover:bg-cyan-500 group-hover:text-black group-hover:border-cyan-400 transition-all duration-300">
                   Abrir Monitor KDS
@@ -257,7 +269,7 @@ export default function HomePage() {
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">3</div>
               </div>
               <h2 className="text-2xl font-black mb-2 text-white/90 tracking-tight">Administración</h2>
-              <p className="text-white/40 text-xs leading-relaxed mb-4 pr-2">
+              <p className="text-white/60 text-xs leading-relaxed mb-4 pr-2">
                 Panel de control gerencial. Métricas financieras, menú, inventario, costos, caja y auditoría de personal.
               </p>
               
@@ -265,7 +277,7 @@ export default function HomePage() {
                 <div className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-xl p-3 mb-4">
                   <Lock className="w-5 h-5 text-purple-500" />
                   <div>
-                    <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider mb-0.5">Nivel de Acceso</div>
+                    <div className="text-[10px] text-white/60 font-bold uppercase tracking-wider mb-0.5">Nivel de Acceso</div>
                     <div className="text-sm font-black text-purple-400">
                       Requiere PIN Administrador
                     </div>
@@ -284,13 +296,13 @@ export default function HomePage() {
 
       {/* PIN Modal / Keypad overlay */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fade-in">
+        <div {...dlgPin} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fade-in">
           <div className="w-full max-w-sm transform transition-all animate-scale-in">
             <div className="bg-[#111625] rounded-[32px] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] p-8 relative">
               
-              <button 
+              <button aria-label="Cerrar" 
                 onClick={() => setModalOpen(false)}
-                className="absolute top-6 right-6 p-2 text-white/40 hover:text-white bg-white/5 rounded-full transition-colors active:scale-95"
+                className="absolute top-6 right-6 p-2 text-white/40 hover:text-white bg-white/5 rounded-full transition-colors active:scale-95 min-w-11 min-h-11"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -300,7 +312,7 @@ export default function HomePage() {
                   <Lock className="w-8 h-8 text-white/60" />
                 </div>
                 <h2 className="text-2xl font-black mb-1 text-white">Identificación</h2>
-                <p className="text-sm font-bold text-white/40 uppercase tracking-widest">
+                <p className="text-sm font-bold text-white/60 uppercase tracking-widest">
                   Ingreso a {targetModule === 'comandas' ? 'Sala' : targetModule === 'cocina' ? 'Cocina' : 'Admin'}
                 </p>
               </div>
@@ -353,10 +365,10 @@ export default function HomePage() {
                 >
                   0
                 </button>
-                <button
+                <button aria-label="Borrar último dígito"
                   onClick={removeDigit}
                   disabled={loading || pin.length === 0}
-                  className="h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 active:bg-red-500/20 transition-all disabled:opacity-50 text-white/40"
+                  className="h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 active:bg-red-500/20 transition-all disabled:opacity-50 text-white/40 min-w-11 min-h-11"
                 >
                   <Delete className="w-8 h-8" />
                 </button>

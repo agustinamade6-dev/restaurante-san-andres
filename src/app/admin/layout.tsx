@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Logo from '@/components/Logo';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -8,8 +9,6 @@ import {
   Package,
   Truck,
   DollarSign,
-  ArrowLeft,
-  Utensils,
   ClipboardList,
   Users,
   LogOut,
@@ -45,16 +44,9 @@ export default function AdminLayout({
       <aside className="w-64 bg-[var(--card)] border-r border-[var(--border)] flex flex-col shrink-0">
         {/* Logo */}
         <div className="p-5 border-b border-[var(--border)]">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
-              <Utensils className="w-4 h-4 text-black" />
-            </div>
-            <div>
-              <h2 className="font-bold text-sm">San Andrés</h2>
-              <p className="text-[10px] text-[var(--muted)]">
-                Panel de Admin
-              </p>
-            </div>
+          <Link href="/" className="flex flex-col items-start gap-2 group">
+            <Logo alto={60} />
+            <p className="text-[10px] text-[var(--muted)] uppercase tracking-widest font-semibold">Panel de Admin</p>
           </Link>
         </div>
 
@@ -81,7 +73,8 @@ export default function AdminLayout({
         <div className="p-3 border-t border-[var(--border)] flex flex-col gap-2">
           <button 
             onClick={async () => {
-              await fetch('/api/auth/logout', { method: 'POST' });
+              // Aunque el servidor no responda, se vuelve al inicio (la cookie vence sola).
+              await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
               window.location.href = '/';
             }}
             className="nav-link text-red-400 hover:text-red-300 hover:bg-red-500/10 w-full text-left"
@@ -93,7 +86,10 @@ export default function AdminLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      {/* Zona con scroll propio: enfocable para poder desplazarla con el teclado. */}
+      <main className="flex-1 overflow-y-auto p-6" tabIndex={0} aria-label="Contenido de administración">
+        {children}
+      </main>
     </div>
   );
 }

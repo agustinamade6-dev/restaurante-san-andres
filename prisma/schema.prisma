@@ -3,6 +3,9 @@ generator client {
   binaryTargets = ["native", "windows"]
 }
 
+// Montos de dinero: enteros en CENTAVOS ($1.250,50 = 125050). La API sigue hablando en pesos;
+// la conversión se hace en src/lib/money.ts. Ver docs/auditoria/commit-09-dinero-en-centavos.md.
+
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
@@ -51,12 +54,13 @@ model Producto {
   id           Int         @id @default(autoincrement())
   nombre       String
   descripcion  String      @default("")
-  precio       Float
+  precio       Int         // centavos (ver src/lib/money.ts)
   categoriaId  Int
   categoria    Categoria   @relation(fields: [categoriaId], references: [id])
   disponible   Boolean     @default(true)
   imagen       String      @default("")
   itemsPedido  ItemPedido[]
+  receta       RecetaItem[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 }
@@ -68,7 +72,7 @@ model Pedido {
   estado      String       @default("pendiente") // pendiente, preparando, listo, entregado, cancelado
   items       ItemPedido[]
   historial   HistorialPedido[]
-  total       Float        @default(0)
+  total       Int          @default(0) // centavos
   notas       String       @default("")
   creadoEn    DateTime     @default(now())
   actualizadoEn DateTime   @updatedAt
@@ -98,7 +102,7 @@ model ItemPedido {
   producto   Producto @relation(fields: [productoId], references: [id])
   cantidad   Int      @default(1)
   notas      String   @default("")
-  precio     Float
+  precio     Int      // centavos: precio del producto al momento del pedido
   createdAt  DateTime @default(now())
 }
 
@@ -108,9 +112,11 @@ model Insumo {
   unidad        String            @default("unidad") // kg, litro, unidad, paquete
   stockActual   Float             @default(0)
   stockMinimo   Float             @default(5)
-  precioUnitario Float            @default(0)
+  precioUnitario Int              @default(0) // centavos
   proveedorId   Int?
   proveedor     Proveedor?        @relation(fields: [proveedorId], references: [id])
+  recetas       RecetaItem[]
+  movimientos   MovimientoStock[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 }
@@ -131,7 +137,7 @@ model Proveedor {
 model CostoFijo {
   id          Int      @id @default(autoincrement())
   concepto    String
-  monto       Float
+  monto       Int      // centavos
   tipo        String   @default("fijo") // fijo, variable
   periodicidad String  @default("mensual") // diario, semanal, mensual
   createdAt   DateTime @default(now())
@@ -145,8 +151,8 @@ model Venta {
   mesaId               Int?
   mesa                 Mesa?    @relation(fields: [mesaId], references: [id])
   mesaNumero           Int?
-  total                Float
-  propina              Float    @default(0)
+  total                Int      // centavos (negativo en una anulación)
+  propina              Int      @default(0) // centavos
   metodoPago           String   @default("efectivo") // efectivo, tarjeta, transferencia, dividido
   cajeroId             Int?
   cajero               Usuario? @relation(fields: [cajeroId], references: [id])
@@ -155,4 +161,34 @@ model Venta {
   items                Int      @default(0)
   fechaCobro           DateTime @default(now())
   createdAt            DateTime @default(now())
+  movimientosStock     MovimientoStock[]
+}
+
+// Receta de un producto: cuánto de cada insumo consume UNA unidad vendida (en la unidad del insumo).
+model RecetaItem {
+  id         Int      @id @default(autoincrement())
+  productoId Int
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  insumoId   Int
+  insumo     Insumo   @relation(fields: [insumoId], references: [id])
+  cantidad   Float
+
+  @@unique([productoId, insumoId])
+}
+
+// Cada cambio automático de stock: el consumo de una venta (negativo) y su reintegro al anularla (positivo).
+// Anular revierte exactamente estos movimientos, aunque la receta haya cambiado después de la venta.
+model MovimientoStock {
+  id        Int      @id @default(autoincrement())
+  insumoId  Int
+  insumo    Insumo   @relation(fields: [insumoId], references: [id])
+  cantidad  Float
+  motivo    String // VENTA, ANULACION, AJUSTE
+  detalle   String   @default("") // texto libre (p. ej. el motivo de un ajuste manual)
+  ventaId   Int?
+  venta     Venta?   @relation(fields: [ventaId], references: [id], onDelete: SetNull)
+  usuarioId Int?
+  createdAt DateTime @default(now())
+
+  @@index([ventaId])
 }

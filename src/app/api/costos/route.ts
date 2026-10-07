@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { escritura } from '@/lib/transaccion';
+import { enPesos } from '@/lib/money';
+import { crearCostoSchema } from '@/lib/catalogo';
+import { JSON_INVALIDO, codigoPrisma, idDeQuery, leerJson, mensajeZod } from '@/lib/validacion';
+
+const error = (mensaje: string, status: number) => NextResponse.json({ error: mensaje }, { status });
 
 export async function GET() {
   const auth = await requireAuth(['ADMIN']);
@@ -10,10 +16,10 @@ export async function GET() {
     const costos = await prisma.costoFijo.findMany({
       orderBy: { concepto: 'asc' },
     });
-    return NextResponse.json(costos);
-  } catch (error) {
-    console.error('Error fetching costos:', error);
-    return NextResponse.json({ error: 'Error al obtener costos' }, { status: 500 });
+    return NextResponse.json(enPesos(costos));
+  } catch (e) {
+    console.error('Error fetching costos:', e);
+    return error('Error al obtener costos', 500);
   }
 }
 
@@ -22,19 +28,16 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const body = await request.json();
-    const costo = await prisma.costoFijo.create({
-      data: {
-        concepto: body.concepto,
-        monto: body.monto,
-        tipo: body.tipo || 'fijo',
-        periodicidad: body.periodicidad || 'mensual',
-      },
-    });
-    return NextResponse.json(costo, { status: 201 });
-  } catch (error) {
-    console.error('Error creating costo:', error);
-    return NextResponse.json({ error: 'Error al crear costo' }, { status: 500 });
+    const raw = await leerJson(request);
+    if (raw === JSON_INVALIDO) return error('Cuerpo JSON inválido', 400);
+    const parsed = crearCostoSchema.safeParse(raw);
+    if (!parsed.success) return error(mensajeZod(parsed.error), 400);
+
+    const costo = await escritura(() => prisma.costoFijo.create({ data: parsed.data }));
+    return NextResponse.json(enPesos(costo), { status: 201 });
+  } catch (e) {
+    console.error('Error creating costo:', e);
+    return error('Error al crear costo', 500);
   }
 }
 
@@ -43,13 +46,15 @@ export async function DELETE(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
-    await prisma.costoFijo.delete({ where: { id: parseInt(id) } });
+    const id = idDeQuery(request);
+    if (id === undefined) return error('ID requerido', 400);
+    if (id === null) return error('ID inválido', 400);
+
+    await escritura(() => prisma.costoFijo.delete({ where: { id } }));
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting costo:', error);
-    return NextResponse.json({ error: 'Error al eliminar costo' }, { status: 500 });
+  } catch (e) {
+    if (codigoPrisma(e) === 'P2025') return error('Costo no encontrado', 404);
+    console.error('Error deleting costo:', e);
+    return error('Error al eliminar costo', 500);
   }
 }

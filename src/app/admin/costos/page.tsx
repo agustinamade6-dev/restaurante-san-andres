@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
+import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
+import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 import {
   Plus,
   Trash2,
@@ -20,8 +27,12 @@ interface CostoFijo {
 }
 
 export default function CostosPage() {
-  const [costos, setCostos] = useState<CostoFijo[]>([]);
   const [modal, setModal] = useState(false);
+  // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
+  const [errorModal, setErrorModal] = useState('');
+  const { ejecutar, enviando } = useEnvio();
+  const dlgCosto = useDialogo('Nuevo costo', () => setModal(false));
+  const [errorLista, setErrorLista] = useState('');
   const [form, setForm] = useState({
     concepto: '',
     monto: 0,
@@ -29,29 +40,22 @@ export default function CostosPage() {
     periodicidad: 'mensual',
   });
 
-  const fetchCostos = useCallback(async () => {
-    const res = await fetch('/api/costos');
-    setCostos(await res.json());
-  }, []);
+  const { data: costos, error: errorCarga, recargar: fetchCostos } = useApi<CostoFijo[]>('/api/costos', []);
 
-  useEffect(() => {
-    fetchCostos();
-  }, [fetchCostos]);
-
-  const guardar = async () => {
-    await fetch('/api/costos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
+  const guardar = () => ejecutar(async () => {
+    setErrorModal('');
+    const error = await enviarJson('/api/costos', 'POST', form, 'No se pudo guardar el costo');
+    if (error) return setErrorModal(error);
     setModal(false);
     setForm({ concepto: '', monto: 0, tipo: 'fijo', periodicidad: 'mensual' });
     fetchCostos();
-  };
+  });
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar este costo?')) return;
-    await fetch(`/api/costos?id=${id}`, { method: 'DELETE' });
+    setErrorLista('');
+    const error = await enviar(`/api/costos?id=${id}`, { method: 'DELETE' }, 'No se pudo eliminar el costo');
+    if (error) return setErrorLista(error);
     fetchCostos();
   };
 
@@ -72,7 +76,7 @@ export default function CostosPage() {
             Costos fijos y variables mensuales
           </p>
         </div>
-        <button onClick={() => setModal(true)} className="btn btn-primary">
+        <button onClick={() => { setErrorModal(''); setModal(true); }} className="btn btn-primary">
           <Plus className="w-4 h-4" />
           Agregar Costo
         </button>
@@ -84,12 +88,12 @@ export default function CostosPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Costos Fijos</p>
-              <p className="text-2xl font-bold text-[var(--info)]">
-                ${totalFijos.toLocaleString()}
+              <p className="text-2xl font-bold text-[var(--info-text)]">
+                {formatPesos(totalFijos)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[var(--info-bg)] flex items-center justify-center">
-              <TrendingDown className="w-5 h-5 text-[var(--info)]" />
+              <TrendingDown className="w-5 h-5 text-[var(--info-text)]" />
             </div>
           </div>
         </div>
@@ -100,7 +104,7 @@ export default function CostosPage() {
                 Costos Variables
               </p>
               <p className="text-2xl font-bold text-amber-400">
-                ${totalVariables.toLocaleString()}
+                {formatPesos(totalVariables)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
@@ -112,16 +116,19 @@ export default function CostosPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-[var(--muted)] mb-1">Total Mensual</p>
-              <p className="text-2xl font-bold text-[var(--danger)]">
-                ${totalGeneral.toLocaleString()}
+              <p className="text-2xl font-bold text-[var(--danger-text)]">
+                {formatPesos(totalGeneral)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[var(--danger-bg)] flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-[var(--danger)]" />
+              <DollarSign className="w-5 h-5 text-[var(--danger-text)]" />
             </div>
           </div>
         </div>
       </div>
+
+      <ErrorDeCarga error={errorCarga} que="los costos" onReintentar={fetchCostos} />
+      <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
 
       {/* Cost list */}
       <div className="glass-card overflow-hidden">
@@ -163,7 +170,7 @@ export default function CostosPage() {
                       <DollarSign
                         className={`w-4 h-4 ${
                           costo.tipo === 'fijo'
-                            ? 'text-[var(--info)]'
+                            ? 'text-[var(--info-text)]'
                             : 'text-amber-400'
                         }`}
                       />
@@ -188,14 +195,14 @@ export default function CostosPage() {
                   {costo.periodicidad}
                 </td>
                 <td className="p-4 text-right">
-                  <span className="font-bold text-[var(--danger)]">
-                    ${costo.monto.toLocaleString()}
+                  <span className="font-bold text-[var(--danger-text)]">
+                    {formatPesos(costo.monto)}
                   </span>
                 </td>
                 <td className="p-4 text-right">
-                  <button
+                  <button aria-label={`Eliminar ${costo.concepto}`}
                     onClick={() => eliminar(costo.id)}
-                    className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors ml-auto"
+                    className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors ml-auto min-w-11 min-h-11"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -208,16 +215,16 @@ export default function CostosPage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgCosto} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-amber-400" />
                 Agregar Costo
               </h2>
-              <button
+              <button aria-label="Cerrar"
                 onClick={() => setModal(false)}
-                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center"
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center min-w-11 min-h-11"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -292,6 +299,8 @@ export default function CostosPage() {
               </div>
             </div>
 
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger-text)] mt-4">{errorModal}</p>}
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setModal(false)}
@@ -299,7 +308,7 @@ export default function CostosPage() {
               >
                 Cancelar
               </button>
-              <button onClick={guardar} className="btn btn-primary flex-1">
+              <button onClick={guardar} disabled={enviando} className="btn btn-primary flex-1 disabled:opacity-50">
                 <Save className="w-4 h-4" />
                 Guardar
               </button>

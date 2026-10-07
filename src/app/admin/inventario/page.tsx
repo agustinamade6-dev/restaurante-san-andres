@@ -1,13 +1,26 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
 import {
   Package,
   AlertTriangle,
   CheckCircle2,
   Search,
+  Plus,
+  Save,
+  Trash2,
+  SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
+import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
+import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
+import AjusteStockModal from '@/components/inventario/AjusteStockModal';
 
 interface Insumo {
   id: number;
@@ -21,31 +34,62 @@ interface Insumo {
   updatedAt: string;
 }
 
+const UNIDADES = ['kg', 'litro', 'unidad', 'paquete'];
+const insumoVacio = { nombre: '', unidad: 'kg', stockActual: '', stockMinimo: '', precioUnitario: '', proveedorId: '' };
+
 export default function InventarioPage() {
-  const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [busqueda, setBusqueda] = useState('');
+  const { ejecutar, enviando } = useEnvio();
   const [filtro, setFiltro] = useState<'todos' | 'bajo' | 'ok'>('todos');
-  const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [stockEdit, setStockEdit] = useState<number>(0);
+  // Insumo con el modal "Ajustar stock" abierto (por id: el stock que muestra se actualiza si llega una venta).
+  const [ajustandoId, setAjustandoId] = useState<number | null>(null);
+  const [nuevo, setNuevo] = useState<typeof insumoVacio | null>(null);
+  const dlgInsumo = useDialogo('Nuevo insumo', () => setNuevo(null));
+  const [proveedores, setProveedores] = useState<{ id: number; nombre: string }[]>([]);
+  const [errorNuevo, setErrorNuevo] = useState('');
+  const [errorTabla, setErrorTabla] = useState('');
 
-  const fetchInsumos = useCallback(async () => {
-    const res = await fetch('/api/inventario');
-    setInsumos(await res.json());
-  }, []);
+  const { data: insumos, error: errorCarga, recargar: fetchInsumos } = useApi<Insumo[]>('/api/inventario', []);
 
-  useEffect(() => {
-    fetchInsumos();
-  }, [fetchInsumos]);
+  const ajustando = insumos.find((i) => i.id === ajustandoId) ?? null;
 
-  const actualizarStock = async (insumo: Insumo) => {
-    await fetch('/api/inventario', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...insumo, stockActual: stockEdit }),
-    });
-    setEditandoId(null);
+  const eliminarInsumo = async (insumo: Insumo) => {
+    if (!confirm(`¿Eliminar el insumo "${insumo.nombre}"?`)) return;
+    setErrorTabla('');
+    const error = await enviar(`/api/inventario?id=${insumo.id}`, { method: 'DELETE' }, 'No se pudo eliminar el insumo');
+    if (error) return setErrorTabla(error);
     fetchInsumos();
   };
+
+  const abrirNuevo = async () => {
+    setErrorNuevo('');
+    setNuevo({ ...insumoVacio });
+    // Si no cargan, el insumo se puede crear igual "Sin proveedor".
+    const res = await fetch('/api/proveedores').catch(() => null);
+    if (res?.ok) setProveedores(await res.json().catch(() => []));
+  };
+
+  const crearInsumo = () => ejecutar(async () => {
+    if (!nuevo) return;
+    setErrorNuevo('');
+    const numero = (v: string) => (v.trim() === '' ? 0 : Number(v.replace(',', '.')));
+    const error = await enviarJson(
+      '/api/inventario',
+      'POST',
+      {
+        nombre: nuevo.nombre,
+        unidad: nuevo.unidad,
+        stockActual: numero(nuevo.stockActual),
+        stockMinimo: numero(nuevo.stockMinimo),
+        precioUnitario: numero(nuevo.precioUnitario),
+        proveedorId: nuevo.proveedorId ? Number(nuevo.proveedorId) : null,
+      },
+      'No se pudo crear el insumo'
+    );
+    if (error) return setErrorNuevo(error);
+    setNuevo(null);
+    fetchInsumos();
+  });
 
   const filtrados = insumos.filter((i) => {
     if (busqueda && !i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
@@ -66,6 +110,10 @@ export default function InventarioPage() {
             {insumos.length} insumos registrados
           </p>
         </div>
+        <button onClick={abrirNuevo} className="btn btn-primary">
+          <Plus className="w-4 h-4" />
+          Nuevo insumo
+        </button>
       </div>
 
       {/* Alert */}
@@ -119,6 +167,9 @@ export default function InventarioPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="los insumos" onReintentar={fetchInsumos} />
+      <AvisoError mensaje={errorTabla} onCerrar={() => setErrorTabla('')} />
+
       {/* Table */}
       <div className="glass-card overflow-hidden">
         <table className="w-full">
@@ -145,15 +196,17 @@ export default function InventarioPage() {
               <th className="text-left p-4 text-sm font-semibold text-[var(--muted)]">
                 Fecha y Hora
               </th>
+              <th className="p-4" />
             </tr>
           </thead>
           <tbody>
             {filtrados.map((insumo) => {
               const esBajo = insumo.stockActual <= insumo.stockMinimo;
-              const porcentaje = Math.min(
-                (insumo.stockActual / insumo.stockMinimo) * 100,
-                100
-              );
+              // Con stock mínimo 0 la barra va llena; un stock negativo (ventas sin stock cargado) la deja vacía.
+              const porcentaje =
+                insumo.stockMinimo > 0
+                  ? Math.max(0, Math.min((insumo.stockActual / insumo.stockMinimo) * 100, 100))
+                  : 100;
               return (
                 <tr
                   key={insumo.id}
@@ -177,45 +230,23 @@ export default function InventarioPage() {
                     </div>
                   </td>
                   <td className="p-4 text-center">
-                    {editandoId === insumo.id ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <input
-                          type="number"
-                          value={stockEdit}
-                          onChange={(e) =>
-                            setStockEdit(parseFloat(e.target.value) || 0)
-                          }
-                          className="input w-20 text-center py-1"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => actualizarStock(insumo)}
-                          className="btn btn-sm btn-success"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={() => setEditandoId(null)}
-                          className="btn btn-sm btn-secondary"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setEditandoId(insumo.id);
-                          setStockEdit(insumo.stockActual);
-                        }}
-                        className={`font-bold text-sm cursor-pointer hover:underline ${
-                          esBajo
-                            ? 'text-[var(--danger)]'
-                            : 'text-[var(--foreground)]'
+                    <div className="flex items-center justify-center gap-2">
+                      <span
+                        className={`font-bold text-sm ${
+                          esBajo ? 'text-[var(--danger-text)]' : 'text-[var(--foreground)]'
                         }`}
                       >
                         {insumo.stockActual} {insumo.unidad}
+                      </span>
+                      <button
+                        onClick={() => setAjustandoId(insumo.id)}
+                        className="btn btn-sm btn-secondary"
+                        aria-label={`Ajustar stock de ${insumo.nombre}`}
+                      >
+                        <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+                        Ajustar
                       </button>
-                    )}
+                    </div>
                   </td>
                   <td className="p-4 text-center text-sm text-[var(--muted)]">
                     {insumo.stockMinimo} {insumo.unidad}
@@ -233,7 +264,7 @@ export default function InventarioPage() {
                       <span
                         className={`text-xs font-medium ${
                           esBajo
-                            ? 'text-[var(--danger)]'
+                            ? 'text-[var(--danger-text)]'
                             : 'text-[var(--success)]'
                         }`}
                       >
@@ -242,7 +273,7 @@ export default function InventarioPage() {
                     </div>
                   </td>
                   <td className="p-4 text-right text-sm font-semibold">
-                    ${insumo.precioUnitario.toLocaleString()}
+                    {formatPesos(insumo.precioUnitario)}
                   </td>
                   <td className="p-4 text-sm text-[var(--muted)]">
                     {insumo.proveedor?.nombre || '—'}
@@ -255,12 +286,142 @@ export default function InventarioPage() {
                       </div>
                     ) : '—'}
                   </td>
+                  <td className="p-4 text-right">
+                    <button
+                      onClick={() => eliminarInsumo(insumo)}
+                      className="btn btn-sm btn-secondary text-[var(--danger-text)] min-w-11 min-h-11"
+                      title="Eliminar insumo"
+                      aria-label={`Eliminar ${insumo.nombre}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {ajustando && (
+        <AjusteStockModal
+          insumo={ajustando}
+          onCerrar={() => setAjustandoId(null)}
+          onAjustado={() => {
+            setAjustandoId(null);
+            fetchInsumos();
+          }}
+        />
+      )}
+
+      {nuevo && (
+        <div {...dlgInsumo} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-card w-full max-w-md p-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Package className="w-5 h-5 text-amber-400" />
+                Nuevo insumo
+              </h2>
+              <button aria-label="Cerrar"
+                onClick={() => setNuevo(null)}
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors min-w-11 min-h-11"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-[var(--muted)] mb-1 block">Nombre</label>
+                <input
+                  type="text"
+                  value={nuevo.nombre}
+                  onChange={(e) => setNuevo((n) => n && { ...n, nombre: e.target.value })}
+                  className="input"
+                  placeholder="Ej.: Carne picada"
+                  autoFocus
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-[var(--muted)] mb-1 block">Unidad</label>
+                  <select
+                    value={nuevo.unidad}
+                    onChange={(e) => setNuevo((n) => n && { ...n, unidad: e.target.value })}
+                    className="input"
+                  >
+                    {UNIDADES.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-[var(--muted)] mb-1 block">Precio por {nuevo.unidad} ($)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={nuevo.precioUnitario}
+                    onChange={(e) => setNuevo((n) => n && { ...n, precioUnitario: e.target.value })}
+                    className="input"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-[var(--muted)] mb-1 block">Stock actual</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={nuevo.stockActual}
+                    onChange={(e) => setNuevo((n) => n && { ...n, stockActual: e.target.value })}
+                    className="input"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-[var(--muted)] mb-1 block">Stock mínimo</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={nuevo.stockMinimo}
+                    onChange={(e) => setNuevo((n) => n && { ...n, stockMinimo: e.target.value })}
+                    className="input"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-[var(--muted)] mb-1 block">Proveedor (opcional)</label>
+                <select
+                  value={nuevo.proveedorId}
+                  onChange={(e) => setNuevo((n) => n && { ...n, proveedorId: e.target.value })}
+                  className="input"
+                >
+                  <option value="">Sin proveedor</option>
+                  {proveedores.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {errorNuevo && <p className="text-sm text-[var(--danger-text)] mt-4">{errorNuevo}</p>}
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setNuevo(null)} className="btn btn-secondary flex-1">
+                Cancelar
+              </button>
+              <button onClick={crearInsumo} disabled={!nuevo.nombre.trim() || enviando} className="btn btn-primary flex-1 disabled:opacity-50">
+                <Save className="w-4 h-4" />
+                Crear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

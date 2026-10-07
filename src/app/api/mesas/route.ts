@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import eventEmitter from '@/lib/events';
+import { enPesos } from '@/lib/money';
+import { ApiError } from '@/lib/api-error';
+import {
+  PEDIDOS_QUE_OCUPAN_MESA,
+  crearMesaSchema,
+  estadoMesaSchema,
+  mensajeZod,
+} from '@/lib/mesas';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -25,7 +34,7 @@ export async function GET() {
         },
       },
     });
-    return NextResponse.json(mesas || []);
+    return NextResponse.json(enPesos(mesas || []));
   } catch (error) {
     console.error('Error fetching mesas:', error);
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al obtener mesas' }, { status: 500 });
@@ -37,17 +46,41 @@ export async function PATCH(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const body = await request.json();
-    const { id, estado } = body;
-    const mesa = await prisma.mesa.update({
-      where: { id },
-      data: { estado },
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Cuerpo JSON inválido' }, { status: 400 });
+    }
+    const parsed = estadoMesaSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: mensajeZod(parsed.error) }, { status: 400 });
+    }
+    const { id, estado } = parsed.data;
+
+    const mesa = await transaccion(async (tx) => {
+      const actual = await tx.mesa.findUnique({ where: { id }, select: { id: true, activa: true } });
+      if (!actual || !actual.activa) throw new ApiError(404, 'Mesa no encontrada');
+
+      // No se puede marcar libre una mesa que tiene pedidos en curso.
+      if (estado === 'libre') {
+        const enCurso = await tx.pedido.count({
+          where: { mesaId: id, estado: { in: PEDIDOS_QUE_OCUPAN_MESA } },
+        });
+        if (enCurso > 0) throw new ApiError(400, 'La mesa tiene pedidos en curso y no puede marcarse libre');
+      }
+
+      return tx.mesa.update({ where: { id }, data: { estado } });
     });
+
     eventEmitter.emit('mesa:actualizada', mesa);
     return NextResponse.json(mesa);
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
     console.error('Error updating mesa:', error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al actualizar mesa' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Error al actualizar mesa' }, { status: 500 });
   }
 }
 
@@ -56,39 +89,44 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const body = await request.json();
-    const { numero, capacidad, sector, forma, posX, posY } = body;
-    
-    // Check if number is in use
-    const exists = await prisma.mesa.findUnique({ where: { numero } });
-    if (exists) {
-      if (!exists.activa) {
-        // reactivate
-        const mesa = await prisma.mesa.update({
-          where: { numero },
-          data: { activa: true, capacidad, sector, forma, posX, posY }
-        });
-        eventEmitter.emit('mesa:actualizada', mesa);
-        return NextResponse.json(mesa);
-      }
-      return NextResponse.json({ success: false, error: 'El número de mesa ya está en uso' }, { status: 400 });
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Cuerpo JSON inválido' }, { status: 400 });
     }
+    const parsed = crearMesaSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: mensajeZod(parsed.error) }, { status: 400 });
+    }
+    const { numero, capacidad, sector, forma, posX, posY } = parsed.data;
 
-    const mesa = await prisma.mesa.create({
-      data: {
-        numero,
-        capacidad,
-        sector,
-        forma,
-        posX,
-        posY,
-        activa: true,
-      },
+    const mesa = await transaccion(async (tx) => {
+      const exists = await tx.mesa.findUnique({ where: { numero } });
+      if (exists) {
+        if (exists.activa) throw new ApiError(400, 'El número de mesa ya está en uso');
+        // La mesa fue eliminada (baja lógica): se reactiva con los datos nuevos.
+        return tx.mesa.update({
+          where: { numero },
+          data: { activa: true, estado: 'libre', capacidad, sector, forma, posX, posY },
+        });
+      }
+      return tx.mesa.create({
+        data: { numero, capacidad, sector, forma, posX, posY, activa: true },
+      });
     });
+
     eventEmitter.emit('mesa:actualizada', mesa);
     return NextResponse.json(mesa);
   } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    }
+    // Dos altas simultáneas con el mismo número: la restricción única de la base lo detiene.
+    if ((error as { code?: string })?.code === 'P2002') {
+      return NextResponse.json({ success: false, error: 'El número de mesa ya está en uso' }, { status: 400 });
+    }
     console.error('Error creating mesa:', error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : 'Error al crear mesa' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Error al crear mesa' }, { status: 500 });
   }
 }

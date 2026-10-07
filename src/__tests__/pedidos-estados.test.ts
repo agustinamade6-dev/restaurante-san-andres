@@ -80,8 +80,20 @@ describe('PATCH /api/pedidos — flujo de estados', () => {
     expect(res.status).toBe(200);
     expect(db.state.pedidos[0].estado).toBe('entregado');
     expect(db.state.pedidos[0].entregadoEn).toBeInstanceOf(Date);
-    expect(db.state.mesas[0].estado).toBe('libre');
-    expect(emit).toHaveBeenCalledTimes(3);
+    expect(db.state.mesas[0].estado).toBe('ocupada'); // servido pero sin cobrar: la mesa sigue ocupada
+    // 3 eventos del pedido + 2 de la mesa (esperando y ocupada); al pasar a "preparando" la mesa ya estaba ocupada.
+    expect(emit.mock.calls.filter(([e]) => e === 'pedido:actualizado')).toHaveLength(3);
+    expect(emit.mock.calls.filter(([e]) => e === 'mesa:actualizada').map(([, m]) => m.estado)).toEqual(['esperando', 'ocupada']);
+  });
+
+  it('la mesa se anuncia con su estado YA actualizado y solo si cambió', async () => {
+    db.state.mesas[0].estado = 'libre';
+    await cambiar({ id: 1, estado: 'preparando' });
+    expect(emit).toHaveBeenCalledWith('mesa:actualizada', expect.objectContaining({ id: 10, estado: 'ocupada' }));
+    emit.mockClear();
+    await cambiar({ id: 1, estado: 'listo' });
+    await cambiar({ id: 1, estado: 'preparando' }); // corrección de un "listo" por error: vuelve a ocupada
+    expect(emit.mock.calls.filter(([e]) => e === 'mesa:actualizada').map(([, m]) => m.estado)).toEqual(['esperando', 'ocupada']);
   });
 
   it('mantiene el contrato: la respuesta trae mesa, items con producto e historial', async () => {
@@ -92,15 +104,35 @@ describe('PATCH /api/pedidos — flujo de estados', () => {
     expect(Array.isArray(data.historial)).toBe(true);
   });
 
-  it('"entregado" no libera la mesa si hay otro pedido activo en ella', async () => {
-    db.addPedido(pedido({ id: 2, estado: 'preparando' }));
+  it('REGRESIÓN: "entregado" mantiene la mesa ocupada hasta el cobro; recién cobrar la libera', async () => {
+    // Antes "entregado" dejaba la mesa en "libre" aunque el cliente seguía sentado sin pagar: un mozo podía sentar gente nueva.
+    db.state.pedidos[0].estado = 'listo';
     await cambiar({ id: 1, estado: 'entregado' });
     expect(db.state.mesas[0].estado).toBe('ocupada');
+
+    await loginAs('MOZO', 3);
+    expect((await pagar()).status).toBe(200);
+    expect(db.state.pedidos[0].estado).toBe('pagado');
+    expect(db.state.mesas[0].estado).toBe('libre');
+    expect(emit.mock.calls.filter(([e]) => e === 'mesa:actualizada').map(([, m]) => m.estado).at(-1)).toBe('libre');
+  });
+
+  it('REGRESIÓN: cancelar un pedido ENTREGADO libera la mesa solo si no le quedan otros sin cobrar', async () => {
+    db.state.pedidos[0].estado = 'entregado';
+    db.addPedido(pedido({ id: 2, estado: 'entregado' }));
+    await loginAs('ADMIN', 3);
+
+    await cancelar(1, { motivo: 'El cliente se retiró' });
+    expect(db.state.mesas[0].estado).toBe('ocupada'); // el pedido 2 sigue servido y sin cobrar
+
+    await cancelar(2, { motivo: 'El cliente se retiró' });
+    expect(db.state.mesas[0].estado).toBe('libre');
   });
 
   it('reabrir un pedido ENTREGADO (aún sin cobrar) a "preparando" está permitido y ocupa la mesa', async () => {
+    db.state.pedidos[0].estado = 'listo';
     await cambiar({ id: 1, estado: 'entregado' });
-    expect(db.state.mesas[0].estado).toBe('libre');
+    expect(db.state.mesas[0].estado).toBe('ocupada');
 
     const res = await cambiar({ id: 1, estado: 'preparando' });
 
@@ -183,7 +215,7 @@ describe('PATCH /api/pedidos — validación y permisos', () => {
   });
 
   it('un fallo a mitad de camino revierte todo y no filtra detalles', async () => {
-    vi.spyOn(db.prisma.mesa, 'update').mockRejectedValueOnce(new Error('disco lleno'));
+    vi.spyOn(db.prisma.historialPedido, 'create').mockRejectedValueOnce(new Error('disco lleno'));
 
     const res = await cambiar({ id: 1, estado: 'preparando' });
 
@@ -272,5 +304,58 @@ describe('carreras entre cobro, cancelación y reapertura (modelo single-writer)
     expect(
       (estado === 'cancelado' && db.state.ventas.length === 0) || (estado === 'pagado' && db.state.ventas.length === 1)
     ).toBe(true);
+  });
+});
+
+describe('PATCH /api/pedidos — máquina de estados', () => {
+  it.each([
+    ['pendiente', 'listo'],
+    ['pendiente', 'entregado'],
+    ['preparando', 'pendiente'],
+    ['preparando', 'entregado'],
+    ['listo', 'pendiente'],
+    ['entregado', 'pendiente'],
+    ['entregado', 'listo'],
+  ])('%s → %s: 400 y no cambia nada', async (desde, hacia) => {
+    db.state.pedidos[0].estado = desde;
+    const res = await cambiar({ id: 1, estado: hacia });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain(`no puede pasar a "${hacia}"`);
+    expect(db.state.pedidos[0].estado).toBe(desde);
+  });
+
+  it.each([
+    ['pendiente', 'preparando'],
+    ['preparando', 'listo'],
+    ['listo', 'entregado'],
+    ['listo', 'preparando'],
+    ['entregado', 'preparando'],
+  ])('%s → %s: permitido', async (desde, hacia) => {
+    db.state.pedidos[0].estado = desde;
+    expect((await cambiar({ id: 1, estado: hacia })).status).toBe(200);
+    expect(db.state.pedidos[0].estado).toBe(hacia);
+  });
+
+  it('el flujo completo de cocina funciona paso a paso', async () => {
+    for (const estado of ['preparando', 'listo', 'entregado']) {
+      expect((await cambiar({ id: 1, estado })).status).toBe(200);
+    }
+  });
+});
+
+describe('PATCH /api/pedidos/[id]/cancel — evento de mesa', () => {
+  it('REGRESIÓN: la mesa se anuncia LIBRE (antes salía con el estado leído antes de liberarla)', async () => {
+    expect(db.state.mesas[0].estado).toBe('ocupada');
+    expect((await cancelar(1, { motivo: 'se fue' })).status).toBe(200);
+    expect(db.state.mesas[0].estado).toBe('libre');
+    expect(emit).toHaveBeenCalledWith('mesa:actualizada', expect.objectContaining({ id: 10, estado: 'libre' }));
+  });
+
+  it('si la mesa tiene otro pedido en curso, sigue ocupada y no se anuncia', async () => {
+    db.addPedido(pedido({ id: 2, estado: 'preparando' }));
+    expect((await cancelar(1, { motivo: 'error de carga' })).status).toBe(200);
+    expect(db.state.mesas[0].estado).toBe('ocupada');
+    expect(emit).toHaveBeenCalledWith('pedido:actualizado', expect.anything());
+    expect(emit).not.toHaveBeenCalledWith('mesa:actualizada', expect.anything());
   });
 });

@@ -14,12 +14,7 @@ const fs = require('fs');
 const http = require('http');
 const crypto = require('crypto');
 
-const DEFAULT_CONFIG = {
-  port: 3000,
-  // true = acepta conexiones de tablets/comanderas en la red local (http://IP-de-esta-PC:3000).
-  // Windows mostrará el aviso del firewall la primera vez.
-  lan: false,
-};
+const { DEFAULT_CONFIG, migrarNegocio } = require('./config');
 const BACKUPS_TO_KEEP = 15;
 
 let mainWindow = null;
@@ -33,6 +28,9 @@ const resourcesDir = app.isPackaged
   ? process.resourcesPath
   : path.join(__dirname, '..', 'desktop-build');
 
+// La carpeta de datos sigue llamándose como el paquete (no como el nombre comercial): si cambiara, al
+// actualizar parecería que se perdió pos.db. Fijada a mano para que ningún cambio de productName la mueva.
+app.setPath('userData', path.join(app.getPath('appData'), 'restaurante-san-andres'));
 const dataDir = app.getPath('userData');
 const logsDir = path.join(dataDir, 'logs');
 const dbPath = path.join(dataDir, 'pos.db');
@@ -77,7 +75,11 @@ function fatal(title, err) {
 function loadConfig() {
   const file = path.join(dataDir, 'config.json');
   try {
-    return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
+    const guardado = JSON.parse(fs.readFileSync(file, 'utf8'));
+    // Instalaciones anteriores a AKROS Café: pasar los datos de ejemplo viejos a los nuevos (no pisa lo editado).
+    const { config, cambio } = migrarNegocio(guardado);
+    if (cambio) fs.writeFileSync(file, JSON.stringify(config, null, 2));
+    return { ...DEFAULT_CONFIG, ...config };
   } catch {
     fs.writeFileSync(file, JSON.stringify(DEFAULT_CONFIG, null, 2));
     return { ...DEFAULT_CONFIG };
@@ -118,7 +120,7 @@ function startServer(config) {
   serverProcess = utilityProcess.fork(serverJs, [], {
     cwd: serverDir,
     stdio: 'pipe',
-    serviceName: 'San Andres POS Server',
+    serviceName: 'AKROS POS Server',
     env: {
       ...process.env,
       NODE_ENV: 'production',
@@ -127,6 +129,9 @@ function startServer(config) {
       DATABASE_URL: `file:${dbPath.replace(/\\/g, '/')}`,
       UPLOADS_DIR: uploadsDir,
       SESSION_SECRET: getSessionSecret(),
+      NEGOCIO_NOMBRE: (config.negocio && config.negocio.nombre) || '',
+      NEGOCIO_CUIT: (config.negocio && config.negocio.cuit) || '',
+      NEGOCIO_DIRECCION: (config.negocio && config.negocio.direccion) || '',
       NEXT_TELEMETRY_DISABLED: '1',
     },
   });
@@ -170,7 +175,7 @@ function waitForServer(url, timeoutMs = 60000) {
 const SPLASH = `data:text/html;charset=utf-8,${encodeURIComponent(`
   <body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
                background:#09090b;color:#e4e4e7;font-family:Segoe UI,sans-serif">
-    <div style="text-align:center"><h1 style="font-weight:600">Restaurante San Andrés</h1>
+    <div style="text-align:center"><h1 style="font-weight:600">AKROS Café</h1>
     <p style="color:#a1a1aa">Iniciando sistema…</p></div>
   </body>`)}`;
 

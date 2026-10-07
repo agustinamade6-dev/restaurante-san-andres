@@ -1,6 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useApi } from '@/hooks/useApi';
+import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
+import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
 import {
   Plus,
   Pencil,
@@ -11,7 +16,11 @@ import {
   UtensilsCrossed,
   Image as ImageIcon,
   Upload,
+  ClipboardList,
 } from 'lucide-react';
+import RecetaModal from './RecetaModal';
+import { formatPesos } from '@/utils/dinero';
+import { useDialogo } from '@/hooks/useDialogo';
 
 interface Producto {
   id: number;
@@ -30,12 +39,19 @@ interface Categoria {
 }
 
 export default function MenuPage() {
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const { data: productos, error: errorProductos, recargar: recargarProductos } = useApi<Producto[]>('/api/productos', []);
+  const { data: categorias, error: errorCategorias, recargar: recargarCategorias } = useApi<Categoria[]>('/api/categorias', []);
   const [busqueda, setBusqueda] = useState('');
+  const { ejecutar, enviando } = useEnvio();
   const [catFiltro, setCatFiltro] = useState<number | null>(null);
   const [modal, setModal] = useState(false);
+  // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
+  const [errorModal, setErrorModal] = useState('');
+  const [errorLista, setErrorLista] = useState('');
+  // Producto que no se pudo eliminar: se ofrece marcarlo como no disponible
+  const [noEliminado, setNoEliminado] = useState<Producto | null>(null);
   const [editando, setEditando] = useState<Producto | null>(null);
+  const dlgProducto = useDialogo(editando ? 'Editar producto' : 'Nuevo producto', () => setModal(false));
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
@@ -45,6 +61,7 @@ export default function MenuPage() {
     imagen: '',
   });
   const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const [recetaDe, setRecetaDe] = useState<Producto | null>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,18 +92,10 @@ export default function MenuPage() {
     }
   };
 
-  const fetchData = useCallback(async () => {
-    const [prodRes, catRes] = await Promise.all([
-      fetch('/api/productos'),
-      fetch('/api/categorias'),
-    ]);
-    setProductos(await prodRes.json());
-    setCategorias(await catRes.json());
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const fetchData = () => {
+    recargarProductos();
+    recargarCategorias();
+  };
 
   const abrirModal = (producto?: Producto) => {
     if (producto) {
@@ -105,37 +114,59 @@ export default function MenuPage() {
         nombre: '',
         descripcion: '',
         precio: 0,
-        categoriaId: categorias[0]?.id || 1,
+        categoriaId: categorias[0]?.id ?? 0,
         disponible: true,
         imagen: '🍽️',
       });
     }
+    setErrorModal('');
     setModal(true);
   };
 
-  const guardar = async () => {
-    if (editando) {
-      await fetch('/api/productos', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editando.id, ...form }),
-      });
-    } else {
-      await fetch('/api/productos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-    }
+  const guardar = () => ejecutar(async () => {
+    setErrorModal('');
+    const error = editando
+      ? await enviarJson('/api/productos', 'PUT', { id: editando.id, ...form }, 'No se pudo guardar el producto')
+      : await enviarJson('/api/productos', 'POST', form, 'No se pudo crear el producto');
+    if (error) return setErrorModal(error);
     setModal(false);
+    fetchData();
+  });
+
+  const eliminar = async (producto: Producto) => {
+    if (!confirm('¿Eliminar este producto?')) return;
+    cerrarAvisoLista();
+    const error = await enviar(`/api/productos?id=${producto.id}`, { method: 'DELETE' }, 'No se pudo eliminar el producto');
+    if (error) {
+      setErrorLista(error);
+      // Un producto ya vendido no se borra; sacarlo de la venta es marcarlo como no disponible.
+      if (producto.disponible) setNoEliminado(producto);
+      return;
+    }
     fetchData();
   };
 
-  const eliminar = async (id: number) => {
-    if (!confirm('¿Eliminar este producto?')) return;
-    await fetch(`/api/productos?id=${id}`, { method: 'DELETE' });
+  const marcarNoDisponible = async () => {
+    if (!noEliminado) return;
+    const error = await enviarJson('/api/productos', 'PUT', { id: noEliminado.id, disponible: false }, 'No se pudo marcar como no disponible');
+    setNoEliminado(null);
+    setErrorLista(error ?? '');
     fetchData();
   };
+
+  const cerrarAvisoLista = () => {
+    setErrorLista('');
+    setNoEliminado(null);
+  };
+
+  // Lo que falta para poder guardar (el servidor lo rechazaría igual)
+  const faltaParaGuardar = !form.nombre.trim()
+    ? 'Falta el nombre'
+    : !(form.precio > 0)
+      ? 'El precio debe ser mayor que 0'
+      : !categorias.some((c) => c.id === form.categoriaId)
+        ? 'Elegí una categoría'
+        : '';
 
   const filtrados = productos.filter((p) => {
     if (catFiltro && p.categoriaId !== catFiltro) return false;
@@ -193,6 +224,14 @@ export default function MenuPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorProductos} que="los productos" onReintentar={recargarProductos} />
+      <ErrorDeCarga error={errorCategorias} que="las categorías" onReintentar={recargarCategorias} />
+      <AvisoError
+        mensaje={errorLista}
+        onCerrar={cerrarAvisoLista}
+        accion={noEliminado ? { texto: 'Marcar como no disponible', onClick: marcarNoDisponible } : undefined}
+      />
+
       {/* Table */}
       <div className="glass-card overflow-hidden">
         <table className="w-full">
@@ -244,7 +283,7 @@ export default function MenuPage() {
                 </td>
                 <td className="p-4 text-right">
                   <span className="font-bold text-amber-400">
-                    ${p.precio.toLocaleString()}
+                    {formatPesos(p.precio)}
                   </span>
                 </td>
                 <td className="p-4 text-center">
@@ -258,15 +297,22 @@ export default function MenuPage() {
                 </td>
                 <td className="p-4">
                   <div className="flex items-center justify-end gap-2">
-                    <button
+                    <button aria-label={`Receta de ${p.nombre}`}
+                      onClick={() => setRecetaDe(p)}
+                      title="Receta (insumos que descuenta del stock)"
+                      className="w-8 h-8 rounded-lg bg-[var(--background)] text-amber-400 border border-[var(--border)] flex items-center justify-center hover:bg-amber-500 hover:text-white transition-colors min-w-11 min-h-11"
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
+                    </button>
+                    <button aria-label={`Editar ${p.nombre}`}
                       onClick={() => abrirModal(p)}
-                      className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors"
+                      className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info-text)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors min-w-11 min-h-11"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <button
-                      onClick={() => eliminar(p.id)}
-                      className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors"
+                    <button aria-label={`Eliminar ${p.nombre}`}
+                      onClick={() => eliminar(p)}
+                      className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors min-w-11 min-h-11"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -280,16 +326,16 @@ export default function MenuPage() {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div {...dlgProducto} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-md p-6 animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <UtensilsCrossed className="w-5 h-5 text-amber-400" />
                 {editando ? 'Editar Producto' : 'Nuevo Producto'}
               </h2>
-              <button
+              <button aria-label="Cerrar"
                 onClick={() => setModal(false)}
-                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors"
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors min-w-11 min-h-11"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -440,6 +486,9 @@ export default function MenuPage() {
               </div>
             </div>
 
+            {errorModal && <p role="alert" className="text-sm text-[var(--danger-text)] mt-4">{errorModal}</p>}
+            {!errorModal && faltaParaGuardar && <p className="text-sm text-[var(--muted)] mt-4">{faltaParaGuardar}</p>}
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setModal(false)}
@@ -447,7 +496,7 @@ export default function MenuPage() {
               >
                 Cancelar
               </button>
-              <button onClick={guardar} className="btn btn-primary flex-1">
+              <button onClick={guardar} disabled={!!faltaParaGuardar || enviando} className="btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Save className="w-4 h-4" />
                 Guardar
               </button>
@@ -455,6 +504,8 @@ export default function MenuPage() {
           </div>
         </div>
       )}
+
+      {recetaDe && <RecetaModal producto={recetaDe} onClose={() => setRecetaDe(null)} />}
     </div>
   );
 }

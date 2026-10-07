@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { transaccion } from '@/lib/transaccion';
 import { ApiError } from '@/lib/api-error';
-import { roundMoney } from '@/lib/money';
-import { PREFIJO_ANULACION, esAnulacion } from '@/lib/ventas';
+import { aPesos, enPesos } from '@/lib/money';
+import { PREFIJO_ANULACION, esAnulacion, prefijoFecha as prefijoDeFecha } from '@/lib/ventas';
+import { formatPesos } from '@/utils/dinero';
+import { reintegrarStockDeVenta } from '@/lib/stock';
 
 const bodySchema = z.object({
   motivo: z.string().trim().min(3, 'El motivo es obligatorio (mínimo 3 caracteres)').max(500),
@@ -43,9 +45,9 @@ export async function POST(
     const usuarioId = auth.session.id;
 
     const hoy = new Date();
-    const prefijoFecha = `${hoy.getFullYear()}${(hoy.getMonth() + 1).toString().padStart(2, '0')}${hoy.getDate().toString().padStart(2, '0')}`;
+    const prefijoFecha = prefijoDeFecha(hoy);
 
-    const { original, anulacion } = await prisma.$transaction(async (tx) => {
+    const { original, anulacion } = await transaccion(async (tx) => {
       // Escritura inicial neutra: toma el lock de escritura para que dos anulaciones simultáneas se serialicen.
       const claimed = await tx.venta.updateMany({ where: { id: ventaId }, data: { total: { increment: 0 } } });
       if (claimed.count === 0) throw new ApiError(404, 'Venta no encontrada');
@@ -70,8 +72,8 @@ export async function POST(
           pedidoId: original.pedidoId,
           mesaId: original.mesaId,
           mesaNumero: original.mesaNumero,
-          total: roundMoney(-original.total),
-          propina: roundMoney(-original.propina),
+          total: -original.total,
+          propina: -original.propina,
           metodoPago: original.metodoPago,
           cajeroId: usuarioId,
           numeroTicket,
@@ -80,12 +82,15 @@ export async function POST(
         },
       });
 
+      // Devuelve al stock exactamente lo que descontó el cobro original.
+      await reintegrarStockDeVenta(tx, { ventaOriginalId: original.id, anulacionId: anulacion.id, usuarioId });
+
       if (original.pedidoId) {
         await tx.historialPedido.create({
           data: {
             pedidoId: original.pedidoId,
             accion: 'VENTA_ANULADA',
-            detalle: `Venta ${original.numeroTicket || `#${original.id}`} anulada por $${original.total.toLocaleString()}`,
+            detalle: `Venta ${original.numeroTicket || `#${original.id}`} anulada por ${formatPesos(aPesos(original.total))}`,
             motivo,
             usuarioId,
           },
@@ -97,8 +102,8 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      anulacion,
-      ventaOriginal: { id: original.id, numeroTicket: original.numeroTicket, total: original.total },
+      anulacion: enPesos(anulacion),
+      ventaOriginal: { id: original.id, numeroTicket: original.numeroTicket, total: aPesos(original.total) },
     });
   } catch (error) {
     if (error instanceof ApiError) {
