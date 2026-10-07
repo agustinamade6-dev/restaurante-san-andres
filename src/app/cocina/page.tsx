@@ -194,7 +194,7 @@ export default function CocinaPage() {
                   pedido.estado === 'pendiente'
                     ? 'bg-[var(--warning-bg)] text-[var(--warning)]'
                     : pedido.estado === 'preparando'
-                    ? 'bg-[var(--info-bg)] text-[var(--info)]'
+                    ? 'bg-[var(--info-bg)] text-[var(--info-text)]'
                     : 'bg-[var(--success-bg)] text-[var(--success)]'
                 }`}
               >
@@ -362,7 +362,7 @@ export default function CocinaPage() {
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--info-bg)]">
             <span className="w-2 h-2 rounded-full bg-[var(--info)]" />
-            <span className="text-sm font-semibold text-[var(--info)]">
+            <span className="text-sm font-semibold text-[var(--info-text)]">
               {pedidosPreparando.length} Preparando
             </span>
           </div>
@@ -411,9 +411,9 @@ export default function CocinaPage() {
         {/* Preparando */}
         <div>
           <div className="flex items-center gap-2 mb-4 px-2">
-            <Flame className="w-5 h-5 text-[var(--info)]" />
+            <Flame className="w-5 h-5 text-[var(--info-text)]" />
             <h2 className="font-bold text-lg">En Preparación</h2>
-            <span className="ml-auto w-7 h-7 rounded-full bg-[var(--info-bg)] text-[var(--info)] text-sm font-bold flex items-center justify-center">
+            <span className="ml-auto w-7 h-7 rounded-full bg-[var(--info-bg)] text-[var(--info-text)] text-sm font-bold flex items-center justify-center">
               {pedidosPreparando.length}
             </span>
           </div>

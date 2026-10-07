@@ -6,7 +6,7 @@
   --card: #1a1d27;
   --card-hover: #22252f;
   --border: #2a2d3a;
-  --muted: #6b7280;
+  --muted: #9399a6; /* 4.5:1 o más sobre todos los fondos (WCAG AA); antes #6b7280 daba 2.8-3.9 */
   --accent: #f59e0b;
   --accent-hover: #d97706;
   --accent-glow: rgba(245, 158, 11, 0.15);
@@ -16,8 +16,11 @@
   --warning-bg: rgba(245, 158, 11, 0.12);
   --danger: #ef4444;
   --danger-bg: rgba(239, 68, 68, 0.12);
+  /* Variante para TEXTO sobre fondos oscuros: --danger se queda para fondos y bordes (botones con texto blanco). */
+  --danger-text: #f87171;
   --info: #3b82f6;
   --info-bg: rgba(59, 130, 246, 0.12);
+  --info-text: #60a5fa;
   --purple: #a855f7;
   --purple-bg: rgba(168, 85, 247, 0.12);
 }
@@ -125,7 +128,7 @@ body {
 }
 .badge-ocupada {
   background: var(--danger-bg);
-  color: var(--danger);
+  color: var(--danger-text);
 }
 .badge-esperando {
   background: var(--warning-bg);
@@ -137,7 +140,7 @@ body {
 }
 .badge-preparando {
   background: var(--info-bg);
-  color: var(--info);
+  color: var(--info-text);
 }
 .badge-listo {
   background: var(--success-bg);
@@ -178,26 +181,28 @@ body {
 .btn-secondary:hover {
   background: var(--card-hover);
 }
+/* Botones con texto blanco: fondos un tono más oscuro que el color de estado para llegar a 4.5:1 (WCAG AA).
+   Con var(--success) / var(--danger) / var(--info) daban 2.3 / 3.8 / 3.7. */
 .btn-success {
-  background: var(--success);
+  background: #15803d;
   color: #fff;
 }
 .btn-success:hover {
-  background: #16a34a;
+  background: #166534;
 }
 .btn-danger {
-  background: var(--danger);
+  background: #dc2626;
   color: #fff;
 }
 .btn-danger:hover {
-  background: #dc2626;
+  background: #b91c1c;
 }
 .btn-info {
-  background: var(--info);
+  background: #2563eb;
   color: #fff;
 }
 .btn-info:hover {
-  background: #2563eb;
+  background: #1d4ed8;
 }
 .btn-sm {
   padding: 8px 16px;

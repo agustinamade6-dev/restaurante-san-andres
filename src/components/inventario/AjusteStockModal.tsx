@@ -141,7 +141,7 @@ export default function AjusteStockModal({
           {resultado.ok && (
             <p className="text-sm" aria-live="polite">
               Va a quedar en{' '}
-              <span className={`font-bold ${resultado.quedaNegativo ? 'text-[var(--danger)]' : ''}`}>
+              <span className={`font-bold ${resultado.quedaNegativo ? 'text-[var(--danger-text)]' : ''}`}>
                 {resultado.stockNuevo} {insumo.unidad}
               </span>
             </p>
@@ -153,7 +153,7 @@ export default function AjusteStockModal({
             </p>
           )}
           {errorVisible && (
-            <p role="alert" className="text-sm text-[var(--danger)]">
+            <p role="alert" className="text-sm text-[var(--danger-text)]">
               {errorVisible}
             </p>
           )}

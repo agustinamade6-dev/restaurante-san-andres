@@ -170,7 +170,7 @@ export default function RecetaModal({ producto, onClose }: Props) {
                 <span className="text-xs text-[var(--muted)] w-14">{insumoDe(linea.insumoId)?.unidad}</span>
                 <button aria-label="Quitar insumo de la receta"
                   onClick={() => setLineas((ls) => ls.filter((_, i) => i !== idx))}
-                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors shrink-0 min-w-11 min-h-11"
+                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors shrink-0 min-w-11 min-h-11"
                   title="Quitar"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -198,7 +198,7 @@ export default function RecetaModal({ producto, onClose }: Props) {
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Margen</p>
-                <p className={`font-bold ${margen < 0 ? 'text-[var(--danger)]' : 'text-amber-400'}`}>
+                <p className={`font-bold ${margen < 0 ? 'text-[var(--danger-text)]' : 'text-amber-400'}`}>
                   {formatPesos(Math.round(margen))}
                 </p>
               </div>
@@ -206,7 +206,7 @@ export default function RecetaModal({ producto, onClose }: Props) {
           </div>
         )}
 
-        {error && <p className="text-sm text-[var(--danger)] mt-4">{error}</p>}
+        {error && <p className="text-sm text-[var(--danger-text)] mt-4">{error}</p>}
 
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="btn btn-secondary flex-1">

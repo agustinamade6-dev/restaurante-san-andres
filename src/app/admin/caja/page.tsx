@@ -245,7 +245,7 @@ export default function CajaPage() {
                           ) : (
                             <button
                               onClick={() => abrirAnular(v)}
-                              className="px-3 py-1 rounded-lg text-xs font-bold text-red-500 border border-red-500/30 hover:bg-red-500/10 transition-colors inline-flex items-center gap-1"
+                              className="px-3 py-1 rounded-lg text-xs font-bold text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors inline-flex items-center gap-1"
                             >
                               <Ban className="w-3 h-3" />
                               Anular

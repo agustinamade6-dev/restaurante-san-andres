@@ -607,19 +607,19 @@ ${pie}`
               <div className="flex bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden shadow-inner">
                 <button 
                   onClick={() => setFiltroZona('todas')}
-                  className={`px-4 py-2 text-xs font-bold transition-colors ${filtroZona === 'todas' ? 'bg-indigo-500/20 text-indigo-400' : 'text-[var(--muted)] hover:bg-[var(--card-hover)]'}`}
+                  className={`px-4 py-2 text-xs font-bold transition-colors ${filtroZona === 'todas' ? 'bg-indigo-500/20 text-indigo-300' : 'text-[var(--muted)] hover:bg-[var(--card-hover)]'}`}
                 >
                   Todos los Sectores
                 </button>
                 <button 
                   onClick={() => setFiltroZona('salon')}
-                  className={`px-4 py-2 text-xs font-bold transition-colors border-l border-[var(--border)] ${filtroZona === 'salon' ? 'bg-indigo-500/20 text-indigo-400' : 'text-[var(--muted)] hover:bg-[var(--card-hover)]'}`}
+                  className={`px-4 py-2 text-xs font-bold transition-colors border-l border-[var(--border)] ${filtroZona === 'salon' ? 'bg-indigo-500/20 text-indigo-300' : 'text-[var(--muted)] hover:bg-[var(--card-hover)]'}`}
                 >
                   Salón Principal
                 </button>
                 <button 
                   onClick={() => setFiltroZona('barra')}
-                  className={`px-4 py-2 text-xs font-bold transition-colors border-l border-[var(--border)] ${filtroZona === 'barra' ? 'bg-indigo-500/20 text-indigo-400' : 'text-[var(--muted)] hover:bg-[var(--card-hover)]'}`}
+                  className={`px-4 py-2 text-xs font-bold transition-colors border-l border-[var(--border)] ${filtroZona === 'barra' ? 'bg-indigo-500/20 text-indigo-300' : 'text-[var(--muted)] hover:bg-[var(--card-hover)]'}`}
                 >
                   Barra
                 </button>
