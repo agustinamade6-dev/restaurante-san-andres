@@ -80,7 +80,8 @@ export default function AdminLayout({
         <div className="p-3 border-t border-[var(--border)] flex flex-col gap-2">
           <button 
             onClick={async () => {
-              await fetch('/api/auth/logout', { method: 'POST' });
+              // Aunque el servidor no responda, se vuelve al inicio (la cookie vence sola).
+              await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
               window.location.href = '/';
             }}
             className="nav-link text-red-400 hover:text-red-300 hover:bg-red-500/10 w-full text-left"

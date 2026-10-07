@@ -22,6 +22,8 @@ import {
 import { useSSE } from '@/hooks/useSSE';
 import { useAhora } from '@/hooks/useAhora';
 import { useApi } from '@/hooks/useApi';
+import { useAviso } from '@/hooks/useAviso';
+import { useEnvio } from '@/hooks/useEnvio';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviarJson } from '@/lib/api-cliente';
 
@@ -56,24 +58,22 @@ interface Pedido {
 }
 
 export default function CocinaPage() {
-  const [nuevoPedido, setNuevoPedido] = useState(false);
+  const { aviso: nuevoPedido, mostrar: mostrarNuevoPedido } = useAviso<boolean>();
   const [modalEditId, setModalEditId] = useState<number | null>(null);
   const [modalHistoryId, setModalHistoryId] = useState<number | null>(null);
   const [modalEntregadosOpen, setModalEntregadosOpen] = useState(false);
   const [modalCancelarId, setModalCancelarId] = useState<number | null>(null);
   const [motivoCambio, setMotivoCambio] = useState('');
-  const [isCancelling, setIsCancelling] = useState(false);
   const [historialTab, setHistorialTab] = useState<'entregados' | 'cancelados'>('entregados');
   // Errores de la API: aviso flotante para acciones sobre la grilla; el de cancelar va en su modal.
-  const [aviso, setAviso] = useState('');
+  const { aviso, mostrar: mostrarAviso, ocultar: ocultarAviso } = useAviso<string>();
+  // Una acción a la vez por pedido: el segundo toque (antes del re-render) se ignora.
+  const { ejecutar, ocupado } = useEnvio();
   const [errorCancelar, setErrorCancelar] = useState('');
   // Hora que avanza sola: refresca "hace X min" y la marca de demorado aunque no lleguen eventos
   const ahora = useAhora();
 
-  const mostrarError = useCallback((mensaje: string) => {
-    setAviso(mensaje);
-    setTimeout(() => setAviso((actual) => (actual === mensaje ? '' : actual)), 5000);
-  }, []);
+  const mostrarError = useCallback((mensaje: string) => mostrarAviso(mensaje, 5000), [mostrarAviso]);
 
   const { data: pedidos, error: errorPedidos, recargar: fetchPedidos } = useApi<Pedido[]>('/api/pedidos', []);
   // Los modales guardan solo el id y leen el pedido de la lista actual: así muestran cada cambio
@@ -93,12 +93,11 @@ export default function CocinaPage() {
     useCallback(
       (data: { event: string }) => {
         if (data.event === 'pedido:nuevo') {
-          setNuevoPedido(true);
-          setTimeout(() => setNuevoPedido(false), 3000);
+          mostrarNuevoPedido(true, 3000);
         }
         fetchPedidos();
       },
-      [fetchPedidos]
+      [fetchPedidos, mostrarNuevoPedido]
     ),
     // Al volver la conexión: lo que pasó mientras estuvo caída no llegó por SSE.
     useCallback(() => {
@@ -108,7 +107,7 @@ export default function CocinaPage() {
     }, [fetchPedidos, fetchProductos, fetchEntregados])
   );
 
-  const handleModifyItem = async (pedidoId: number, action: string, data: Record<string, unknown>) => {
+  const handleModifyItem = (pedidoId: number, action: string, data: Record<string, unknown>) => ejecutar(async () => {
     const error = await enviarJson(
       `/api/pedidos/${pedidoId}/items`,
       'PATCH',
@@ -118,18 +117,20 @@ export default function CocinaPage() {
     if (error) mostrarError(error);
     setMotivoCambio('');
     fetchPedidos();
-  };
+  }, pedidoId);
 
   /** Devuelve true si el servidor aceptó el cambio; si no, muestra su error. */
   const cambiarEstado = async (pedidoId: number, nuevoEstado: string): Promise<boolean> => {
-    const error = await enviarJson('/api/pedidos', 'PATCH', { id: pedidoId, estado: nuevoEstado }, 'No se pudo cambiar el estado del pedido');
-    if (error) mostrarError(error);
-    fetchPedidos();
-    return !error;
+    const aceptado = await ejecutar(async () => {
+      const error = await enviarJson('/api/pedidos', 'PATCH', { id: pedidoId, estado: nuevoEstado }, 'No se pudo cambiar el estado del pedido');
+      if (error) mostrarError(error);
+      fetchPedidos();
+      return !error;
+    }, pedidoId);
+    return aceptado ?? false; // undefined = ya había una acción en curso sobre ese pedido
   };
 
-  const handleCancelarPedido = async (pedidoId: number) => {
-    setIsCancelling(true);
+  const handleCancelarPedido = (pedidoId: number) => ejecutar(async () => {
     setErrorCancelar('');
     try {
       const res = await fetch(`/api/pedidos/${pedidoId}/cancel`, {
@@ -147,10 +148,8 @@ export default function CocinaPage() {
       }
     } catch {
       setErrorCancelar('No se pudo conectar con el servidor');
-    } finally {
-      setIsCancelling(false);
     }
-  };
+  }, pedidoId);
 
   const tiempoTranscurrido = (fecha: string) => {
     const diff = ahora - new Date(fecha).getTime();
@@ -264,6 +263,7 @@ export default function CocinaPage() {
         {pedido.estado === 'pendiente' && (
           <button
             onClick={() => cambiarEstado(pedido.id, 'preparando')}
+            disabled={ocupado(pedido.id)}
             className="btn btn-info w-full text-base py-4 font-black shadow-lg hover:shadow-cyan-500/20 active:scale-95 transition-all"
           >
             <Flame className="w-5 h-5 mr-1" />
@@ -273,6 +273,7 @@ export default function CocinaPage() {
         {pedido.estado === 'preparando' && (
           <button
             onClick={() => cambiarEstado(pedido.id, 'listo')}
+            disabled={ocupado(pedido.id)}
             className="btn btn-success w-full text-base py-4 font-black shadow-lg hover:shadow-green-500/20 active:scale-95 transition-all"
           >
             <CheckCircle2 className="w-5 h-5 mr-1" />
@@ -282,6 +283,7 @@ export default function CocinaPage() {
         {pedido.estado === 'listo' && (
           <button
             onClick={() => cambiarEstado(pedido.id, 'entregado')}
+            disabled={ocupado(pedido.id)}
             className="btn btn-primary w-full text-base py-4 font-black shadow-lg hover:shadow-blue-500/20 active:scale-95 transition-all opacity-80"
           >
             <CheckCircle2 className="w-5 h-5 mr-1" />
@@ -308,7 +310,7 @@ export default function CocinaPage() {
         <div role="alert" className="fixed top-20 right-4 z-50 max-w-sm px-6 py-4 rounded-xl bg-[var(--danger)] text-white text-sm font-bold shadow-2xl animate-slide-in flex items-center gap-2">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <span className="flex-1">{aviso}</span>
-          <button onClick={() => setAviso('')} aria-label="Cerrar aviso" className="p-1 rounded hover:bg-white/20">
+          <button onClick={ocultarAviso} aria-label="Cerrar aviso" className="p-1 rounded hover:bg-white/20">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -318,7 +320,8 @@ export default function CocinaPage() {
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={async () => {
-            await fetch('/api/auth/logout', { method: 'POST' });
+            // Aunque el servidor no responda, se vuelve al inicio (la cookie vence sola).
+            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
             window.location.href = '/';
           }}
           className="w-10 h-10 rounded-xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors shadow-sm text-[var(--muted)]"
@@ -464,15 +467,15 @@ export default function CocinaPage() {
                         <div className="text-xs text-[var(--muted)]">{item.notas || 'Sin notas'}</div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: Math.max(1, item.cantidad - 1) })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-400">
+                        <button disabled={ocupado(modalEditOpen.id)} onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: Math.max(1, item.cantidad - 1) })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-400">
                           <Minus className="w-4 h-4" />
                         </button>
                         <span className="font-bold w-6 text-center">{item.cantidad}</span>
-                        <button onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: item.cantidad + 1 })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-green-500/20 text-green-400">
+                        <button disabled={ocupado(modalEditOpen.id)} onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: item.cantidad + 1 })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-green-500/20 text-green-400">
                           <Plus className="w-4 h-4" />
                         </button>
                         <div className="w-[1px] h-6 bg-[var(--border)] mx-1"></div>
-                        <button onClick={() => { if(confirm('¿Eliminar este plato?')) handleModifyItem(modalEditOpen.id, 'REMOVE_ITEM', { itemId: item.id }) }} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-500">
+                        <button disabled={ocupado(modalEditOpen.id)} onClick={() => { if(confirm('¿Eliminar este plato?')) handleModifyItem(modalEditOpen.id, 'REMOVE_ITEM', { itemId: item.id }) }} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-500">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -497,7 +500,7 @@ export default function CocinaPage() {
                       handleModifyItem(modalEditOpen.id, 'ADD_ITEM', { productoId: parseInt(sel.value, 10), cantidad: 1 });
                       sel.value = '';
                     }
-                  }} className="btn btn-primary px-6 rounded-xl">
+                  }} disabled={ocupado(modalEditOpen.id)} className="btn btn-primary px-6 rounded-xl">
                     Añadir
                   </button>
                 </div>
@@ -710,11 +713,11 @@ export default function CocinaPage() {
                 </button>
                 <button 
                   onClick={() => handleCancelarPedido(modalCancelarOpen.id)} 
-                  disabled={isCancelling}
+                  disabled={ocupado(modalCancelarOpen.id)}
                   className="flex-1 btn bg-red-500 text-white py-3 font-black shadow-lg hover:bg-red-600 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Trash2 className="w-5 h-5" />
-                  {isCancelling ? 'CANCELANDO...' : 'SÍ, CANCELAR'}
+                  {ocupado(modalCancelarOpen.id) ? 'CANCELANDO...' : 'SÍ, CANCELAR'}
                 </button>
               </div>
             </div>

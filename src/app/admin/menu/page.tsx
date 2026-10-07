@@ -5,6 +5,7 @@ import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
 import {
   Plus,
   Pencil,
@@ -39,6 +40,7 @@ export default function MenuPage() {
   const { data: productos, error: errorProductos, recargar: recargarProductos } = useApi<Producto[]>('/api/productos', []);
   const { data: categorias, error: errorCategorias, recargar: recargarCategorias } = useApi<Categoria[]>('/api/categorias', []);
   const [busqueda, setBusqueda] = useState('');
+  const { ejecutar, enviando } = useEnvio();
   const [catFiltro, setCatFiltro] = useState<number | null>(null);
   const [modal, setModal] = useState(false);
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
@@ -118,7 +120,7 @@ export default function MenuPage() {
     setModal(true);
   };
 
-  const guardar = async () => {
+  const guardar = () => ejecutar(async () => {
     setErrorModal('');
     const error = editando
       ? await enviarJson('/api/productos', 'PUT', { id: editando.id, ...form }, 'No se pudo guardar el producto')
@@ -126,7 +128,7 @@ export default function MenuPage() {
     if (error) return setErrorModal(error);
     setModal(false);
     fetchData();
-  };
+  });
 
   const eliminar = async (producto: Producto) => {
     if (!confirm('¿Eliminar este producto?')) return;
@@ -491,7 +493,7 @@ export default function MenuPage() {
               >
                 Cancelar
               </button>
-              <button onClick={guardar} disabled={!!faltaParaGuardar} className="btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={guardar} disabled={!!faltaParaGuardar || enviando} className="btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Save className="w-4 h-4" />
                 Guardar
               </button>

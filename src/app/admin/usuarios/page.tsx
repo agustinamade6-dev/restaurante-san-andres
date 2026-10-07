@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useApi } from '@/hooks/useApi';
+import { useAviso } from '@/hooks/useAviso';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { User, CheckCircle2, AlertTriangle, Shield, KeyRound, Eye, EyeOff, X, Delete } from 'lucide-react';
 
@@ -26,7 +27,7 @@ export default function UsuariosPage() {
   const [error, setError] = useState('');
 
   // Toast State
-  const [toastMessage, setToastMessage] = useState('');
+  const { aviso: toastMessage, mostrar: mostrarToast } = useAviso<string>();
 
   const openPinModal = (user: Usuario) => {
     setSelectedUser(user);
@@ -86,8 +87,7 @@ export default function UsuariosPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setToastMessage(`PIN de ${selectedUser.nombre} actualizado con éxito`);
-        setTimeout(() => setToastMessage(''), 3000);
+        mostrarToast(`PIN de ${selectedUser.nombre} actualizado con éxito`, 3000);
         closePinModal();
         fetchUsuarios(); // Refresh just in case
       } else {

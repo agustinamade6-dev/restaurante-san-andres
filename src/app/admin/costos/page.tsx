@@ -5,6 +5,7 @@ import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
 import {
   Plus,
   Trash2,
@@ -27,6 +28,7 @@ export default function CostosPage() {
   const [modal, setModal] = useState(false);
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
   const [errorModal, setErrorModal] = useState('');
+  const { ejecutar, enviando } = useEnvio();
   const [errorLista, setErrorLista] = useState('');
   const [form, setForm] = useState({
     concepto: '',
@@ -37,14 +39,14 @@ export default function CostosPage() {
 
   const { data: costos, error: errorCarga, recargar: fetchCostos } = useApi<CostoFijo[]>('/api/costos', []);
 
-  const guardar = async () => {
+  const guardar = () => ejecutar(async () => {
     setErrorModal('');
     const error = await enviarJson('/api/costos', 'POST', form, 'No se pudo guardar el costo');
     if (error) return setErrorModal(error);
     setModal(false);
     setForm({ concepto: '', monto: 0, tipo: 'fijo', periodicidad: 'mensual' });
     fetchCostos();
-  };
+  });
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar este costo?')) return;
@@ -303,7 +305,7 @@ export default function CostosPage() {
               >
                 Cancelar
               </button>
-              <button onClick={guardar} className="btn btn-primary flex-1">
+              <button onClick={guardar} disabled={enviando} className="btn btn-primary flex-1 disabled:opacity-50">
                 <Save className="w-4 h-4" />
                 Guardar
               </button>

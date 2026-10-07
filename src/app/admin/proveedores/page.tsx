@@ -5,6 +5,7 @@ import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
+import { useEnvio } from '@/hooks/useEnvio';
 import {
   Plus,
   Pencil,
@@ -31,6 +32,7 @@ interface Proveedor {
 
 export default function ProveedoresPage() {
   const [modal, setModal] = useState(false);
+  const { ejecutar, enviando } = useEnvio();
   // Errores de la API: el del modal deja el formulario abierto; el de la lista va arriba de ella.
   const [errorModal, setErrorModal] = useState('');
   const [errorLista, setErrorLista] = useState('');
@@ -72,7 +74,7 @@ export default function ProveedoresPage() {
     setModal(true);
   };
 
-  const guardar = async () => {
+  const guardar = () => ejecutar(async () => {
     setErrorModal('');
     const error = editando
       ? await enviarJson('/api/proveedores', 'PUT', { id: editando.id, ...form }, 'No se pudo guardar el proveedor')
@@ -80,7 +82,7 @@ export default function ProveedoresPage() {
     if (error) return setErrorModal(error);
     setModal(false);
     fetchProveedores();
-  };
+  });
 
   const eliminar = async (id: number) => {
     if (!confirm('¿Eliminar este proveedor?')) return;
@@ -287,7 +289,7 @@ export default function ProveedoresPage() {
               >
                 Cancelar
               </button>
-              <button onClick={guardar} className="btn btn-primary flex-1">
+              <button onClick={guardar} disabled={enviando} className="btn btn-primary flex-1 disabled:opacity-50">
                 <Save className="w-4 h-4" />
                 Guardar
               </button>

@@ -31,6 +31,8 @@ import {
 import { useSSE } from '@/hooks/useSSE';
 import { enviarJson } from '@/lib/api-cliente';
 import { useApi } from '@/hooks/useApi';
+import { useAviso } from '@/hooks/useAviso';
+import { useEnvio } from '@/hooks/useEnvio';
 import { conservarPosiciones } from '@/utils/mesas';
 import { documentoImpresion, html, imprimir } from '@/utils/html';
 
@@ -127,11 +129,10 @@ export default function ComandasPage() {
   const [comanda, setComanda] = useState<ItemComanda[]>([]);
   const [notaItem, setNotaItem] = useState<{ [key: number]: string }>({});
   const [mostrarNotas, setMostrarNotas] = useState<number | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const [notificacion, setNotificacion] = useState<{
-    msg: string;
-    tipo: string;
-  } | null>(null);
+  // Un solo envío a la vez por acción: el segundo clic (antes del re-render) se ignora.
+  const { ejecutar: ejecutarAccion, ocupado } = useEnvio();
+  const enviando = ocupado('comanda');
+  const { aviso: notificacion, mostrar: mostrarAviso } = useAviso<{ msg: string; tipo: string }>();
 
   const [isEditorMode, setIsEditorMode] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -151,7 +152,7 @@ export default function ComandasPage() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [propina, setPropina] = useState(0);
-  const [procesandoCobro, setProcesandoCobro] = useState(false);
+  const procesandoCobro = ocupado('cobro');
   const [ticketData, setTicketData] = useState<{ ticketCliente: Ticket; ticketInterno: Ticket } | null>(null);
 
 
@@ -192,20 +193,18 @@ export default function ComandasPage() {
       setNotaItem({});
       setShowCheckout(false);
       setTicketData(null);
-      setNotificacion({ msg: 'La mesa que estaba abierta ya no existe', tipo: 'error' });
-      setTimeout(() => setNotificacion(null), 4000);
+      mostrarAviso({ msg: 'La mesa que estaba abierta ya no existe', tipo: 'error' }, 4000);
     }
-  }, [setShowCheckout, setTicketData]);
+  }, [setShowCheckout, setTicketData, mostrarAviso]);
 
   const fetchMesas = useCallback(async () => {
     try {
       aplicarMesas(await pedirMesas());
     } catch (e) {
       // Se conservan las mesas que ya estaban en pantalla.
-      setNotificacion({ msg: (e as Error).message, tipo: 'error' });
-      setTimeout(() => setNotificacion(null), 4000);
+      mostrarAviso({ msg: (e as Error).message, tipo: 'error' }, 4000);
     }
-  }, [pedirMesas, aplicarMesas]);
+  }, [pedirMesas, aplicarMesas, mostrarAviso]);
 
   useEffect(() => {
     let vigente = true;
@@ -215,12 +214,12 @@ export default function ComandasPage() {
       })
       .catch((e) => {
         if (!vigente) return;
-        setNotificacion({ msg: (e as Error).message, tipo: 'error' });
+        mostrarAviso({ msg: (e as Error).message, tipo: 'error' });
       });
     return () => {
       vigente = false;
     };
-  }, [pedirMesas]);
+  }, [pedirMesas, mostrarAviso]);
 
   // SSE for real-time updates
   useSSE(
@@ -284,10 +283,8 @@ export default function ComandasPage() {
     0
   );
 
-  const enviarComanda = async () => {
+  const enviarComanda = () => ejecutarAccion(async () => {
     if (!mesaSeleccionada || comanda.length === 0) return;
-    setEnviando(true);
-
     try {
       const itemsConNotas = comanda.map((item) => ({
         ...item,
@@ -304,25 +301,20 @@ export default function ComandasPage() {
       });
 
       if (res.ok) {
-        setNotificacion({ msg: '✅ Comanda enviada a cocina!', tipo: 'success' });
+        mostrarAviso({ msg: '✅ Comanda enviada a cocina!', tipo: 'success' }, 3000);
         setComanda([]);
         setNotaItem({});
         setMesaSeleccionadaId(null);
         fetchMesas();
-        setTimeout(() => setNotificacion(null), 3000);
       } else {
         // La comanda NO llegó a cocina: el mozo tiene que ver por qué (p. ej., un producto dejó de estar disponible).
         const data = await res.json().catch(() => null);
-        setNotificacion({ msg: `❌ ${data?.error || 'No se pudo enviar la comanda'}`, tipo: 'error' });
-        setTimeout(() => setNotificacion(null), 5000);
+        mostrarAviso({ msg: `❌ ${data?.error || 'No se pudo enviar la comanda'}`, tipo: 'error' }, 5000);
       }
     } catch {
-      setNotificacion({ msg: '❌ Error al enviar comanda', tipo: 'error' });
-      setTimeout(() => setNotificacion(null), 3000);
-    } finally {
-      setEnviando(false);
+      mostrarAviso({ msg: '❌ Error al enviar comanda', tipo: 'error' }, 3000);
     }
-  };
+  }, 'comanda');
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, id: number) => {
     if (!isEditorMode) return;
@@ -388,12 +380,16 @@ export default function ComandasPage() {
     dragRef.current = { element: null, containerRect: null, mesaId: null };
   };
 
-  const handleVerifyPin = async () => {
+  const handleVerifyPin = () => ejecutarAccion(async () => {
     const res = await fetch('/api/auth/verify-pin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin: pinAdmin })
-    });
+    }).catch(() => null);
+    if (!res) {
+      mostrarAviso({ msg: 'No se pudo conectar con el servidor', tipo: 'error' }, 3000);
+      return;
+    }
     const data = await res.json().catch(() => null);
     if (res.ok && data?.user?.rol === 'ADMIN') {
       setIsEditorMode(true);
@@ -401,75 +397,72 @@ export default function ComandasPage() {
       setShowPinModal(false);
       setPinAdmin('');
     } else {
-      setNotificacion({ msg: (!res.ok && data?.error) || 'PIN inválido o sin permisos', tipo: 'error' });
-      setTimeout(() => setNotificacion(null), 3000);
+      mostrarAviso({ msg: (!res.ok && data?.error) || 'PIN inválido o sin permisos', tipo: 'error' }, 3000);
     }
-  };
+  }, 'pin');
 
-  const guardarLayout = async () => {
+  const guardarLayout = () => ejecutarAccion(async () => {
     const res = await fetch('/api/mesas/layout', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mesas: mesas.map(m => ({ id: m.id, posX: m.posX, posY: m.posY })) })
-    });
+    }).catch(() => null);
+    if (!res) {
+      mostrarAviso({ msg: 'No se pudo conectar con el servidor: la distribución no se guardó', tipo: 'error' }, 4000);
+      return;
+    }
     if (res.ok) {
-      setNotificacion({ msg: 'Distribución guardada', tipo: 'success' });
+      mostrarAviso({ msg: 'Distribución guardada', tipo: 'success' }, 3000);
       editandoPlanoRef.current = false;
       setIsEditorMode(false);
       fetchMesas();
-      setTimeout(() => setNotificacion(null), 3000);
     } else {
       const data = await res.json().catch(() => null);
-      setNotificacion({ msg: data?.error || 'No se pudo guardar la distribución', tipo: 'error' });
-      setTimeout(() => setNotificacion(null), 4000);
+      mostrarAviso({ msg: data?.error || 'No se pudo guardar la distribución', tipo: 'error' }, 4000);
     }
-  };
+  }, 'layout');
 
-  const guardarMesa = async () => {
+  const guardarMesa = () => ejecutarAccion(async () => {
     const error = mesaEditorOpen?.id
       ? await enviarJson(`/api/mesas/${mesaEditorOpen.id}`, 'PATCH', mesaEditorOpen, 'No se pudo actualizar la mesa')
       : await enviarJson('/api/mesas', 'POST', { ...mesaEditorOpen, posX: 50, posY: 50 }, 'No se pudo crear la mesa');
     if (error) {
-      setNotificacion({ msg: error, tipo: 'error' });
-      setTimeout(() => setNotificacion(null), 4000);
+      mostrarAviso({ msg: error, tipo: 'error' }, 4000);
       return;
     }
     fetchMesas();
     setMesaEditorOpen(null);
-  };
+  }, 'mesa');
 
   const solicitarEliminarMesa = (mesa: Mesa) => {
     // Client-side validation: can't delete occupied tables
     if (mesa.estado !== 'libre') {
-      setNotificacion({ msg: 'No se puede eliminar una mesa con pedidos activos o comanda abierta', tipo: 'error' });
-      setTimeout(() => setNotificacion(null), 3000);
+      mostrarAviso({ msg: 'No se puede eliminar una mesa con pedidos activos o comanda abierta', tipo: 'error' }, 3000);
       return;
     }
     setMesaAEliminar(mesa);
   };
 
-  const confirmarEliminacion = async () => {
+  const confirmarEliminacion = () => ejecutarAccion(async () => {
     if (!mesaAEliminar) return;
     try {
       const res = await fetch(`/api/mesas/${mesaAEliminar.id}`, { method: 'DELETE' });
       if (res.ok) {
         // Reactive local state update — instant visual removal
         setMesas(prev => prev.filter(m => m.id !== mesaAEliminar.id));
-        setNotificacion({ msg: `Mesa ${mesaAEliminar.numero} eliminada correctamente`, tipo: 'success' });
+        mostrarAviso({ msg: `Mesa ${mesaAEliminar.numero} eliminada correctamente`, tipo: 'success' }, 3000);
       } else {
-        const errorData = await res.json();
-        setNotificacion({ msg: errorData.error || 'No se pudo eliminar la mesa', tipo: 'error' });
+        const errorData = await res.json().catch(() => null);
+        mostrarAviso({ msg: errorData?.error || 'No se pudo eliminar la mesa', tipo: 'error' }, 3000);
       }
     } catch {
-      setNotificacion({ msg: 'Error de conexión al eliminar mesa', tipo: 'error' });
+      mostrarAviso({ msg: 'Error de conexión al eliminar mesa', tipo: 'error' }, 3000);
     }
     setMesaAEliminar(null);
-    setTimeout(() => setNotificacion(null), 3000);
-  };
+  }, 'eliminar');
   // Checkout / Cobro
-  const procesarCobro = async () => {
+  const procesarCobro = () => ejecutarAccion(async () => {
     if (!mesaSeleccionada || !mesaSeleccionada.pedidos?.[0]) return;
-    setProcesandoCobro(true);
     try {
       const pedido = mesaSeleccionada.pedidos[0];
       const res = await fetch('/api/checkout/pay', {
@@ -482,22 +475,18 @@ export default function ComandasPage() {
           propina,
         }),
       });
-      const data = await res.json();
-      if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (res.ok && data) {
         setTicketData({ ticketCliente: data.ticketCliente, ticketInterno: data.ticketInterno });
-        setNotificacion({ msg: `\u2705 Cobro registrado — Mesa ${mesaSeleccionada.numero} liberada`, tipo: 'success' });
+        mostrarAviso({ msg: `\u2705 Cobro registrado — Mesa ${mesaSeleccionada.numero} liberada`, tipo: 'success' }, 4000);
         fetchMesas();
-        setTimeout(() => setNotificacion(null), 4000);
       } else {
-        setNotificacion({ msg: data.error || 'Error al procesar cobro', tipo: 'error' });
-        setTimeout(() => setNotificacion(null), 3000);
+        mostrarAviso({ msg: data?.error || 'Error al procesar cobro', tipo: 'error' }, 3000);
       }
     } catch {
-      setNotificacion({ msg: 'Error de conexi\u00f3n al procesar cobro', tipo: 'error' });
-      setTimeout(() => setNotificacion(null), 3000);
+      mostrarAviso({ msg: 'Error de conexi\u00f3n al procesar cobro', tipo: 'error' }, 3000);
     }
-    setProcesandoCobro(false);
-  };
+  }, 'cobro');
 
   const imprimirTicket = (tipo: 'cliente' | 'interno') => {
     if (!ticketData) return;
@@ -564,7 +553,8 @@ ${pie}`
         <div className="flex items-center gap-4 mb-6 shrink-0">
           <button
             onClick={async () => {
-              await fetch('/api/auth/logout', { method: 'POST' });
+              // Aunque el servidor no responda, se vuelve al inicio (la cookie vence sola).
+              await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
               window.location.href = '/';
             }}
             className="w-12 h-12 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors shadow-sm text-[var(--muted)]"
@@ -585,7 +575,7 @@ ${pie}`
                 <button onClick={() => setMesaEditorOpen({ numero: mesas.length > 0 ? Math.max(...mesas.map(m => m.numero)) + 1 : 1, capacidad: 4, sector: 'salon', forma: 'round' })} className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-black hover:bg-amber-400 rounded-lg flex items-center gap-1 transition-colors">
                   <Plus className="w-4 h-4" /> Agregar Mesa
                 </button>
-                <button onClick={guardarLayout} className="px-3 py-1.5 text-xs font-bold bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/50 rounded-lg flex items-center gap-1 transition-colors">
+                <button onClick={guardarLayout} disabled={ocupado('layout')} className="px-3 py-1.5 text-xs font-bold bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/50 rounded-lg flex items-center gap-1 transition-colors">
                   <Save className="w-4 h-4" /> Guardar
                 </button>
                 <button onClick={() => { editandoPlanoRef.current = false; setMesas(mesasBackup); setIsEditorMode(false); fetchMesas(); }} className="px-3 py-1.5 text-xs font-bold bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/50 rounded-lg flex items-center gap-1 transition-colors">
@@ -828,7 +818,7 @@ ${pie}`
             </div>
             <div className="p-4 border-t border-[var(--border)] flex gap-3">
               <button onClick={() => setMesaEditorOpen(null)} className="flex-1 btn btn-secondary py-2.5">Cancelar</button>
-              <button onClick={guardarMesa} className="flex-1 btn btn-primary py-2.5 bg-amber-500 hover:bg-amber-400 text-black border-none">Guardar</button>
+              <button onClick={guardarMesa} disabled={ocupado('mesa')} className="flex-1 btn btn-primary py-2.5 bg-amber-500 hover:bg-amber-400 text-black border-none">Guardar</button>
             </div>
           </div>
         </div>
@@ -854,7 +844,7 @@ ${pie}`
             />
             <div className="flex gap-3">
               <button onClick={() => { setShowPinModal(false); setPinAdmin(''); }} className="flex-1 btn btn-secondary">Cancelar</button>
-              <button onClick={handleVerifyPin} disabled={pinAdmin.length !== 4} className="flex-1 btn btn-primary bg-amber-500 hover:bg-amber-400 text-black border-none disabled:opacity-50">Acceder</button>
+              <button onClick={handleVerifyPin} disabled={pinAdmin.length !== 4 || ocupado('pin')} className="flex-1 btn btn-primary bg-amber-500 hover:bg-amber-400 text-black border-none disabled:opacity-50">Acceder</button>
             </div>
           </div>
         </div>
@@ -884,7 +874,7 @@ ${pie}`
             </div>
             <div className="p-4 border-t border-[var(--border)] flex gap-3">
               <button onClick={() => setMesaAEliminar(null)} className="flex-1 btn btn-secondary py-2.5">Cancelar</button>
-              <button onClick={confirmarEliminacion} className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors">
+              <button onClick={confirmarEliminacion} disabled={ocupado('eliminar')} className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors">
                 <Trash2 className="w-4 h-4" />
                 Eliminar
               </button>
