@@ -202,7 +202,23 @@ body {
 .btn-sm {
   padding: 8px 16px;
   font-size: 0.8rem;
-  min-height: 36px;
+  min-height: 44px;
+}
+
+/* Pantallas táctiles: todo lo que se toca mide al menos 44 x 44 px (WCAG 2.5.8 / criterio del proyecto).
+   En capa base: un min-h-* o min-w-* puesto a propósito en un componente lo sigue pudiendo cambiar. */
+@layer base {
+  @media (any-pointer: coarse) {
+    button,
+    select,
+    [role='button'] {
+      min-height: 44px;
+    }
+    button,
+    [role='button'] {
+      min-width: 44px;
+    }
+  }
 }
 .btn-lg {
   padding: 16px 32px;

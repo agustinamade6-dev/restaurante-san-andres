@@ -222,13 +222,13 @@ export default function CocinaPage() {
                     MODIFICADO
                   </span>
                 )}
-                <button onClick={() => setModalHistoryId(pedido.id)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]" title="Historial">
+                <button aria-label={`Historial del pedido de la mesa ${pedido.mesa.numero}`} onClick={() => setModalHistoryId(pedido.id)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)] min-w-11 min-h-11" title="Historial">
                   <History className="w-4 h-4" />
                 </button>
-                <button onClick={() => setModalEditId(pedido.id)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]" title="Editar Comanda">
+                <button aria-label={`Editar comanda de la mesa ${pedido.mesa.numero}`} onClick={() => setModalEditId(pedido.id)} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)] min-w-11 min-h-11" title="Editar Comanda">
                   <Edit className="w-4 h-4" />
                 </button>
-                <button onClick={() => { setModalCancelarId(pedido.id); setMotivoCambio(''); setErrorCancelar(''); }} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-red-950/40 transition-colors text-[var(--muted)] hover:text-red-400" title="Cancelar Pedido">
+                <button aria-label={`Cancelar pedido de la mesa ${pedido.mesa.numero}`} onClick={() => { setModalCancelarId(pedido.id); setMotivoCambio(''); setErrorCancelar(''); }} className="p-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md hover:bg-red-950/40 transition-colors text-[var(--muted)] hover:text-red-400 min-w-11 min-h-11" title="Cancelar Pedido">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -321,7 +321,7 @@ export default function CocinaPage() {
         <div role="alert" className="fixed top-20 right-4 z-50 max-w-sm px-6 py-4 rounded-xl bg-[var(--danger)] text-white text-sm font-bold shadow-2xl animate-slide-in flex items-center gap-2">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <span className="flex-1">{aviso}</span>
-          <button onClick={ocultarAviso} aria-label="Cerrar aviso" className="p-1 rounded hover:bg-white/20">
+          <button onClick={ocultarAviso} aria-label="Cerrar aviso" className="p-1 rounded hover:bg-white/20 min-w-11 min-h-11">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -329,13 +329,13 @@ export default function CocinaPage() {
 
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <button
+        <button aria-label="Bloquear terminal"
           onClick={async () => {
             // Aunque el servidor no responda, se vuelve al inicio (la cookie vence sola).
             await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
             window.location.href = '/';
           }}
-          className="w-10 h-10 rounded-xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors shadow-sm text-[var(--muted)]"
+          className="w-10 h-10 rounded-xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors shadow-sm text-[var(--muted)] min-w-11 min-h-11"
           title="Bloquear Terminal"
         >
           <LogOut className="w-5 h-5" />
@@ -461,7 +461,7 @@ export default function CocinaPage() {
                 </h2>
                 <p className="text-sm text-[var(--muted)]">Modifica los platos de la orden activa.</p>
               </div>
-              <button onClick={() => setModalEditId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button aria-label="Cerrar" onClick={() => setModalEditId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors min-w-11 min-h-11">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -478,15 +478,15 @@ export default function CocinaPage() {
                         <div className="text-xs text-[var(--muted)]">{item.notas || 'Sin notas'}</div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button disabled={ocupado(modalEditOpen.id)} onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: Math.max(1, item.cantidad - 1) })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-400">
+                        <button aria-label={`Quitar uno de ${item.producto.nombre}`} disabled={ocupado(modalEditOpen.id)} onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: Math.max(1, item.cantidad - 1) })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-400 min-w-11 min-h-11">
                           <Minus className="w-4 h-4" />
                         </button>
                         <span className="font-bold w-6 text-center">{item.cantidad}</span>
-                        <button disabled={ocupado(modalEditOpen.id)} onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: item.cantidad + 1 })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-green-500/20 text-green-400">
+                        <button aria-label={`Agregar uno de ${item.producto.nombre}`} disabled={ocupado(modalEditOpen.id)} onClick={() => handleModifyItem(modalEditOpen.id, 'UPDATE_QUANTITY', { itemId: item.id, cantidad: item.cantidad + 1 })} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-green-500/20 text-green-400 min-w-11 min-h-11">
                           <Plus className="w-4 h-4" />
                         </button>
                         <div className="w-[1px] h-6 bg-[var(--border)] mx-1"></div>
-                        <button disabled={ocupado(modalEditOpen.id)} onClick={() => { if(confirm('¿Eliminar este plato?')) handleModifyItem(modalEditOpen.id, 'REMOVE_ITEM', { itemId: item.id }) }} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-500">
+                        <button aria-label={`Eliminar ${item.producto.nombre}`} disabled={ocupado(modalEditOpen.id)} onClick={() => { if(confirm('¿Eliminar este plato?')) handleModifyItem(modalEditOpen.id, 'REMOVE_ITEM', { itemId: item.id }) }} className="p-1.5 bg-[var(--card)] rounded-md hover:bg-red-500/20 text-red-500 min-w-11 min-h-11">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -534,7 +534,7 @@ export default function CocinaPage() {
                 <History className="w-5 h-5 text-purple-400" />
                 Historial Mesa {modalHistoryOpen.mesa.numero}
               </h2>
-              <button onClick={() => setModalHistoryId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button aria-label="Cerrar" onClick={() => setModalHistoryId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors min-w-11 min-h-11">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -586,7 +586,7 @@ export default function CocinaPage() {
                     Cancelados
                   </button>
                 </div>
-                <button onClick={() => setModalEntregadosOpen(false)} className="p-3 hover:bg-[var(--card-hover)] rounded-xl transition-colors border border-[var(--border)]">
+                <button aria-label="Cerrar" onClick={() => setModalEntregadosOpen(false)} className="p-3 hover:bg-[var(--card-hover)] rounded-xl transition-colors border border-[var(--border)] min-w-11 min-h-11">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -689,7 +689,7 @@ export default function CocinaPage() {
                 <Trash2 className="w-6 h-6" />
                 Cancelar Pedido Mesa {modalCancelarOpen.mesa.numero}
               </h3>
-              <button onClick={() => { setModalCancelarId(null); setMotivoCambio(''); setErrorCancelar(''); }} className="p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)]">
+              <button aria-label="Cerrar" onClick={() => { setModalCancelarId(null); setMotivoCambio(''); setErrorCancelar(''); }} className="p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--card-hover)] text-[var(--muted)] hover:text-[var(--foreground)] min-w-11 min-h-11">
                 <X className="w-5 h-5" />
               </button>
             </div>

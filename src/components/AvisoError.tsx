@@ -22,7 +22,7 @@ export default function AvisoError({
           {accion.texto}
         </button>
       )}
-      <button onClick={onCerrar} className="btn btn-sm btn-secondary" aria-label="Cerrar aviso">
+      <button onClick={onCerrar} className="btn btn-sm btn-secondary min-w-11 min-h-11" aria-label="Cerrar aviso">
         <X className="w-3 h-3" />
       </button>
     </div>

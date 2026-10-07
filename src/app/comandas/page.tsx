@@ -567,13 +567,13 @@ ${pie}`
       <div className="min-h-screen flex flex-col p-4 md:p-6 bg-[var(--background)]">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6 shrink-0">
-          <button
+          <button aria-label="Bloquear terminal"
             onClick={async () => {
               // Aunque el servidor no responda, se vuelve al inicio (la cookie vence sola).
               await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
               window.location.href = '/';
             }}
-            className="w-12 h-12 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors shadow-sm text-[var(--muted)]"
+            className="w-12 h-12 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors shadow-sm text-[var(--muted)] min-w-11 min-h-11"
             title="Bloquear Terminal"
           >
             <LogOut className="w-6 h-6" />
@@ -735,20 +735,20 @@ ${pie}`
               >
                 {isEditorMode && (
                   <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/95 rounded-xl p-1.5 z-[60] border border-neutral-600 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
-                    <button 
+                    <button aria-label={`Editar mesa ${mesa.numero}`} 
                       data-editor-action="edit"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); setMesaEditorOpen(mesa); }} 
-                      className="p-2 hover:bg-blue-500/20 rounded-lg text-blue-400 hover:text-blue-300 transition-colors pointer-events-auto" 
+                      className="p-2 hover:bg-blue-500/20 rounded-lg text-blue-400 hover:text-blue-300 transition-colors pointer-events-auto min-w-11 min-h-11" 
                       title="Editar Mesa"
                     >
                       <Pencil className="w-4 h-4 pointer-events-none" />
                     </button>
-                    <button 
+                    <button aria-label={`Eliminar mesa ${mesa.numero}`} 
                       data-editor-action="delete"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); solicitarEliminarMesa(mesa); }} 
-                      className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300 transition-colors pointer-events-auto" 
+                      className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300 transition-colors pointer-events-auto min-w-11 min-h-11" 
                       title="Eliminar Mesa"
                     >
                       <Trash2 className="w-4 h-4 pointer-events-none" />
@@ -781,9 +781,9 @@ ${pie}`
 
                 {/* History button if occupied and has history */}
                 {isOcupada && mesa.pedidos?.[0]?.historial?.length > 0 && (
-                  <button 
+                  <button aria-label={`Historial de la mesa ${mesa.numero}`} 
                     onClick={(e) => { e.stopPropagation(); setModalHistoryId(mesa.id); }}
-                    className="absolute -top-3 -right-3 z-40 bg-purple-600 hover:bg-purple-500 text-white p-1.5 rounded-full shadow-lg border border-purple-400 transition-transform hover:scale-110"
+                    className="absolute -top-3 -right-3 z-40 bg-purple-600 hover:bg-purple-500 text-white p-1.5 rounded-full shadow-lg border border-purple-400 transition-transform hover:scale-110 min-w-11 min-h-11"
                     title="Ver Historial"
                   >
                     <History className="w-3 h-3" />
@@ -803,7 +803,7 @@ ${pie}`
                 <Settings2 className="w-5 h-5 text-amber-500" />
                 {mesaEditorOpen.id ? 'Editar Mesa' : 'Nueva Mesa'}
               </h2>
-              <button onClick={() => setMesaEditorOpen(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button aria-label="Cerrar" onClick={() => setMesaEditorOpen(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors min-w-11 min-h-11">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -911,13 +911,13 @@ ${pie}`
       <div className="flex-1 p-4 md:p-6 overflow-y-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <button
+          <button aria-label="Volver al plano de mesas"
             onClick={() => {
               setMesaSeleccionadaId(null);
               setComanda([]);
               setNotaItem({});
             }}
-            className="w-10 h-10 rounded-xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors"
+            className="w-10 h-10 rounded-xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors min-w-11 min-h-11"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -1081,18 +1081,18 @@ ${pie}`
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0 bg-black/50 p-1 rounded-lg border border-neutral-800">
-                      <button
+                      <button aria-label={`Quitar uno de ${item.nombre}`}
                         onClick={() => cambiarCantidad(item.productoId, -1)}
-                        className="w-9 h-9 rounded-md bg-neutral-800 hover:bg-red-500/20 border border-neutral-700 hover:border-red-500/50 hover:text-red-400 transition-all text-white flex items-center justify-center"
+                        className="w-9 h-9 rounded-md bg-neutral-800 hover:bg-red-500/20 border border-neutral-700 hover:border-red-500/50 hover:text-red-400 transition-all text-white flex items-center justify-center min-w-11 min-h-11"
                       >
                         <Minus className="w-4 h-4 font-bold" />
                       </button>
                       <span className="w-8 text-center font-black text-lg text-white">
                         {item.cantidad}
                       </span>
-                      <button
+                      <button aria-label={`Agregar uno de ${item.nombre}`}
                         onClick={() => cambiarCantidad(item.productoId, 1)}
-                        className="w-9 h-9 rounded-md bg-neutral-800 hover:bg-green-500/20 border border-neutral-700 hover:border-green-500/50 hover:text-green-400 transition-all text-white flex items-center justify-center"
+                        className="w-9 h-9 rounded-md bg-neutral-800 hover:bg-green-500/20 border border-neutral-700 hover:border-green-500/50 hover:text-green-400 transition-all text-white flex items-center justify-center min-w-11 min-h-11"
                       >
                         <Plus className="w-4 h-4 font-bold" />
                       </button>
@@ -1116,9 +1116,9 @@ ${pie}`
                           className="bg-transparent border-none text-sm text-white w-full px-2 py-1 focus:outline-none placeholder:text-neutral-600"
                           autoFocus
                         />
-                        <button
+                        <button aria-label="Cerrar nota"
                           onClick={() => setMostrarNotas(null)}
-                          className="shrink-0 p-2 hover:bg-neutral-800 rounded-md transition-colors"
+                          className="shrink-0 p-2 hover:bg-neutral-800 rounded-md transition-colors min-w-11 min-h-11"
                         >
                           <X className="w-4 h-4 text-neutral-400 hover:text-white" />
                         </button>
@@ -1204,7 +1204,7 @@ ${pie}`
                 <History className="w-5 h-5 text-purple-400" />
                 Historial Mesa {modalHistoryOpen.numero}
               </h2>
-              <button onClick={() => setModalHistoryId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+              <button aria-label="Cerrar" onClick={() => setModalHistoryId(null)} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors min-w-11 min-h-11">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1244,7 +1244,7 @@ ${pie}`
                   <Receipt className="w-5 h-5 text-amber-500" />
                   {ticketData ? 'Comprobantes de Pago' : `Cobrar Mesa ${mesaSeleccionada.numero}`}
                 </h2>
-                <button onClick={() => { setShowCheckout(false); setTicketData(null); if (ticketData) { setMesaSeleccionadaId(null); } }} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors">
+                <button aria-label="Cerrar" onClick={() => { setShowCheckout(false); setTicketData(null); if (ticketData) { setMesaSeleccionadaId(null); } }} className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors min-w-11 min-h-11">
                   <X className="w-5 h-5" />
                 </button>
               </div>

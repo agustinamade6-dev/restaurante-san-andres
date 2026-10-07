@@ -297,22 +297,22 @@ export default function MenuPage() {
                 </td>
                 <td className="p-4">
                   <div className="flex items-center justify-end gap-2">
-                    <button
+                    <button aria-label={`Receta de ${p.nombre}`}
                       onClick={() => setRecetaDe(p)}
                       title="Receta (insumos que descuenta del stock)"
-                      className="w-8 h-8 rounded-lg bg-[var(--background)] text-amber-400 border border-[var(--border)] flex items-center justify-center hover:bg-amber-500 hover:text-white transition-colors"
+                      className="w-8 h-8 rounded-lg bg-[var(--background)] text-amber-400 border border-[var(--border)] flex items-center justify-center hover:bg-amber-500 hover:text-white transition-colors min-w-11 min-h-11"
                     >
                       <ClipboardList className="w-3.5 h-3.5" />
                     </button>
-                    <button
+                    <button aria-label={`Editar ${p.nombre}`}
                       onClick={() => abrirModal(p)}
-                      className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors"
+                      className="w-8 h-8 rounded-lg bg-[var(--info-bg)] text-[var(--info)] flex items-center justify-center hover:bg-[var(--info)] hover:text-white transition-colors min-w-11 min-h-11"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <button
+                    <button aria-label={`Eliminar ${p.nombre}`}
                       onClick={() => eliminar(p)}
-                      className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors"
+                      className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors min-w-11 min-h-11"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -333,9 +333,9 @@ export default function MenuPage() {
                 <UtensilsCrossed className="w-5 h-5 text-amber-400" />
                 {editando ? 'Editar Producto' : 'Nuevo Producto'}
               </h2>
-              <button
+              <button aria-label="Cerrar"
                 onClick={() => setModal(false)}
-                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors"
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors min-w-11 min-h-11"
               >
                 <X className="w-4 h-4" />
               </button>

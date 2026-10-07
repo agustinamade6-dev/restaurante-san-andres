@@ -176,9 +176,9 @@ export default function UsuariosPage() {
                   ****
                 </td>
                 <td className="p-4 text-right">
-                  <button 
+                  <button aria-label={`Modificar PIN de ${user.nombre}`} 
                     onClick={() => openPinModal(user)}
-                    className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-purple-500/10 hover:text-purple-400 hover:border-purple-500/30 transition-all text-[var(--muted)] shadow-sm"
+                    className="p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg hover:bg-purple-500/10 hover:text-purple-400 hover:border-purple-500/30 transition-all text-[var(--muted)] shadow-sm min-w-11 min-h-11"
                     title="Modificar PIN"
                   >
                     <KeyRound className="w-4 h-4" />
@@ -195,9 +195,9 @@ export default function UsuariosPage() {
         <div {...dlgPin} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--card)] w-full max-w-sm rounded-3xl border border-[var(--border)] shadow-2xl relative overflow-hidden flex flex-col">
             
-            <button 
+            <button aria-label="Cerrar" 
               onClick={closePinModal}
-              className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-white bg-black/20 rounded-full transition-colors z-10"
+              className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-white bg-black/20 rounded-full transition-colors z-10 min-w-11 min-h-11"
             >
               <X className="w-5 h-5" />
             </button>
@@ -286,10 +286,10 @@ export default function UsuariosPage() {
                 >
                   0
                 </button>
-                <button
+                <button aria-label="Borrar último dígito"
                   onClick={removeDigit}
                   type="button"
-                  className="h-12 rounded-lg bg-[var(--background)] border border-[var(--border)] text-lg font-bold hover:bg-[var(--card-hover)] active:bg-red-500/10 active:border-red-500/30 flex items-center justify-center text-[var(--muted)] hover:text-red-400 transition-colors"
+                  className="h-12 rounded-lg bg-[var(--background)] border border-[var(--border)] text-lg font-bold hover:bg-[var(--card-hover)] active:bg-red-500/10 active:border-red-500/30 flex items-center justify-center text-[var(--muted)] hover:text-red-400 transition-colors min-w-11 min-h-11"
                 >
                   <Delete className="w-5 h-5" />
                 </button>

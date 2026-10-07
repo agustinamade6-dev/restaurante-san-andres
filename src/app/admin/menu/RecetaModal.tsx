@@ -120,9 +120,9 @@ export default function RecetaModal({ producto, onClose }: Props) {
             <ClipboardList className="w-5 h-5 text-amber-400" />
             Receta: {producto.nombre}
           </h2>
-          <button
+          <button aria-label="Cerrar"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors"
+            className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors min-w-11 min-h-11"
           >
             <X className="w-4 h-4" />
           </button>
@@ -168,9 +168,9 @@ export default function RecetaModal({ producto, onClose }: Props) {
                   className="input w-24 text-right"
                 />
                 <span className="text-xs text-[var(--muted)] w-14">{insumoDe(linea.insumoId)?.unidad}</span>
-                <button
+                <button aria-label="Quitar insumo de la receta"
                   onClick={() => setLineas((ls) => ls.filter((_, i) => i !== idx))}
-                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors shrink-0"
+                  className="w-8 h-8 rounded-lg bg-[var(--danger-bg)] text-[var(--danger)] flex items-center justify-center hover:bg-[var(--danger)] hover:text-white transition-colors shrink-0 min-w-11 min-h-11"
                   title="Quitar"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

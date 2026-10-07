@@ -272,7 +272,7 @@ export default function CajaPage() {
               </h2>
               <button
                 onClick={() => setAnulando(null)}
-                className="p-1 rounded-lg hover:bg-[var(--background)]"
+                className="p-1 rounded-lg hover:bg-[var(--background)] min-w-11 min-h-11"
                 aria-label="Cerrar"
               >
                 <X className="w-5 h-5" />

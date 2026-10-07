@@ -299,9 +299,9 @@ export default function HomePage() {
           <div className="w-full max-w-sm transform transition-all animate-scale-in">
             <div className="bg-[#111625] rounded-[32px] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] p-8 relative">
               
-              <button 
+              <button aria-label="Cerrar" 
                 onClick={() => setModalOpen(false)}
-                className="absolute top-6 right-6 p-2 text-white/40 hover:text-white bg-white/5 rounded-full transition-colors active:scale-95"
+                className="absolute top-6 right-6 p-2 text-white/40 hover:text-white bg-white/5 rounded-full transition-colors active:scale-95 min-w-11 min-h-11"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -364,10 +364,10 @@ export default function HomePage() {
                 >
                   0
                 </button>
-                <button
+                <button aria-label="Borrar último dígito"
                   onClick={removeDigit}
                   disabled={loading || pin.length === 0}
-                  className="h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 active:bg-red-500/20 transition-all disabled:opacity-50 text-white/40"
+                  className="h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 active:bg-red-500/20 transition-all disabled:opacity-50 text-white/40 min-w-11 min-h-11"
                 >
                   <Delete className="w-8 h-8" />
                 </button>

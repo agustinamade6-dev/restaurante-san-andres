@@ -315,7 +315,7 @@ export default function InventarioPage() {
                   <td className="p-4 text-right">
                     <button
                       onClick={() => eliminarInsumo(insumo)}
-                      className="btn btn-sm btn-secondary text-[var(--danger)]"
+                      className="btn btn-sm btn-secondary text-[var(--danger)] min-w-11 min-h-11"
                       title="Eliminar insumo"
                       aria-label={`Eliminar ${insumo.nombre}`}
                     >
@@ -337,9 +337,9 @@ export default function InventarioPage() {
                 <Package className="w-5 h-5 text-amber-400" />
                 Nuevo insumo
               </h2>
-              <button
+              <button aria-label="Cerrar"
                 onClick={() => setNuevo(null)}
-                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors"
+                className="w-8 h-8 rounded-lg bg-[var(--background)] flex items-center justify-center hover:bg-[var(--card-hover)] transition-colors min-w-11 min-h-11"
               >
                 <X className="w-4 h-4" />
               </button>
