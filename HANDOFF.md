@@ -21,8 +21,8 @@ También: `src/proxy.ts`, `prisma/schema.prisma`, `eslint.config.mjs`, `src/__te
 - **Escrituras en fila:** SQLite tiene un solo escritor y el servidor es un único proceso.
 
 ## Pendiente o roto
-- **No mezclar sin el frontend de Inventario:** la pantalla edita el stock por `PUT`, que ahora devuelve 400. Tiene que usar `POST /api/inventario/ajuste`.
-- **Frontend (Agus):** Comandas debe usar `check-admin-pin` en el editor de plano, no `verify-pin`; `useSSE` debe tratar `sesion-vencida`.
+- ~~No mezclar sin el frontend de Inventario~~ **Resuelto (2026-10-07)** en `frontend/ajustes-api`: la pantalla usa `POST /api/inventario/ajuste`. Esa rama y esta deben mezclarse **juntas** (ver "Orden de mezcla" abajo): sin ella, Inventario recibe 400.
+- ~~Frontend (Agus): editor de plano con `check-admin-pin`, `useSSE` con `sesion-vencida`~~ **Resuelto** en `frontend/ajustes-api`.
 - Sin probar en la app instalada (`npm run desktop:test`); el empaquetado del `.exe` ya venía fallando (`CLAUDE_HANDOFF.md`).
 - Decisiones abiertas: pago dividido (cambio de esquema), si el cocinero cancela pedidos entregados, PIN de 6 dígitos.
 
@@ -45,3 +45,9 @@ Hecho: `escritura()` en `transaccion.ts` pone en fila también las escrituras su
 Sigue pendiente: restricción de `PATCH /api/mesas/[id]` a ADMIN (decisión), `hub-metrics` en el inicio y Inventario (frontend), decisiones abiertas.
 
 **Aviso a Agus (cambio de contrato):** `PATCH /api/mesas/[id]` ahora es solo ADMIN (antes ADMIN y MOZO). Hoy lo usa solo el editor de plano de Comandas (`comandas/page.tsx:374`); si un mozo lo dispara, recibirá 403.
+
+## Integración con el frontend (2026-10-07)
+Ramas apiladas en GitHub, cada una encima de la anterior: `fix/revision-pr1` (backend) → `chore/calidad-pruebas` (pruebas, CI, e2e; incluye `f3b1535` de `backend`) → `frontend/ajustes-api` (Agus: Inventario con ajuste, Inicio con sesión, editor de plano, `useSSE`, accesibilidad, XSS, errores de carga) → `chore/ajustes-finales` (lint de `release/`, un solo `formatPesos`, contrato de Inventario sin el caso pendiente).
+**Orden de mezcla hacia `backend`:** mezclar **con "Create a merge commit", no con squash ni rebase** (cada rama contiene los commits de las anteriores; con squash aparecerían conflictos). Mezclar las cuatro en la misma sesión: entre la primera y `frontend/ajustes-api` la pantalla de Inventario daría 400.
+**Contrato:** los textos de `HistorialPedido.detalle` de cobros y anulaciones nuevos usan el formato de pantalla (`$3.900,50`); los viejos conservan el anterior (`3.900,5`).
+**Verificado sobre `frontend/ajustes-api`:** `tsc`, `eslint` (0 errores), `npm test` 889 verdes, umbrales de cobertura, `npm run build` y 18 e2e. Pendiente: CI sin ejecutar en GitHub; AT-37 (dependencias); contraste de color en Comandas y modal del PIN (AT-36, resto).
