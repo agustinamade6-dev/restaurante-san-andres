@@ -15,7 +15,8 @@ type Conocidas = Record<string, number>;
 
 const CONOCIDAS = {
   inicio: { 'button-name': 1 },
-  modalPin: { 'button-name': 3, 'color-contrast': 1 },
+  // 2026-10-07: cerrar y borrar dígito ya tienen nombre; queda el botón Power del fondo (sin acción).
+  modalPin: { 'button-name': 1, 'color-contrast': 1 },
   comandas: { 'color-contrast': 4 },
 } satisfies Record<string, Conocidas>;
 
