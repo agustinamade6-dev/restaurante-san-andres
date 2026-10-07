@@ -50,6 +50,9 @@ sección `negocio` del archivo `config.json` de la carpeta de datos. **Los valor
 reemplázalos por los reales.**
 
 ## Documentación
+- **`docs/conocimiento/`** — **base de conocimiento para quien recién llega**: qué es el sistema, cómo está armado,
+  primeros pasos, reglas del negocio, pantallas, API, app de escritorio, pruebas, trabajo en equipo y problemas
+  frecuentes. Empezar por `docs/conocimiento/README.md`.
 - `docs/auditoria/README.md` — auditoría técnica del backend: hallazgos, estado y un documento por cambio.
 - `ARCHITECTURE.md` — arquitectura general.
 - `CLAUDE_HANDOFF.md` — notas de traspaso del proyecto.
