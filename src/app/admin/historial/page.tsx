@@ -124,6 +124,7 @@ export default function AdminHistorialPage() {
         <div className="relative w-full sm:w-48">
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" />
           <select 
+            aria-label="Período"
             value={dias}
             onChange={(e) => setDias(e.target.value)}
             className="input w-full pl-9 bg-[var(--background)] border border-[var(--border)] appearance-none"
@@ -137,7 +138,8 @@ export default function AdminHistorialPage() {
 
       {/* Table */}
       <div className="card overflow-hidden border border-[var(--border)]">
-        <div className="overflow-x-auto">
+        {/* Con scroll horizontal en pantallas chicas: enfocable para poder desplazarla con el teclado. */}
+        <div className="overflow-x-auto" tabIndex={0} aria-label="Tabla de comandas despachadas">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--background)]">
