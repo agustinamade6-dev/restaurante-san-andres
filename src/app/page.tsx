@@ -10,12 +10,12 @@ import {
   X,
   Delete,
   Activity,
-  Utensils
 } from 'lucide-react';
 import { moduloDePagina } from '@/lib/sesion-vencida';
 import { useAhora } from '@/hooks/useAhora';
 import { useDialogo } from '@/hooks/useDialogo';
 import { useSesion } from '@/hooks/useSesion';
+import Logo from '@/components/Logo';
 
 export default function HomePage() {
   const router = useRouter();
@@ -148,9 +148,7 @@ export default function HomePage() {
       {/* Top Header Bar */}
       <header className="relative z-10 w-full px-8 py-5 flex items-center justify-between border-b border-white/5 bg-black/20 backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.3)]">
-            <Utensils className="w-6 h-6 text-white" />
-          </div>
+          <Logo alto={56} />
           <div>
             <h1 className="text-xl font-black tracking-tight text-white/90">Restaurante San Andrés</h1>
             <div className="flex items-center gap-2 mt-0.5">
