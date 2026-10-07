@@ -22,4 +22,4 @@ Ninguno.
 `npx vitest run migraciones`: 12 tests verdes; `eslint` y `tsc` sin errores. Pendiente: ver que el CI no vuelva a mostrar el fallo.
 
 ## Lección
-L-071 (ver `docs/lecciones-aprendidas.md`, fila 31).
+L-074 (ver `docs/lecciones-aprendidas.md`, fila 31).
