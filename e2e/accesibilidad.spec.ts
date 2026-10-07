@@ -19,17 +19,11 @@ const CONOCIDAS = {
   modalPin: {},
   comandas: {},
   cocina: {},
-  // Por "viewport ruta" de /admin; lo que no aparece acá se espera sin violaciones. AT-38 (hallado el 2026-10-07 al ampliar
-  // la prueba a Cocina y Administración): un <select> sin etiqueta en Caja e Historial (el filtro de período/usuario), y
-  // zonas con scroll que no se pueden enfocar con el teclado en móvil (<main> de /admin y la tabla de Historial).
-  // Al corregir una, borrar su entrada: la prueba también falla si hay MENOS de lo anotado.
-  admin: {
-    'escritorio /admin/caja': { 'select-name': 1 },
-    'escritorio /admin/historial': { 'select-name': 1 },
-    'movil /admin': { 'scrollable-region-focusable': 1 },
-    'movil /admin/caja': { 'select-name': 1 },
-    'movil /admin/historial': { 'scrollable-region-focusable': 1, 'select-name': 1 },
-  } as Record<string, Conocidas>,
+  // Por "viewport ruta" de /admin, p. ej. 'movil /admin/caja': { 'select-name': 1 }; lo que no aparece acá se espera sin
+  // violaciones. Al corregir una, borrar su entrada: la prueba también falla si hay MENOS de lo anotado.
+  // AT-38 corregido el 2026-10-07: aria-label en los <select> de período (Caja, Historial) y tabIndex + aria-label en las
+  // zonas con scroll (<main> de /admin y la tabla de Historial).
+  admin: {} as Record<string, Conocidas>,
 };
 
 async function violaciones(page: Page): Promise<Conocidas> {

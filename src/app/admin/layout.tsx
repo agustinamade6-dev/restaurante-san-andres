@@ -93,7 +93,10 @@ export default function AdminLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      {/* Zona con scroll propio: enfocable para poder desplazarla con el teclado. */}
+      <main className="flex-1 overflow-y-auto p-6" tabIndex={0} aria-label="Contenido de administración">
+        {children}
+      </main>
     </div>
   );
 }

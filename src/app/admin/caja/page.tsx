@@ -133,6 +133,7 @@ export default function CajaPage() {
         </div>
         <div className="flex items-center gap-3">
           <select 
+            aria-label="Período"
             value={periodo} 
             onChange={(e) => setPeriodo(e.target.value)}
             className="bg-[var(--card)] border border-[var(--border)] rounded-lg px-4 py-2 font-semibold outline-none focus:border-amber-500 transition-colors"
