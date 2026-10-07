@@ -27,11 +27,19 @@ async function main() {
   // --- Mesas ---
   const mesas = [];
   for (let i = 1; i <= 20; i++) {
+    // Mismo plano que prisma/updateMesas.ts: barra (18-20) y salón en 4 columnas.
+    const enBarra = i >= 18;
+    // El estado de la mesa sigue al de su pedido: preparando/pendiente -> ocupada, listo -> esperando.
+    const estado = i === 2 || i === 5 ? 'ocupada' : i === 1 ? 'esperando' : 'libre';
     const mesa = await prisma.mesa.create({
       data: {
         numero: i,
         capacidad: i <= 8 ? 4 : i <= 14 ? 6 : 8,
-        estado: i === 2 ? 'ocupada' : i === 5 ? 'esperando' : 'libre',
+        estado,
+        sector: enBarra ? 'barra' : 'salon',
+        forma: enBarra ? 'tall-bar' : 'round',
+        posX: enBarra ? 10 : [32, 52, 72, 92][(i - 1) % 4],
+        posY: enBarra ? 20 + (i - 18) * 28 : 15 + Math.floor((i - 1) / 4) * 18,
       },
     });
     mesas.push(mesa);
