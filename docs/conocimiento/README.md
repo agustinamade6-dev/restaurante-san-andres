@@ -1,4 +1,4 @@
-# Base de conocimiento — Restaurante San Andrés POS
+# Base de conocimiento — AKROS Café POS
 
 Esta carpeta explica el proyecto **desde cero**, para quien recién llega. No hace falta conocer el código: cada
 documento cuenta qué es cada parte, por qué está hecha así y dónde mirar para seguir.

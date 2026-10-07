@@ -3,8 +3,8 @@ import "./globals.css";
 import DeteccionSesionVencida from "@/components/DeteccionSesionVencida";
 
 export const metadata: Metadata = {
-  title: "Restaurante San Andrés - Sistema de Gestión",
-  description: "Sistema integral de gestión para Restaurante San Andrés: comandas, cocina y administración",
+  title: "AKROS Café - Sistema de Gestión",
+  description: "Sistema integral de gestión para AKROS Café: comandas, cocina y administración",
 };
 
 export default function RootLayout({

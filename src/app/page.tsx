@@ -150,7 +150,7 @@ export default function HomePage() {
         <div className="flex items-center gap-4">
           <Logo alto={56} />
           <div>
-            <h1 className="text-xl font-black tracking-tight text-white/90">Restaurante San Andrés</h1>
+            <h1 className="text-xl font-black tracking-tight text-white/90">AKROS Café</h1>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-[10px] font-bold text-green-400 uppercase tracking-widest">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>

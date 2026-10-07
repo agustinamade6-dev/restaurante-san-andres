@@ -10,7 +10,7 @@ const TECLA_DE_MODULO = { comandas: '1', cocina: '2', admin: '3' } as const;
 export async function ingresarPin(page: Page, modulo: keyof typeof TECLA_DE_MODULO, pin: string) {
   await page.goto('/');
   // La pantalla es estática: hay que esperar a que React la haya hidratado antes de que el atajo de teclado funcione.
-  await expect(page.getByRole('heading', { name: 'Restaurante San Andrés' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'AKROS Café' })).toBeVisible();
   await page.waitForLoadState('networkidle');
   await page.keyboard.press(TECLA_DE_MODULO[modulo]);
   for (const digito of pin) await page.keyboard.press(digito);

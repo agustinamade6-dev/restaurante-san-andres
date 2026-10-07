@@ -2,7 +2,7 @@
 
 ## Qué recibe el cliente
 
-Un instalador: `release/Restaurante San Andrés POS Setup <versión>.exe` (unos 160 MB). Lo instala con doble clic y
+Un instalador: `release/AKROS Café POS Setup <versión>.exe` (unos 160 MB). Lo instala con doble clic y
 le queda un acceso directo en el escritorio. No necesita Node.js, terminal ni internet.
 
 > Windows puede mostrar el aviso de **SmartScreen** porque el instalador no tiene firma digital: "Más información"
@@ -12,7 +12,7 @@ le queda un acceso directo en el escritorio. No necesita Node.js, terminal ni in
 
 ```mermaid
 flowchart TB
-    EXE["Restaurante San Andrés POS.exe<br/>(Electron)"] -- "1. prepara la base y la configuración" --> DATA
+    EXE["AKROS Café POS.exe<br/>(Electron)"] -- "1. prepara la base y la configuración" --> DATA
     EXE -- "2. arranca el servidor<br/>(con el Node que trae Electron)" --> SRV["Servidor Next.js<br/>resources/server/server.js"]
     SRV -- "lee y escribe" --> DATA["Carpeta de datos<br/>%APPDATA%\restaurante-san-andres"]
     EXE -- "3. abre la ventana en<br/>http://127.0.0.1:3000" --> SRV
@@ -40,7 +40,7 @@ El código está en `electron/main.js`.
 | `uploads\` | Fotos de productos subidas |
 | `logs\main.log`, `logs\server.log` | Registros: lo primero que hay que mirar si algo falla |
 
-Esta carpeta **no se borra** al desinstalar ni al instalar una versión nueva: los datos se conservan.
+Esta carpeta **no se borra** al desinstalar ni al instalar una versión nueva: los datos se conservan. Su nombre (`restaurante-san-andres`) quedó fijo a propósito aunque el programa ahora se llama AKROS Café: si cambiara, una actualización no encontraría la base.
 
 **Respaldo manual:** cerrar la app y copiar `pos.db` (y `session.key` y `config.json`) a un pendrive.
 
@@ -53,9 +53,9 @@ Se crea la primera vez. Para cambiarlo: cerrar la app, editar el archivo y volve
   "port": 3000,
   "lan": false,
   "negocio": {
-    "nombre": "Restaurante San Andrés",
+    "nombre": "AKROS Café",
     "cuit": "30-12345678-9",
-    "direccion": "Av. San Martín 1234, San Andrés"
+    "direccion": "Calle y número, Ciudad"
   }
 }
 ```
@@ -64,7 +64,7 @@ Se crea la primera vez. Para cambiarlo: cerrar la app, editar el archivo y volve
 |---|---|
 | `port` | Puerto del servidor. Cambiarlo solo si otro programa usa el 3000. |
 | `lan` | `true` para que **tablets o celulares de la misma red** entren a `http://IP-de-esta-PC:3000`. Windows pregunta por el firewall la primera vez. |
-| `negocio` | Lo que se imprime en los tickets. **Los valores por defecto son de ejemplo:** hay que poner los reales. |
+| `negocio` | Lo que se imprime en los tickets. **El CUIT y la dirección por defecto son de ejemplo:** hay que poner los reales. Un `config.json` creado por una versión anterior (con "Restaurante San Andrés") se actualiza solo al arrancar. |
 
 ## Generar el instalador
 
