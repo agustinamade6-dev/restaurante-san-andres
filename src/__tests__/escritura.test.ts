@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/prisma', () => ({ default: {} }));
 
 import { escritura } from '@/lib/transaccion';
-import { formatoPesos, prefijoFecha } from '@/lib/ventas';
+import { prefijoFecha } from '@/lib/ventas';
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -39,9 +39,5 @@ describe('escritura() — escrituras sueltas en fila', () => {
 describe('helpers de ventas', () => {
   it('prefijoFecha arma AAAAMMDD con ceros', () => {
     expect(prefijoFecha(new Date(2026, 0, 5))).toBe('20260105');
-  });
-
-  it('formatoPesos no depende del locale del equipo', () => {
-    expect(formatoPesos(1250.5)).toBe('1250,5'.replace('1250', '1.250'));
   });
 });

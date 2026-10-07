@@ -4,7 +4,8 @@ import { requireAuth } from '@/lib/auth';
 import { transaccion } from '@/lib/transaccion';
 import { ApiError } from '@/lib/api-error';
 import { aPesos, enPesos } from '@/lib/money';
-import { PREFIJO_ANULACION, esAnulacion, formatoPesos, prefijoFecha as prefijoDeFecha } from '@/lib/ventas';
+import { PREFIJO_ANULACION, esAnulacion, prefijoFecha as prefijoDeFecha } from '@/lib/ventas';
+import { formatPesos } from '@/utils/dinero';
 import { reintegrarStockDeVenta } from '@/lib/stock';
 
 const bodySchema = z.object({
@@ -89,7 +90,7 @@ export async function POST(
           data: {
             pedidoId: original.pedidoId,
             accion: 'VENTA_ANULADA',
-            detalle: `Venta ${original.numeroTicket || `#${original.id}`} anulada por $${formatoPesos(aPesos(original.total))}`,
+            detalle: `Venta ${original.numeroTicket || `#${original.id}`} anulada por ${formatPesos(aPesos(original.total))}`,
             motivo,
             usuarioId,
           },

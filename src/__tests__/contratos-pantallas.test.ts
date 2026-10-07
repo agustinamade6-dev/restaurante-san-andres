@@ -153,10 +153,7 @@ describe('Inventario (src/app/admin/inventario/page.tsx)', () => {
     expect(db.state.insumos[0].stockActual).toBe(10); // el stock no se tocó
   });
 
-  it('PENDIENTE DEL FRONTEND: la pantalla actual edita el stock por PUT y la API lo rechaza con un mensaje que lo explica', async () => {
-    // actualizarStock() en inventario/page.tsx manda { ...insumo, stockActual: stockEdit }. Desde el commit 13 el stock
-    // solo se cambia con POST /api/inventario/ajuste (HANDOFF.md: "No mezclar sin el frontend de Inventario").
-    // Cuando la pantalla use "Ajustar stock", BORRAR este caso y dejar el siguiente.
+  it('PUT con otro stock sigue rechazado (la pantalla ya no lo manda desde el commit 16)', async () => {
     const lista = await recibir(await INVENTARIO.GET(pedir('GET')));
     const res = await INVENTARIO.PUT(pedir('PUT', { ...lista[0], stockActual: 12.5 }));
     await estado(res, 400);
@@ -164,7 +161,7 @@ describe('Inventario (src/app/admin/inventario/page.tsx)', () => {
     expect(db.state.insumos[0].stockActual).toBe(10);
   });
 
-  it('contrato nuevo de "Ajustar stock": POST /api/inventario/ajuste con { insumoId, delta, motivo }', async () => {
+  it('"Ajustar stock" (AjusteStockModal): POST /api/inventario/ajuste con { insumoId, delta, motivo }; suma y resta', async () => {
     const res = await AJUSTE.POST(pedir('POST', { insumoId: 7, delta: 2.5, motivo: 'Recuento del depósito' }));
     await estado(res, 200);
     expect(db.state.insumos[0].stockActual).toBe(12.5);
@@ -183,6 +180,11 @@ describe('Inventario (src/app/admin/inventario/page.tsx)', () => {
       }),
     );
     await estado(res, 201);
+  });
+  it('"Ajustar stock" rechaza un delta 0 y un motivo demasiado corto, sin tocar el stock', async () => {
+    await estado(await AJUSTE.POST(pedir('POST', { insumoId: 7, delta: 0, motivo: 'Recuento del depósito' })), 400);
+    await estado(await AJUSTE.POST(pedir('POST', { insumoId: 7, delta: 1, motivo: 'ok' })), 400);
+    expect(db.state.insumos[0].stockActual).toBe(10);
   });
 });
 

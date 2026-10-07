@@ -3,7 +3,8 @@ import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import { transaccion } from '@/lib/transaccion';
 import type { Prisma } from '@prisma/client';
-import { PREFIJO_ANULACION, formatoPesos, prefijoFecha } from '@/lib/ventas';
+import { PREFIJO_ANULACION, prefijoFecha } from '@/lib/ventas';
+import { formatPesos } from '@/utils/dinero';
 import eventEmitter from '@/lib/events';
 import { MAX_MONTO_PESOS, aCentavos, aPesos, dentroDeRango, enPesos, subtotalCentavos } from '@/lib/money';
 import { datosNegocio } from '@/lib/negocio';
@@ -190,7 +191,7 @@ export async function POST(request: Request) {
         data: {
           pedidoId,
           accion: 'COBRADO',
-          detalle: `Cobro registrado por $${formatoPesos(aPesos(total))} — ${metodoPago.toUpperCase()}`,
+          detalle: `Cobro registrado por ${formatPesos(aPesos(total))} — ${metodoPago.toUpperCase()}`,
           usuarioId: cajeroId,
         },
       });

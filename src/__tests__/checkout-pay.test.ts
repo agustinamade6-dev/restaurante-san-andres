@@ -72,6 +72,12 @@ describe('POST /api/checkout/pay — camino feliz', () => {
     expect(db.state.historial.map((h) => h.accion)).toContain('COBRADO');
   });
 
+  it('el texto del historial usa el formato de pesos de las pantallas (punto de miles, coma y $)', async () => {
+    // 2 × 1.500 + 800,50 + propina 100 = 3.900,50. Antes salía "3.900,5" sin signo propio: ahora es el mismo formateador único.
+    await pagar(valido);
+    expect(db.state.historial.find((h) => h.accion === 'COBRADO')?.detalle).toBe('Cobro registrado por $3.900,50 — EFECTIVO');
+  });
+
   it('calcula subtotal desde los ítems (no desde pedido.total) y suma la propina', async () => {
     const data = await (await pagar(valido)).json();
 
