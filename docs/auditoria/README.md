@@ -28,6 +28,7 @@ y qué debe tener en cuenta.
 | 18 | `fix(pruebas): el test de la fila huérfana usa una conexión directa de SQLite (intermitente en el CI)` (rama `fix/migraciones-intermitente`) | [commit-18-test-migraciones-intermitente.md](commit-18-test-migraciones-intermitente.md) | Hallado por el primer CI |
 | 19 | `fix(mesas): un pedido entregado y sin cobrar mantiene la mesa ocupada hasta el cobro o la cancelación` (rama `fix/entregado-mantiene-mesa`) | [commit-19-entregado-mantiene-la-mesa.md](commit-19-entregado-mantiene-la-mesa.md) | AT-39 |
 | 20 | `fix(sse): una sola revalidación de sesión a la vez en /api/events (test intermitente en el CI)` (rama `fix/sse-vencimiento-intermitente`) | [commit-20-sse-revalidaciones-solapadas.md](commit-20-sse-revalidaciones-solapadas.md) | Hallado por el CI del PR #15 |
+| 21 | `fix(dependencias): deepmerge-ts 8 por override y parches de herramientas de desarrollo; riesgo aceptado documentado (AT-37)` (rama `fix/at37-dependencias`) | [commit-21-dependencias-at37.md](commit-21-dependencias-at37.md) | AT-37 | 25 vulnerabilidades en dependencias según `npm audit` (3 altas en producción) | Override de `deepmerge-ts` y parches de desarrollo | ✅ Producción en 0; 19 avisos de desarrollo con riesgo aceptado documentado (commit 21) |
 
 ## Estado de los hallazgos
 
