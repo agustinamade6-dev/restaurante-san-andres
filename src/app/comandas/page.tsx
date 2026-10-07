@@ -1276,7 +1276,7 @@ ${pie}`
 
                   {/* Payment method */}
                   <div>
-                    <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-3">M\u00e9todo de Pago</h3>
+                    <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-3">Método de Pago</h3>
                     <div className="grid grid-cols-2 gap-2">
                       {[
                         { value: 'efectivo', label: 'Efectivo', icon: Banknote },
