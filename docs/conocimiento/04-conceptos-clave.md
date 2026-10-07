@@ -70,12 +70,14 @@ stateDiagram-v2
 
 | Estado | Cuándo |
 |---|---|
-| `libre` | Sin pedidos en curso |
-| `ocupada` | Hay un pedido pendiente o en preparación |
+| `libre` | Sin pedidos sin cobrar: se puede sentar gente |
+| `ocupada` | Hay un pedido pendiente, en preparación o ya entregado pero sin cobrar |
 | `esperando` | Un pedido está **listo** para llevar a la mesa |
 
-Al **confirmar la entrega**, si no quedan otros pedidos en curso, la mesa vuelve a figurar `libre` aunque falte
-cobrar. El pedido entregado sigue asociado a la mesa hasta que se cobra.
+Una mesa solo vuelve a `libre` cuando se **cobra** o se **cancela** su pedido. Un pedido **entregado y sin cobrar**
+la mantiene `ocupada` (la comida ya se sirvió, pero el cliente sigue en la mesa), y por eso tampoco se puede marcar
+libre a mano ni eliminar: la API responde `400`. La lista de estados que ocupan una mesa es `PEDIDOS_QUE_OCUPAN_MESA`
+(`src/lib/mesas.ts`).
 
 ## Cobro y anulación
 

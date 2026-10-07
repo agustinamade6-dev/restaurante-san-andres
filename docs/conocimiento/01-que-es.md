@@ -44,9 +44,8 @@ sequenceDiagram
 1. El mozo toca una mesa libre, elige productos y envía la comanda. La mesa pasa a **ocupada**.
 2. El pedido aparece al instante en **Pendientes** de la cocina.
 3. El cocinero lo pasa a **Preparando** y después a **Listo**: la mesa pasa a **esperando** (hay comida para
-   llevar). Cuando sale, lo marca **Entregado**.
-   - Ojo: al confirmar la entrega, si la mesa no tiene otros pedidos en curso, el plano la vuelve a mostrar
-     **libre** aunque **todavía no se cobró**. El pedido entregado sigue en la mesa para cobrarlo.
+   llevar). Cuando sale, lo marca **Entregado** y la mesa vuelve a **ocupada**: el cliente sigue sentado hasta
+   que paga.
 4. El mozo **cobra** la mesa: elige el método de pago y la propina, y se generan el **ticket del cliente** y el
    **comprobante interno**. Cobrar descuenta del stock los insumos de cada plato (si tiene receta) y deja la mesa
    libre.
