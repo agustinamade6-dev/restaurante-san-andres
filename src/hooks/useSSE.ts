@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { verificarSesion } from '@/lib/sesion-vencida';
+import { irAlLogin, verificarSesion } from '@/lib/sesion-vencida';
 
 export type MensajeSSE = { event: string; data: unknown };
 
@@ -16,6 +16,8 @@ export interface OpcionesConexion {
   onReconnect?: () => void;
   crearFuente?: () => FuenteEventos;
   alFallar?: () => void;
+  /** El servidor avisó que la sesión venció (o el usuario fue desactivado): no se reintenta. */
+  alVencerSesion?: () => void;
   esperaReintentoMs?: number;
 }
 
@@ -25,6 +27,7 @@ export function conectarSSE({
   onReconnect,
   crearFuente = () => new EventSource('/api/events'),
   alFallar = verificarSesion,
+  alVencerSesion = irAlLogin,
   esperaReintentoMs = 3000,
 }: OpcionesConexion): () => void {
   let activo = true;
@@ -45,6 +48,13 @@ export function conectarSSE({
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'heartbeat' || data.type === 'connected') return;
+        if (data.type === 'sesion-vencida') {
+          // El servidor cierra la conexión después de este aviso: reconectar daría 401 cada 3 s.
+          activo = false;
+          fuente?.close();
+          alVencerSesion();
+          return;
+        }
         onMessage(data);
       } catch {
         // Ignore parse errors

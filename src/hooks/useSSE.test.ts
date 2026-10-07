@@ -26,17 +26,19 @@ function preparar() {
   const onMessage = vi.fn();
   const onReconnect = vi.fn();
   const alFallar = vi.fn();
+  const alVencerSesion = vi.fn();
   const cerrar = conectarSSE({
     onMessage,
     onReconnect,
     alFallar,
+    alVencerSesion,
     crearFuente: () => {
       const f = new FuenteFalsa();
       fuentes.push(f);
       return f;
     },
   });
-  return { fuentes, onMessage, onReconnect, alFallar, cerrar, actual: () => fuentes[fuentes.length - 1] };
+  return { fuentes, onMessage, onReconnect, alFallar, alVencerSesion, cerrar, actual: () => fuentes[fuentes.length - 1] };
 }
 
 describe('conectarSSE', () => {
@@ -105,6 +107,21 @@ describe('conectarSSE', () => {
     vi.advanceTimersByTime(3000);
     actual().abrir();
     expect(onReconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('REGRESIÓN: ante "sesion-vencida" cierra, vuelve al inicio y no reintenta (antes reconectaba con 401 cada 3 s)', () => {
+    const { fuentes, actual, onMessage, alVencerSesion } = preparar();
+    actual().abrir();
+    actual().mensaje({ type: 'sesion-vencida' });
+
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(fuentes[0].cerrada).toBe(true);
+    expect(alVencerSesion).toHaveBeenCalledTimes(1);
+
+    // Aunque después llegue un error de la conexión cerrada, no se vuelve a conectar.
+    actual().cortar();
+    vi.advanceTimersByTime(10_000);
+    expect(fuentes).toHaveLength(1);
   });
 
   it('al cerrar la pantalla cierra la conexión actual y cancela el reintento pendiente', () => {
