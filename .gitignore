@@ -55,3 +55,11 @@ debug-startup.log
 
 # graphify (grafo de conocimiento local)
 /graphify-out/
+
+# pruebas (cobertura, mutación, e2e)
+/coverage
+/.stryker-tmp/
+/reports/
+/playwright-report/
+/test-results/
+/e2e/.tmp/

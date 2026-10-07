@@ -35,6 +35,9 @@ Al cerrar un bloque de trabajo: si hubo una corrección a mano, agregar una fila
 | 25 | Casi se exportaron constantes desde archivos `route.ts` (no permitido por Next); se detectó antes de compilar. | Constantes a `src/lib/` (`pedidos.ts`, `transaccion.ts`). | L-056 | commits 11 y 13 |
 | 26 | Reemplazos por script que no coincidían con el código real (import distinto, texto repetido) y se aplicaban a medias. | Releer el fragmento y editar a mano; scripts que abortan ante cualquier diferencia. | L-057 | sesión 2026-10-06 |
 | 27 | El evento de cancelación anunciaba la mesa con el estado leído antes de liberarla. | Emitir la mesa ya actualizada y solo si cambió. | L-043 | commit 13, AT-32 |
+| 28 | Las pruebas basadas en propiedades de `money.ts` pasaban a la primera, pero Stryker mostró dos mutantes vivos: el valor exacto del límite (`<=` vs `<`) y la comprobación de tipo de `enPesos`. | Casos explícitos de borde y de valores no numéricos; `money.ts` pasó a 100 % de mutantes eliminados. | L-059 | commit 15 |
+| 29 | Escribí en un test que el precio de las Papas Fritas era $32; el seed usa pesos (`aCentavos(3200)` = $3.200). | Releer el seed y corregir los valores esperados antes de dar el test por bueno. | L-050 | commit 15 |
+| 30 | Un heredoc de bash se comió una barra invertida de una expresión regular (la barra invertida del patrón desapareció y el script no compilaba) y un escape octal (barra invertida + 01) en una cadena de Python se volvió un carácter de control dentro de un archivo de memoria. | Archivos con la herramienta de escritura de archivos; sin regex con barras (`replaceAll` con dos barras en el código fuente); cadenas de Python crudas. | L-054 | commit 15 |
 
 
 ## Reemplazos masivos con script (cierre de calidad, 2026-10-06)
