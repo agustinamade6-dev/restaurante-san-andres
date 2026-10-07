@@ -33,6 +33,7 @@ import { enviarJson } from '@/lib/api-cliente';
 import { useApi } from '@/hooks/useApi';
 import { useAviso } from '@/hooks/useAviso';
 import { useEnvio } from '@/hooks/useEnvio';
+import { useSesion } from '@/hooks/useSesion';
 import { conservarPosiciones } from '@/utils/mesas';
 import { documentoImpresion, html, imprimir } from '@/utils/html';
 import { formatPesos } from '@/utils/dinero';
@@ -133,6 +134,8 @@ export default function ComandasPage() {
   const [mostrarNotas, setMostrarNotas] = useState<number | null>(null);
   // Un solo envío a la vez por acción: el segundo clic (antes del re-render) se ignora.
   const { ejecutar: ejecutarAccion, ocupado } = useEnvio();
+  // El editor de plano guarda con rutas solo ADMIN: se ofrece solo si la sesión de esta terminal es de un admin.
+  const { esAdmin } = useSesion();
   const enviando = ocupado('comanda');
   const { aviso: notificacion, mostrar: mostrarAviso } = useAviso<{ msg: string; tipo: string }>();
 
@@ -396,8 +399,9 @@ export default function ComandasPage() {
     dragRef.current = { element: null, containerRect: null, mesaId: null };
   };
 
+  // Confirma el PIN de un admin sin cambiar la sesión (check-admin-pin responde solo { success }).
   const handleVerifyPin = () => ejecutarAccion(async () => {
-    const res = await fetch('/api/auth/verify-pin', {
+    const res = await fetch('/api/auth/check-admin-pin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin: pinAdmin })
@@ -407,13 +411,14 @@ export default function ComandasPage() {
       return;
     }
     const data = await res.json().catch(() => null);
-    if (res.ok && data?.user?.rol === 'ADMIN') {
+    if (res.ok && data?.success) {
       setIsEditorMode(true);
       setMesasBackup(JSON.parse(JSON.stringify(mesas))); // backup
       setShowPinModal(false);
       setPinAdmin('');
     } else {
-      mostrarAviso({ msg: (!res.ok && data?.error) || 'PIN inválido o sin permisos', tipo: 'error' }, 3000);
+      mostrarAviso({ msg: data?.error || 'PIN inválido o sin permisos', tipo: 'error' }, 3000);
+      setPinAdmin('');
     }
   }, 'pin');
 
@@ -618,12 +623,14 @@ ${pie}`
                 >
                   Barra
                 </button>
+                {esAdmin && (
                 <button 
                   onClick={() => setShowPinModal(true)}
                   className={`px-4 py-2 text-xs font-bold transition-colors border-l border-[var(--border)] text-amber-500 hover:bg-amber-500/10 flex items-center gap-1`}
                 >
                   <Settings2 className="w-4 h-4" /> Modo Editor
                 </button>
+                )}
               </div>
             )}
             
