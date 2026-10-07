@@ -4,7 +4,7 @@ import { aCentavos } from '../src/lib/money';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Sembrando datos para Restaurante San Andrés...');
+  console.log('🌱 Sembrando datos para AKROS Café...');
 
   // --- Usuarios ---
   await prisma.usuario.upsert({
@@ -27,11 +27,19 @@ async function main() {
   // --- Mesas ---
   const mesas = [];
   for (let i = 1; i <= 20; i++) {
+    // Mismo plano que prisma/updateMesas.ts: barra (18-20) y salón en 4 columnas.
+    const enBarra = i >= 18;
+    // El estado de la mesa sigue al de su pedido: preparando/pendiente -> ocupada, listo -> esperando.
+    const estado = i === 2 || i === 5 ? 'ocupada' : i === 1 ? 'esperando' : 'libre';
     const mesa = await prisma.mesa.create({
       data: {
         numero: i,
         capacidad: i <= 8 ? 4 : i <= 14 ? 6 : 8,
-        estado: i === 2 ? 'ocupada' : i === 5 ? 'esperando' : 'libre',
+        estado,
+        sector: enBarra ? 'barra' : 'salon',
+        forma: enBarra ? 'tall-bar' : 'round',
+        posX: enBarra ? 10 : [32, 52, 72, 92][(i - 1) % 4],
+        posY: enBarra ? 20 + (i - 18) * 28 : 15 + Math.floor((i - 1) / 4) * 18,
       },
     });
     mesas.push(mesa);
@@ -60,7 +68,7 @@ async function main() {
       data: { nombre: 'Hamburguesa Clásica', descripcion: 'Medallón de 200g, lechuga, tomate, queso cheddar', precio: aCentavos(5500), categoriaId: catComidas.id, imagen: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&q=80&w=400&h=400' },
     }),
     prisma.producto.create({
-      data: { nombre: 'Hamburguesa Doble San Andrés', descripcion: 'Doble medallón, bacon, cheddar fundido, cebolla caramelizada', precio: aCentavos(7800), categoriaId: catComidas.id, imagen: 'https://images.unsplash.com/photo-1586816001966-79b736744398?auto=format&fit=crop&q=80&w=400&h=400' },
+      data: { nombre: 'Hamburguesa Doble AKROS', descripcion: 'Doble medallón, bacon, cheddar fundido, cebolla caramelizada', precio: aCentavos(7800), categoriaId: catComidas.id, imagen: 'https://images.unsplash.com/photo-1586816001966-79b736744398?auto=format&fit=crop&q=80&w=400&h=400' },
     }),
     prisma.producto.create({
       data: { nombre: 'Pizza Muzzarella', descripcion: 'Pizza grande con muzzarella y orégano', precio: aCentavos(6200), categoriaId: catComidas.id, imagen: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&q=80&w=400&h=400' },
@@ -272,7 +280,7 @@ async function main() {
   await prisma.venta.createMany({ data: ventasData });
   console.log(`✅ ${ventasData.length} ventas históricas creadas`);
 
-  console.log('\n🎉 Datos sembrados exitosamente para Restaurante San Andrés!');
+  console.log('\n🎉 Datos sembrados exitosamente para AKROS Café!');
 }
 
 main()

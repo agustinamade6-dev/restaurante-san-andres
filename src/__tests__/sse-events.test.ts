@@ -6,12 +6,15 @@ vi.mock('next/headers', async () => (await import('./helpers/session')).nextHead
 // El usuario de la sesión existe y está activo salvo que el test lo desactive (`usuarioActivo = false`).
 let usuarioActivo = true;
 let fallaBase = false;
+// Si es una promesa, la consulta del usuario espera a que se resuelva (simula una base lenta).
+let esperaBase: Promise<void> | null = null;
 vi.mock('@/lib/prisma', async () => {
   const { usuarioDeLaCookie } = await import('./helpers/session');
   return {
     default: {
       usuario: {
         findUnique: async ({ where }: { where: { id: number } }) => {
+          if (esperaBase) await esperaBase;
           if (fallaBase) throw new Error('SQLITE_BUSY');
           const u = usuarioDeLaCookie();
           return u && u.id === where.id ? { ...u, activo: usuarioActivo } : null;
@@ -30,6 +33,7 @@ const leer = async (reader: ReadableStreamDefaultReader<Uint8Array>) => decoder.
 beforeEach(async () => {
   usuarioActivo = true;
   fallaBase = false;
+  esperaBase = null;
   vi.useFakeTimers();
   resetCookies();
   await loginAs('MOZO', 3);
@@ -104,12 +108,33 @@ describe('GET /api/events (SSE)', () => {
     const reader = res.body!.getReader();
     await leer(reader);
 
-    await vi.advanceTimersByTimeAsync(12 * 60 * 60 * 1000 + 30_000); // 12 h: vence la cookie
+    // Se adelanta el reloj 12 h de un salto (no ~1.440 heartbeats de 30 s: en el CI, con cobertura, pasaba de los 20 s).
+    vi.setSystemTime(Date.now() + 12 * 60 * 60 * 1000 + 30_000);
+    await vi.advanceTimersByTimeAsync(30_000); // el siguiente heartbeat ve la cookie vencida
 
     let texto = '';
     for (let r = await reader.read(); !r.done; r = await reader.read()) texto += decoder.decode(r.value);
     expect(texto).toContain('"sesion-vencida"');
     expect(eventEmitter.listenerCount('*')).toBe(0);
+  });
+
+  it('REGRESIÓN: con la base lenta, dos revalidaciones solapadas no descartan el aviso "sesion-vencida"', async () => {
+    const res = await abrir();
+    const reader = res.body!.getReader();
+    await leer(reader);
+
+    usuarioActivo = false;
+    let liberar!: () => void;
+    esperaBase = new Promise<void>((r) => (liberar = r));
+    await vi.advanceTimersByTimeAsync(60_000); // dos heartbeats con la consulta aún pendiente
+    liberar();
+    await vi.advanceTimersByTimeAsync(0); // las dos revalidaciones terminan ANTES de que el cliente lea
+
+    let texto = '';
+    for (let r = await reader.read(); !r.done; r = await reader.read()) texto += decoder.decode(r.value);
+    expect(texto).toContain('"sesion-vencida"');
+    expect(eventEmitter.listenerCount('*')).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('reenvía a los clientes los eventos que emite el servidor', async () => {
