@@ -8,6 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
 import { PrismaClient } from '@prisma/client';
 import { COLUMNAS_MONTO, PASOS, migrarBase } from '@/lib/migraciones';
 
@@ -161,9 +162,14 @@ describe('migrarBase: integridad', () => {
   it('una fila huérfana que la base YA tenía no bloquea la migración', async () => {
     const url = urlDe('huerfana.db');
     const db = await crearBase(url, ddlViejo());
-    await db.$executeRawUnsafe('PRAGMA foreign_keys = OFF');
-    await db.$executeRawUnsafe(`INSERT INTO "Producto" (id, nombre, precio, categoriaId, updatedAt) VALUES (1, 'Huérfano', 10.5, 999, '2026-10-06 12:00:00')`);
     await db.$disconnect();
+    // Los PRAGMA de SQLite valen por CONEXIÓN y Prisma abre un pool: con `$executeRawUnsafe('PRAGMA foreign_keys = OFF')` el INSERT
+    // siguiente puede caer en otra conexión (con claves foráneas activas) y fallar con "FOREIGN KEY constraint failed" (visto en
+    // el CI, intermitente; no se reproduce en todos los equipos). Una conexión directa comparte PRAGMA e INSERT por construcción.
+    const directa = new DatabaseSync(join(dir, 'huerfana.db'));
+    directa.exec('PRAGMA foreign_keys = OFF');
+    directa.exec(`INSERT INTO "Producto" (id, nombre, precio, categoriaId, updatedAt) VALUES (1, 'Huérfano', 10.5, 999, '2026-10-06 12:00:00')`);
+    directa.close();
 
     expect(await migrarBase(url)).toHaveLength(2);
     const db2 = new PrismaClient({ datasourceUrl: url });

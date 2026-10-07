@@ -25,6 +25,7 @@ y qué debe tener en cuenta.
 | 15 | `chore(pruebas): separar tests rápidos, medir cobertura, CI, e2e con Playwright, propiedades, mutación y contrato de pantallas` (rama `chore/calidad-pruebas`) | [commit-15-calidad-de-pruebas.md](commit-15-calidad-de-pruebas.md) | AT-36, AT-37 (hallados; abiertos) |
 | 16 | `chore(integracion): ignorar release/ en ESLint, un solo formateador de pesos y contrato de Inventario sin el caso pendiente` (rama `chore/ajustes-finales`) | [commit-16-integracion-frontend.md](commit-16-integracion-frontend.md) | Respuestas a la integración del frontend; AT-36 (parcial) |
 | 17 | `test(accesibilidad): axe en Cocina y las 8 pantallas de Administración; registrar AT-38` (ramas `frontend/contraste` y `chore/cierre-at36`) | [commit-17-contraste-y-cobertura-axe.md](commit-17-contraste-y-cobertura-axe.md) | AT-36 (cerrado), AT-38 (hallado; abierto) |
+| 18 | `fix(pruebas): el test de la fila huérfana usa una conexión directa de SQLite (intermitente en el CI)` (rama `fix/migraciones-intermitente`) | [commit-18-test-migraciones-intermitente.md](commit-18-test-migraciones-intermitente.md) | Hallado por el primer CI |
 
 ## Estado de los hallazgos
 
