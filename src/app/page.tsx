@@ -156,7 +156,7 @@ export default function HomePage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                 Servidor Local Activo
               </span>
-              <span className="text-[10px] text-white/30 font-mono tracking-wider">v1.2.0-POS</span>
+              <span className="text-[10px] text-white/30 font-mono tracking-wider">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
             </div>
           </div>
         </div>
