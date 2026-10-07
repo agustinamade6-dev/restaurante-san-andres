@@ -108,7 +108,9 @@ describe('GET /api/events (SSE)', () => {
     const reader = res.body!.getReader();
     await leer(reader);
 
-    await vi.advanceTimersByTimeAsync(12 * 60 * 60 * 1000 + 30_000); // 12 h: vence la cookie
+    // Se adelanta el reloj 12 h de un salto (no ~1.440 heartbeats de 30 s: en el CI, con cobertura, pasaba de los 20 s).
+    vi.setSystemTime(Date.now() + 12 * 60 * 60 * 1000 + 30_000);
+    await vi.advanceTimersByTimeAsync(30_000); // el siguiente heartbeat ve la cookie vencida
 
     let texto = '';
     for (let r = await reader.read(); !r.done; r = await reader.read()) texto += decoder.decode(r.value);

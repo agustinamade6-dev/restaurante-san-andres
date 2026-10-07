@@ -15,6 +15,12 @@ recibe un error en vez de `sesion-vencida` (se reconecta igual, pero sin el avis
 **Prueba:** `REGRESIÓN: con la base lenta, dos revalidaciones solapadas no descartan el aviso "sesion-vencida"` retiene la consulta con una promesa,
 deja pasar dos heartbeats, la libera y deja terminar ambas revalidaciones antes de leer. Falla sin el arreglo y pasa con él (5 de 5 ejecuciones).
 
+## Segundo hallazgo — el test de vencimiento era demasiado lento para el CI
+Con el arreglo, el CI del PR #16 falló distinto: `si la sesión VENCE con la conexión abierta, también se corta` superó los 20 s de `testTimeout`
+(y la conexión que quedó abierta hizo fallar en cascada a otros 4 tests del archivo). El test avanzaba 12 h en pasos de 30 s (~1.440 heartbeats, cada
+uno con una verificación criptográfica real): 0,3 s en el equipo de desarrollo, más de 20 s en el runner con cobertura. Ahora adelanta el reloj
+12 h de un salto con `vi.setSystemTime` y deja correr un solo heartbeat. Es probable que esta lentitud también explicara el fallo original del #15.
+
 ## Cambios visibles para el frontend
 Ninguno de contrato. En el caso de base lenta, el cliente ahora recibe `sesion-vencida` (y el cierre) en lugar de un error de lectura.
 
