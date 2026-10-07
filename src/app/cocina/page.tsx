@@ -22,6 +22,7 @@ import {
 import { useSSE } from '@/hooks/useSSE';
 import { useAhora } from '@/hooks/useAhora';
 import { useApi } from '@/hooks/useApi';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviarJson } from '@/lib/api-cliente';
 
 interface HistorialPedido {
@@ -74,15 +75,15 @@ export default function CocinaPage() {
     setTimeout(() => setAviso((actual) => (actual === mensaje ? '' : actual)), 5000);
   }, []);
 
-  const { data: pedidos, recargar: fetchPedidos } = useApi<Pedido[]>('/api/pedidos', []);
+  const { data: pedidos, error: errorPedidos, recargar: fetchPedidos } = useApi<Pedido[]>('/api/pedidos', []);
   // Los modales guardan solo el id y leen el pedido de la lista actual: así muestran cada cambio
   // (el "+" suma de verdad la segunda vez) y se cierran solos si el pedido deja de estar activo.
   const modalEditOpen = pedidos.find((p) => p.id === modalEditId) ?? null;
   const modalHistoryOpen = pedidos.find((p) => p.id === modalHistoryId) ?? null;
   const modalCancelarOpen = pedidos.find((p) => p.id === modalCancelarId) ?? null;
-  const { data: productos, recargar: fetchProductos } = useApi<Array<{ id: number; nombre: string; precio: number; categoriaId: number }>>('/api/productos', []);
+  const { data: productos, error: errorProductos, recargar: fetchProductos } = useApi<Array<{ id: number; nombre: string; precio: number; categoriaId: number }>>('/api/productos', []);
   // Historial de hoy: solo se pide con su modal abierto (y se vuelve a pedir al reabrirlo)
-  const { data: entregados, recargar: fetchEntregados } = useApi<Pedido[]>(
+  const { data: entregados, error: errorEntregados, recargar: fetchEntregados } = useApi<Pedido[]>(
     modalEntregadosOpen ? '/api/pedidos/history?days=1' : null,
     []
   );
@@ -332,7 +333,7 @@ export default function CocinaPage() {
           <div>
             <h1 className="text-2xl font-bold">Cocina — Monitor KDS</h1>
             <p className="text-[var(--muted)] text-sm">
-              {pedidos.length} pedidos activos
+              {errorPedidos && pedidos.length === 0 ? 'Sin datos del servidor' : `${pedidos.length} pedidos activos`}
             </p>
           </div>
         </div>
@@ -368,6 +369,9 @@ export default function CocinaPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorPedidos} que="los pedidos" onReintentar={fetchPedidos} />
+      <ErrorDeCarga error={errorProductos} que="los productos (para agregar platos)" onReintentar={fetchProductos} />
+
       {/* Kanban Columns */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Pendientes */}
@@ -381,7 +385,7 @@ export default function CocinaPage() {
           </div>
           <div className="space-y-4">
             {pedidosPendientes.map(renderPedido)}
-            {pedidosPendientes.length === 0 && (
+            {pedidosPendientes.length === 0 && !errorPedidos && (
               <div className="glass-card p-8 text-center text-[var(--muted)]">
                 <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">Sin pedidos pendientes</p>
@@ -401,7 +405,7 @@ export default function CocinaPage() {
           </div>
           <div className="space-y-4">
             {pedidosPreparando.map(renderPedido)}
-            {pedidosPreparando.length === 0 && (
+            {pedidosPreparando.length === 0 && !errorPedidos && (
               <div className="glass-card p-8 text-center text-[var(--muted)]">
                 <Flame className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">Nada cocinándose</p>
@@ -421,7 +425,7 @@ export default function CocinaPage() {
           </div>
           <div className="space-y-4">
             {pedidosListos.map(renderPedido)}
-            {pedidosListos.length === 0 && (
+            {pedidosListos.length === 0 && !errorPedidos && (
               <div className="glass-card p-8 text-center text-[var(--muted)]">
                 <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">Nada listo aún</p>
@@ -647,6 +651,10 @@ export default function CocinaPage() {
                     </div>
                   )
                 })
+              ) : errorEntregados ? (
+                <div className="col-span-full">
+                  <ErrorDeCarga error={errorEntregados} que="el historial" onReintentar={fetchEntregados} />
+                </div>
               ) : (
                 <div className="col-span-full flex flex-col items-center justify-center text-[var(--muted)] p-12">
                   <CheckCheck className="w-16 h-16 opacity-20 mb-4" />

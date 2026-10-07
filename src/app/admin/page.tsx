@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useApi } from '@/hooks/useApi';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import {
   DollarSign,
   TrendingUp,
@@ -44,44 +45,9 @@ interface Metricas {
 }
 
 export default function AdminDashboard() {
-  const [loading, setLoading] = useState(true);
-  const [metricas, setMetricas] = useState<Metricas>({
-    ventasHoy: { total: 0, cantidad: 0 },
-    ventasSemana: { total: 0, cantidad: 0 },
-    ventasMes: { total: 0, cantidad: 0 },
-    costosMensuales: 0,
-    balanceMes: 0,
-    platosMasVendidos: [],
-    ventasPorDia: [],
-    ventasPorSemana: [],
-    alertasStock: 0,
-    pedidosActivos: 0,
-  });
+  const { data, cargando: loading, error, recargar } = useApi<Partial<Metricas> | null>('/api/metricas', null);
 
-  useEffect(() => {
-    fetch('/api/metricas')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setMetricas({
-            ventasHoy: data.ventasHoy || { total: 0, cantidad: 0 },
-            ventasSemana: data.ventasSemana || { total: 0, cantidad: 0 },
-            ventasMes: data.ventasMes || { total: 0, cantidad: 0 },
-            costosMensuales: data.costosMensuales || 0,
-            balanceMes: data.balanceMes || 0,
-            platosMasVendidos: data.platosMasVendidos || [],
-            ventasPorDia: data.ventasPorDia || [],
-            ventasPorSemana: data.ventasPorSemana || [],
-            alertasStock: data.alertasStock || 0,
-            pedidosActivos: data.pedidosActivos || 0,
-          });
-        }
-      })
-      .catch((err) => console.error('[API /api/metricas] Error fetching metrics:', err))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-4">
@@ -91,6 +57,29 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
+  // Si las métricas no cargaron, no se muestran tarjetas en $0 como si no hubiera habido ventas.
+  if (!data) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+        <ErrorDeCarga error={error || 'Respuesta vacía del servidor'} que="las métricas" onReintentar={recargar} />
+      </div>
+    );
+  }
+
+  const metricas: Metricas = {
+    ventasHoy: data.ventasHoy || { total: 0, cantidad: 0 },
+    ventasSemana: data.ventasSemana || { total: 0, cantidad: 0 },
+    ventasMes: data.ventasMes || { total: 0, cantidad: 0 },
+    costosMensuales: data.costosMensuales || 0,
+    balanceMes: data.balanceMes || 0,
+    platosMasVendidos: data.platosMasVendidos || [],
+    ventasPorDia: data.ventasPorDia || [],
+    ventasPorSemana: data.ventasPorSemana || [],
+    alertasStock: data.alertasStock || 0,
+    pedidosActivos: data.pedidosActivos || 0,
+  };
 
   const formatMoney = (n: number) =>
     `$${n.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
@@ -103,6 +92,8 @@ export default function AdminDashboard() {
           Resumen de rendimiento — Restaurante San Andrés
         </p>
       </div>
+
+      <ErrorDeCarga error={error} que="las métricas" onReintentar={recargar} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

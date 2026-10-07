@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
   Plus,
@@ -34,7 +35,7 @@ export default function CostosPage() {
     periodicidad: 'mensual',
   });
 
-  const { data: costos, recargar: fetchCostos } = useApi<CostoFijo[]>('/api/costos', []);
+  const { data: costos, error: errorCarga, recargar: fetchCostos } = useApi<CostoFijo[]>('/api/costos', []);
 
   const guardar = async () => {
     setErrorModal('');
@@ -121,6 +122,7 @@ export default function CostosPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="los costos" onReintentar={fetchCostos} />
       <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
 
       {/* Cost list */}

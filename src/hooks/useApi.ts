@@ -1,6 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+type Resultado<T> = { clave: string | null; url: string | null; data: T; error: string };
+
+/**
+ * Estado después de un error. Se conservan los datos anteriores solo si son de la MISMA url
+ * (un reintento o una recarga por SSE que falló): mostrar los de otra url, p. ej. el período
+ * anterior de Caja con "Hoy" seleccionado, sería mostrar datos equivocados.
+ */
+export function resultadoConError<T>(
+  prev: Resultado<T>,
+  clave: string,
+  url: string,
+  inicial: T,
+  error: string
+): Resultado<T> {
+  return { clave, url, data: prev.url === url ? prev.data : inicial, error };
+}
 
 /**
  * Carga datos de la API para una pantalla. El pedido se hace en un efecto y el estado se actualiza en el
@@ -9,19 +26,23 @@ import { useCallback, useEffect, useState } from 'react';
  *
  * - `recargar()` vuelve a pedir la misma URL (después de guardar o eliminar, o ante un evento SSE).
  * - `cargando` es true hasta que llega la primera respuesta para la URL actual.
- * - `error` trae el mensaje de la API (`{ error }`) o de conexión; `data` conserva lo último cargado.
+ * - `error` trae el mensaje de la API (`{ error }`) o de conexión. `data` conserva lo último cargado
+ *   de esa misma URL; si no hay, vuelve a `inicial`. Mostrarlo con <ErrorDeCarga>.
  */
 export function useApi<T>(url: string | null, inicial: T) {
   const [version, setVersion] = useState(0);
   const clave = url === null ? null : `${version}:${url}`;
-  const [resultado, setResultado] = useState<{ clave: string | null; data: T; error: string }>({
+  // `inicial` suele ser un literal ([] o null) nuevo en cada render: se lee de una ref para no relanzar el efecto.
+  const inicialRef = useRef(inicial);
+  const [resultado, setResultado] = useState<Resultado<T>>({
     clave: null,
+    url: null,
     data: inicial,
     error: '',
   });
 
   useEffect(() => {
-    if (url === null) return;
+    if (url === null || clave === null) return;
     let vigente = true;
     fetch(url)
       .then(async (res) => {
@@ -29,12 +50,14 @@ export function useApi<T>(url: string | null, inicial: T) {
         if (!vigente) return;
         setResultado((prev) =>
           res.ok
-            ? { clave, data: json as T, error: '' }
-            : { clave, data: prev.data, error: json?.error || 'No se pudieron cargar los datos' }
+            ? { clave, url, data: json as T, error: '' }
+            : resultadoConError(prev, clave, url, inicialRef.current, json?.error || 'No se pudieron cargar los datos')
         );
       })
       .catch(() => {
-        if (vigente) setResultado((prev) => ({ clave, data: prev.data, error: 'No se pudo conectar con el servidor' }));
+        if (vigente) {
+          setResultado((prev) => resultadoConError(prev, clave, url, inicialRef.current, 'No se pudo conectar con el servidor'));
+        }
       });
     return () => {
       vigente = false;

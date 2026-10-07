@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
   Plus,
@@ -43,7 +44,7 @@ export default function ProveedoresPage() {
     notas: '',
   });
 
-  const { data: proveedores, recargar: fetchProveedores } = useApi<Proveedor[]>('/api/proveedores', []);
+  const { data: proveedores, error: errorCarga, recargar: fetchProveedores } = useApi<Proveedor[]>('/api/proveedores', []);
 
   const abrirModal = (prov?: Proveedor) => {
     if (prov) {
@@ -104,6 +105,7 @@ export default function ProveedoresPage() {
         </button>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="los proveedores" onReintentar={fetchProveedores} />
       <AvisoError mensaje={errorLista} onCerrar={() => setErrorLista('')} />
 
       {/* Cards grid */}

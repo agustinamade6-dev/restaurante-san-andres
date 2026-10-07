@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useApi } from '@/hooks/useApi';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { User, CheckCircle2, AlertTriangle, Shield, KeyRound, Eye, EyeOff, X, Delete } from 'lucide-react';
 
 interface Usuario {
@@ -13,7 +14,7 @@ interface Usuario {
 }
 
 export default function UsuariosPage() {
-  const { data: usuarios, cargando: loading, recargar: fetchUsuarios } = useApi<Usuario[]>('/api/admin/usuarios', []);
+  const { data: usuarios, cargando: loading, error: errorCarga, recargar: fetchUsuarios } = useApi<Usuario[]>('/api/admin/usuarios', []);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -122,6 +123,8 @@ export default function UsuariosPage() {
           <p className="text-[var(--muted)]">Administra roles y accesos al sistema</p>
         </div>
       </div>
+
+      <ErrorDeCarga error={errorCarga} que="los usuarios" onReintentar={fetchUsuarios} />
 
       <div className="glass-card overflow-hidden">
         <table className="w-full text-left">

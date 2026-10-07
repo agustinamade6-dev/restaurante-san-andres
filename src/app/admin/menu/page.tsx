@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useApi } from '@/hooks/useApi';
 import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviar, enviarJson } from '@/lib/api-cliente';
 import {
   Plus,
@@ -35,8 +36,8 @@ interface Categoria {
 }
 
 export default function MenuPage() {
-  const { data: productos, recargar: recargarProductos } = useApi<Producto[]>('/api/productos', []);
-  const { data: categorias, recargar: recargarCategorias } = useApi<Categoria[]>('/api/categorias', []);
+  const { data: productos, error: errorProductos, recargar: recargarProductos } = useApi<Producto[]>('/api/productos', []);
+  const { data: categorias, error: errorCategorias, recargar: recargarCategorias } = useApi<Categoria[]>('/api/categorias', []);
   const [busqueda, setBusqueda] = useState('');
   const [catFiltro, setCatFiltro] = useState<number | null>(null);
   const [modal, setModal] = useState(false);
@@ -218,6 +219,8 @@ export default function MenuPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorProductos} que="los productos" onReintentar={recargarProductos} />
+      <ErrorDeCarga error={errorCategorias} que="las categorías" onReintentar={recargarCategorias} />
       <AvisoError
         mensaje={errorLista}
         onCerrar={cerrarAvisoLista}

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useApi } from '@/hooks/useApi';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { useAhora } from '@/hooks/useAhora';
 import { Search, Clock, CheckCheck, TrendingUp, Filter } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
@@ -24,7 +25,7 @@ interface Pedido {
 export default function AdminHistorialPage() {
   const [busqueda, setBusqueda] = useState('');
   const [dias, setDias] = useState('1'); // Por defecto, hoy
-  const { data } = useApi<Pedido[]>(`/api/pedidos/history?days=${dias}`, []);
+  const { data, error: errorCarga, recargar } = useApi<Pedido[]>(`/api/pedidos/history?days=${dias}`, []);
   const pedidos = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   // Duración de pedidos aún sin entregar: se mide contra una hora que avanza sola
   const ahora = useAhora();
@@ -71,6 +72,8 @@ export default function AdminHistorialPage() {
           <p className="text-[var(--muted)]">Consulta los pedidos despachados y audita los tiempos de cocina.</p>
         </div>
       </div>
+
+      <ErrorDeCarga error={errorCarga} que="el historial" onReintentar={recargar} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -179,7 +182,7 @@ export default function AdminHistorialPage() {
                   </tr>
                 )
               })}
-              {pedidosFiltrados.length === 0 && (
+              {pedidosFiltrados.length === 0 && !errorCarga && (
                 <tr>
                   <td colSpan={6} className="p-12 text-center text-[var(--muted)]">
                     <CheckCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />

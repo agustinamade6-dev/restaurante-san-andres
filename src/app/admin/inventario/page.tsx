@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
 import AvisoError from '@/components/AvisoError';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 import { enviarJson } from '@/lib/api-cliente';
 
 interface Insumo {
@@ -41,7 +42,7 @@ export default function InventarioPage() {
   const [errorNuevo, setErrorNuevo] = useState('');
   const [errorTabla, setErrorTabla] = useState('');
 
-  const { data: insumos, recargar: fetchInsumos } = useApi<Insumo[]>('/api/inventario', []);
+  const { data: insumos, error: errorCarga, recargar: fetchInsumos } = useApi<Insumo[]>('/api/inventario', []);
 
   const actualizarStock = async (insumo: Insumo) => {
     setErrorTabla('');
@@ -171,6 +172,7 @@ export default function InventarioPage() {
         </div>
       </div>
 
+      <ErrorDeCarga error={errorCarga} que="los insumos" onReintentar={fetchInsumos} />
       <AvisoError mensaje={errorTabla} onCerrar={() => setErrorTabla('')} />
 
       {/* Table */}

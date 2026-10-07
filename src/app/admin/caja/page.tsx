@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
 import { documentoImpresion, html, imprimir } from '@/utils/html';
+import ErrorDeCarga from '@/components/ErrorDeCarga';
 
 // Lo que el modal de anulación usa de una fila de GET /api/caja (montos en pesos).
 interface VentaAnulable {
@@ -47,7 +48,7 @@ interface CajaData {
 
 export default function CajaPage() {
   const [periodo, setPeriodo] = useState('1'); // days
-  const { data, cargando: loading, recargar: fetchCaja } = useApi<CajaData | null>(`/api/caja?days=${periodo}`, null);
+  const { data, cargando: loading, error: errorCaja, recargar: fetchCaja } = useApi<CajaData | null>(`/api/caja?days=${periodo}`, null);
   // Venta a anular (modal abierto) y estado del formulario
   const [anulando, setAnulando] = useState<VentaAnulable | null>(null);
   const [motivo, setMotivo] = useState('');
@@ -148,6 +149,8 @@ export default function CajaPage() {
           </button>
         </div>
       </div>
+
+      <ErrorDeCarga error={errorCaja} que="las ventas" onReintentar={fetchCaja} />
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
