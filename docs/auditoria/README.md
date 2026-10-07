@@ -26,6 +26,7 @@ y qué debe tener en cuenta.
 | 16 | `chore(integracion): ignorar release/ en ESLint, un solo formateador de pesos y contrato de Inventario sin el caso pendiente` (rama `chore/ajustes-finales`) | [commit-16-integracion-frontend.md](commit-16-integracion-frontend.md) | Respuestas a la integración del frontend; AT-36 (parcial) |
 | 17 | `test(accesibilidad): axe en Cocina y las 8 pantallas de Administración; registrar AT-38` (ramas `frontend/contraste` y `chore/cierre-at36`) | [commit-17-contraste-y-cobertura-axe.md](commit-17-contraste-y-cobertura-axe.md) | AT-36 (cerrado), AT-38 (hallado; abierto) |
 | 18 | `fix(pruebas): el test de la fila huérfana usa una conexión directa de SQLite (intermitente en el CI)` (rama `fix/migraciones-intermitente`) | [commit-18-test-migraciones-intermitente.md](commit-18-test-migraciones-intermitente.md) | Hallado por el primer CI |
+| 19 | `fix(mesas): un pedido entregado y sin cobrar mantiene la mesa ocupada hasta el cobro o la cancelación` (rama `fix/entregado-mantiene-mesa`) | [commit-19-entregado-mantiene-la-mesa.md](commit-19-entregado-mantiene-la-mesa.md) | AT-39 |
 
 ## Estado de los hallazgos
 
@@ -69,6 +70,7 @@ y qué debe tener en cuenta.
 | AT-36 | Violaciones de accesibilidad en inicio, modal del PIN y Comandas: botones sin nombre y contraste (hallado por axe) | Medio | ✅ Commit 16 (botones sin nombre) y `frontend/contraste` (contraste AA en toda la app); cubierto por axe en el commit 17 |
 | AT-37 | 25 vulnerabilidades en dependencias según `npm audit` (3 altas en producción); sin actualizar | A evaluar | ⏳ Abierto; registrado en el commit 15 |
 | AT-38 | Otras violaciones de accesibilidad en Administración: `<select>` sin etiqueta (Caja, Historial) y zonas con scroll no enfocables en móvil (hallado al ampliar axe) | Bajo a Medio | ⏳ Abierto (frontend); medido en el commit 17 |
+| AT-39 | La mesa volvía a libre al marcar el pedido como entregado, antes del cobro (hallado por Agustín al documentar) | Medio | ✅ Commit 19 |
 
 ## Convenciones
 
