@@ -10,6 +10,7 @@ import {
   Plus,
   Save,
   Trash2,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { formatDate } from '@/lib/formatDate';
@@ -19,6 +20,7 @@ import { enviar, enviarJson } from '@/lib/api-cliente';
 import { useEnvio } from '@/hooks/useEnvio';
 import { formatPesos } from '@/utils/dinero';
 import { useDialogo } from '@/hooks/useDialogo';
+import AjusteStockModal from '@/components/inventario/AjusteStockModal';
 
 interface Insumo {
   id: number;
@@ -39,8 +41,8 @@ export default function InventarioPage() {
   const [busqueda, setBusqueda] = useState('');
   const { ejecutar, enviando } = useEnvio();
   const [filtro, setFiltro] = useState<'todos' | 'bajo' | 'ok'>('todos');
-  const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [stockEdit, setStockEdit] = useState<number>(0);
+  // Insumo con el modal "Ajustar stock" abierto (por id: el stock que muestra se actualiza si llega una venta).
+  const [ajustandoId, setAjustandoId] = useState<number | null>(null);
   const [nuevo, setNuevo] = useState<typeof insumoVacio | null>(null);
   const dlgInsumo = useDialogo('Nuevo insumo', () => setNuevo(null));
   const [proveedores, setProveedores] = useState<{ id: number; nombre: string }[]>([]);
@@ -49,13 +51,7 @@ export default function InventarioPage() {
 
   const { data: insumos, error: errorCarga, recargar: fetchInsumos } = useApi<Insumo[]>('/api/inventario', []);
 
-  const actualizarStock = async (insumo: Insumo) => {
-    setErrorTabla('');
-    const error = await enviarJson('/api/inventario', 'PUT', { ...insumo, stockActual: stockEdit }, 'No se pudo actualizar el stock');
-    if (error) return setErrorTabla(error);
-    setEditandoId(null);
-    fetchInsumos();
-  };
+  const ajustando = insumos.find((i) => i.id === ajustandoId) ?? null;
 
   const eliminarInsumo = async (insumo: Insumo) => {
     if (!confirm(`¿Eliminar el insumo "${insumo.nombre}"?`)) return;
@@ -234,45 +230,23 @@ export default function InventarioPage() {
                     </div>
                   </td>
                   <td className="p-4 text-center">
-                    {editandoId === insumo.id ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <input
-                          type="number"
-                          value={stockEdit}
-                          onChange={(e) =>
-                            setStockEdit(parseFloat(e.target.value) || 0)
-                          }
-                          className="input w-20 text-center py-1"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => actualizarStock(insumo)}
-                          className="btn btn-sm btn-success"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          onClick={() => setEditandoId(null)}
-                          className="btn btn-sm btn-secondary"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setEditandoId(insumo.id);
-                          setStockEdit(insumo.stockActual);
-                        }}
-                        className={`font-bold text-sm cursor-pointer hover:underline ${
-                          esBajo
-                            ? 'text-[var(--danger)]'
-                            : 'text-[var(--foreground)]'
+                    <div className="flex items-center justify-center gap-2">
+                      <span
+                        className={`font-bold text-sm ${
+                          esBajo ? 'text-[var(--danger)]' : 'text-[var(--foreground)]'
                         }`}
                       >
                         {insumo.stockActual} {insumo.unidad}
+                      </span>
+                      <button
+                        onClick={() => setAjustandoId(insumo.id)}
+                        className="btn btn-sm btn-secondary"
+                        aria-label={`Ajustar stock de ${insumo.nombre}`}
+                      >
+                        <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+                        Ajustar
                       </button>
-                    )}
+                    </div>
                   </td>
                   <td className="p-4 text-center text-sm text-[var(--muted)]">
                     {insumo.stockMinimo} {insumo.unidad}
@@ -328,6 +302,17 @@ export default function InventarioPage() {
           </tbody>
         </table>
       </div>
+
+      {ajustando && (
+        <AjusteStockModal
+          insumo={ajustando}
+          onCerrar={() => setAjustandoId(null)}
+          onAjustado={() => {
+            setAjustandoId(null);
+            fetchInsumos();
+          }}
+        />
+      )}
 
       {nuevo && (
         <div {...dlgInsumo} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
