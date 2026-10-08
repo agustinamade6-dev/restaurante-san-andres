@@ -15,7 +15,7 @@ import { moduloDePagina } from '@/lib/sesion-vencida';
 import { useAhora } from '@/hooks/useAhora';
 import { useDialogo } from '@/hooks/useDialogo';
 import { useSesion } from '@/hooks/useSesion';
-import Logo from '@/components/Logo';
+import MarcaDeAgua from '@/components/MarcaDeAgua';
 
 export default function HomePage() {
   const router = useRouter();
@@ -140,7 +140,8 @@ export default function HomePage() {
   }, [modalOpen, handleModuleClick, pin, addDigit, removeDigit]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#0a0f1c] to-[#04060a] relative overflow-hidden select-none">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#0f1c27] to-[#070d12] relative overflow-hidden select-none isolate">
+      <MarcaDeAgua />
       {/* Background Texture & Glows */}
       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 mix-blend-overlay pointer-events-none" />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
@@ -148,7 +149,6 @@ export default function HomePage() {
       {/* Top Header Bar */}
       <header className="relative z-10 w-full px-8 py-5 flex items-center justify-between border-b border-white/5 bg-black/20 backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <Logo alto={56} />
           <div>
             <h1 className="text-xl font-black tracking-tight text-white/90">AKROS Café</h1>
             <div className="flex items-center gap-2 mt-0.5">
@@ -181,12 +181,12 @@ export default function HomePage() {
           {/* Card 1: Sala / Comandas */}
           <button 
             onClick={() => handleModuleClick('comandas')} 
-            className="group relative flex flex-col text-left h-auto min-h-[340px] rounded-3xl bg-gradient-to-b from-[#111625] to-[#0a0d15] border border-white/5 overflow-hidden transition-all duration-300 hover:border-amber-500/50 hover:shadow-[0_0_40px_rgba(245,158,11,0.15)] hover:-translate-y-2 focus:outline-none"
+            className="group relative flex flex-col text-left h-auto min-h-[340px] rounded-3xl bg-gradient-to-b from-[#16232e]/80 to-[#0e1820]/80 border border-white/5 overflow-hidden transition-all duration-300 hover:border-amber-500/50 hover:shadow-[0_0_40px_rgba(212,166,86,0.15)] hover:-translate-y-2 focus:outline-none"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="p-5 md:p-6 flex-1 flex flex-col relative z-10">
               <div className="flex justify-between items-start mb-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all duration-500">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(212,166,86,0.3)] transition-all duration-500">
                   <LayoutGrid className="w-8 h-8 text-amber-400" />
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">1</div>
@@ -219,12 +219,12 @@ export default function HomePage() {
           {/* Card 2: Cocina / KDS */}
           <button 
             onClick={() => handleModuleClick('cocina')} 
-            className="group relative flex flex-col text-left h-auto min-h-[340px] rounded-3xl bg-gradient-to-b from-[#111625] to-[#0a0d15] border border-white/5 overflow-hidden transition-all duration-300 hover:border-cyan-500/50 hover:shadow-[0_0_40px_rgba(6,182,212,0.15)] hover:-translate-y-2 focus:outline-none"
+            className="group relative flex flex-col text-left h-auto min-h-[340px] rounded-3xl bg-gradient-to-b from-[#16232e]/80 to-[#0e1820]/80 border border-white/5 overflow-hidden transition-all duration-300 hover:border-cyan-500/50 hover:shadow-[0_0_40px_rgba(79,138,148,0.15)] hover:-translate-y-2 focus:outline-none"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="p-5 md:p-6 flex-1 flex flex-col relative z-10">
               <div className="flex justify-between items-start mb-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border border-cyan-500/20 flex items-center justify-center group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all duration-500">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border border-cyan-500/20 flex items-center justify-center group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(79,138,148,0.3)] transition-all duration-500">
                   <ChefHat className="w-8 h-8 text-cyan-400" />
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">2</div>
@@ -258,12 +258,12 @@ export default function HomePage() {
           {/* Card 3: Administración */}
           <button 
             onClick={() => handleModuleClick('admin')} 
-            className="group relative flex flex-col text-left h-auto min-h-[340px] rounded-3xl bg-gradient-to-b from-[#111625] to-[#0a0d15] border border-white/5 overflow-hidden transition-all duration-300 hover:border-purple-500/50 hover:shadow-[0_0_40px_rgba(168,85,247,0.15)] hover:-translate-y-2 focus:outline-none"
+            className="group relative flex flex-col text-left h-auto min-h-[340px] rounded-3xl bg-gradient-to-b from-[#16232e]/80 to-[#0e1820]/80 border border-white/5 overflow-hidden transition-all duration-300 hover:border-purple-500/50 hover:shadow-[0_0_40px_rgba(74,114,212,0.15)] hover:-translate-y-2 focus:outline-none"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="p-5 md:p-6 flex-1 flex flex-col relative z-10">
               <div className="flex justify-between items-start mb-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/20 flex items-center justify-center group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all duration-500">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/20 flex items-center justify-center group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(74,114,212,0.3)] transition-all duration-500">
                   <ShieldCheck className="w-8 h-8 text-purple-400" />
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center text-xs font-bold text-white/30 font-mono">3</div>
@@ -298,7 +298,7 @@ export default function HomePage() {
       {modalOpen && (
         <div {...dlgPin} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fade-in">
           <div className="w-full max-w-sm transform transition-all animate-scale-in">
-            <div className="bg-[#111625] rounded-[32px] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] p-8 relative">
+            <div className="bg-[#16232e] rounded-[32px] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] p-8 relative">
               
               <button aria-label="Cerrar" 
                 onClick={() => setModalOpen(false)}
@@ -323,9 +323,9 @@ export default function HomePage() {
                   const isActive = i < pin.length;
                   let colorClass = 'bg-white/5 border-white/10 text-transparent';
                   if (isActive) {
-                    if (targetModule === 'comandas') colorClass = 'bg-amber-500 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.5)] scale-110 text-black';
-                    else if (targetModule === 'cocina') colorClass = 'bg-cyan-500 border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.5)] scale-110 text-black';
-                    else colorClass = 'bg-purple-500 border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.5)] scale-110 text-white';
+                    if (targetModule === 'comandas') colorClass = 'bg-amber-500 border-amber-400 shadow-[0_0_20px_rgba(212,166,86,0.5)] scale-110 text-black';
+                    else if (targetModule === 'cocina') colorClass = 'bg-cyan-500 border-cyan-400 shadow-[0_0_20px_rgba(79,138,148,0.5)] scale-110 text-black';
+                    else colorClass = 'bg-purple-500 border-purple-400 shadow-[0_0_20px_rgba(74,114,212,0.5)] scale-110 text-white';
                   }
                   
                   return (

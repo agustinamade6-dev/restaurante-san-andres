@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import Logo from '@/components/Logo';
+import MarcaDeAgua from '@/components/MarcaDeAgua';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -39,13 +39,14 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex isolate">
+      <MarcaDeAgua />
       {/* Sidebar */}
       <aside className="w-64 bg-[var(--card)] border-r border-[var(--border)] flex flex-col shrink-0">
         {/* Logo */}
         <div className="p-5 border-b border-[var(--border)]">
           <Link href="/" className="flex flex-col items-start gap-2 group">
-            <Logo alto={60} />
+            <h2 className="font-black text-lg tracking-tight">AKROS Café</h2>
             <p className="text-[10px] text-[var(--muted)] uppercase tracking-widest font-semibold">Panel de Admin</p>
           </Link>
         </div>

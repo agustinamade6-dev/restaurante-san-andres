@@ -219,12 +219,12 @@ export default function AdminDashboard() {
                   >
                     <stop
                       offset="5%"
-                      stopColor="#3b82f6"
+                      stopColor="#d4a656"
                       stopOpacity={0.3}
                     />
                     <stop
                       offset="95%"
-                      stopColor="#3b82f6"
+                      stopColor="#d4a656"
                       stopOpacity={0}
                     />
                   </linearGradient>
@@ -255,7 +255,7 @@ export default function AdminDashboard() {
                 <Area
                   type="monotone"
                   dataKey="total"
-                  stroke="#3b82f6"
+                  stroke="#d4a656"
                   fillOpacity={1}
                   fill="url(#colorVentas)"
                   strokeWidth={2}
@@ -299,7 +299,7 @@ export default function AdminDashboard() {
                 />
                 <Bar
                   dataKey="total"
-                  fill="#a855f7"
+                  fill="#4a72d4"
                   radius={[6, 6, 0, 0]}
                   barSize={40}
                 />

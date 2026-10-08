@@ -31,7 +31,7 @@ import {
 import { useSSE } from '@/hooks/useSSE';
 import { enviarJson } from '@/lib/api-cliente';
 import { useApi } from '@/hooks/useApi';
-import Logo from '@/components/Logo';
+import MarcaDeAgua from '@/components/MarcaDeAgua';
 import { useAviso } from '@/hooks/useAviso';
 import { useEnvio } from '@/hooks/useEnvio';
 import { useSesion } from '@/hooks/useSesion';
@@ -570,7 +570,8 @@ ${pie}`
 
   if (!mesaSeleccionada) {
     return (
-      <div className="min-h-screen flex flex-col p-4 md:p-6 bg-[var(--background)]">
+      <div className="min-h-screen flex flex-col p-4 md:p-6 bg-[var(--background)] isolate">
+        <MarcaDeAgua />
         {/* Header */}
         <div className="flex items-center gap-4 mb-6 shrink-0">
           <button aria-label="Bloquear terminal"
@@ -584,7 +585,6 @@ ${pie}`
           >
             <LogOut className="w-6 h-6" />
           </button>
-          <Logo alto={44} />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Floor Plan — Salón</h1>
             <p className="text-[var(--muted)] text-sm mt-0.5">
@@ -594,7 +594,7 @@ ${pie}`
           {/* Filters and Counters */}
           <div className="ml-auto flex flex-col md:flex-row items-center gap-4">
             {isEditorMode ? (
-              <div className="flex bg-neutral-900 rounded-xl border border-amber-500/50 p-1.5 gap-2 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-fade-in">
+              <div className="flex bg-neutral-900 rounded-xl border border-amber-500/50 p-1.5 gap-2 shadow-[0_0_15px_rgba(212,166,86,0.2)] animate-fade-in">
                 <button onClick={() => setMesaEditorOpen({ numero: mesas.length > 0 ? Math.max(...mesas.map(m => m.numero)) + 1 : 1, capacidad: 4, sector: 'salon', forma: 'round' })} className="px-3 py-1.5 text-xs font-bold bg-amber-500 text-black hover:bg-amber-400 rounded-lg flex items-center gap-1 transition-colors">
                   <Plus className="w-4 h-4" /> Agregar Mesa
                 </button>
@@ -684,7 +684,7 @@ ${pie}`
             } else if (mesa.estado === 'ocupada') {
               ringClass = 'ring-2 ring-rose-500/90 shadow-[0_4px_20px_rgba(225,29,72,0.25)]';
             } else if (mesa.estado === 'esperando') {
-              ringClass = 'ring-2 ring-amber-500/90 shadow-[0_4px_20px_rgba(245,158,11,0.25)]';
+              ringClass = 'ring-2 ring-amber-500/90 shadow-[0_4px_20px_rgba(212,166,86,0.25)]';
             }
 
             // Geometría y sillas
@@ -708,8 +708,8 @@ ${pie}`
             if (mesa.forma === 'tall-bar') {
               shapeClass = 'w-16 h-32 rounded-xl';
               innerShapeClass = 'w-12 h-28 rounded-lg';
-              bgTable = 'bg-gradient-to-br from-[#334155] to-[#1e293b] drop-shadow-2xl border-[#0f172a]'; 
-              innerSurface = 'bg-gradient-to-br from-[#475569] to-[#334155]';
+              bgTable = 'bg-gradient-to-br from-[#3a454d] to-[#27323a] drop-shadow-2xl border-[#18222a]'; 
+              innerSurface = 'bg-gradient-to-br from-[#4f5b63] to-[#3a454d]';
               chairElements = (
                 <>
                   <div className="absolute -left-3 top-4 w-3 h-6 rounded-l-full bg-slate-800 border border-slate-700 shadow-sm" />
@@ -914,7 +914,8 @@ ${pie}`
 
   // Step 2: Build comanda
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-screen flex flex-col md:flex-row isolate">
+      <MarcaDeAgua />
       {avisoFlotante}
       {/* Left: Product catalog */}
       <div className="flex-1 p-4 md:p-6 overflow-y-auto">
@@ -1195,7 +1196,7 @@ ${pie}`
                 setPropina(0);
                 setTicketData(null);
               }}
-              className="w-full mt-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black py-4 rounded-xl font-black text-lg flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] active:scale-[0.98]"
+              className="w-full mt-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black py-4 rounded-xl font-black text-lg flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(212,166,86,0.3)] active:scale-[0.98]"
             >
               <Banknote className="w-5 h-5" />
               COBRAR MESA
@@ -1291,7 +1292,7 @@ ${pie}`
                           onClick={() => setMetodoPago(m.value)}
                           className={`p-3 rounded-xl border text-sm font-bold flex items-center gap-2 transition-all ${
                             metodoPago === m.value
-                              ? 'bg-amber-500/20 border-amber-500 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                              ? 'bg-amber-500/20 border-amber-500 text-amber-400 shadow-[0_0_15px_rgba(212,166,86,0.15)]'
                               : 'bg-black/30 border-neutral-800 text-neutral-400 hover:border-neutral-600'
                           }`}
                         >
@@ -1348,7 +1349,7 @@ ${pie}`
                   <button
                     onClick={procesarCobro}
                     disabled={procesandoCobro}
-                    className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+                    className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(212,166,86,0.3)]"
                   >
                     {procesandoCobro ? (
                       <span className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
