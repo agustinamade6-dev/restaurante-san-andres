@@ -24,7 +24,7 @@ import { useApi } from '@/hooks/useApi';
 import { useAviso } from '@/hooks/useAviso';
 import { useEnvio } from '@/hooks/useEnvio';
 import ErrorDeCarga from '@/components/ErrorDeCarga';
-import Logo from '@/components/Logo';
+import MarcaDeAgua from '@/components/MarcaDeAgua';
 import { formatPesos } from '@/utils/dinero';
 import { enviarJson } from '@/lib/api-cliente';
 import { useDialogo } from '@/hooks/useDialogo';
@@ -307,7 +307,8 @@ export default function CocinaPage() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-6">
+    <div className="min-h-screen p-4 md:p-6 isolate">
+      <MarcaDeAgua />
       {/* New order notification */}
       {nuevoPedido && (
         <div className="fixed top-4 right-4 z-50 px-6 py-4 rounded-xl bg-amber-500 text-black font-bold animate-shake shadow-lg shadow-amber-500/30 flex items-center gap-3">
@@ -341,7 +342,6 @@ export default function CocinaPage() {
           <LogOut className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-3">
-          <Logo alto={44} />
           <div>
             <h1 className="text-2xl font-bold">Cocina — Monitor KDS</h1>
             <p className="text-[var(--muted)] text-sm">

@@ -72,6 +72,13 @@ Antes de escribir algo nuevo, fíjate si ya existe. Todas tienen pruebas en el a
   `e2e/accesibilidad.spec.ts` lo revisa.
 - **Colores:** usa las variables de `src/app/globals.css`. Para texto en rojo o azul, `--danger-text` e
   `--info-text`; `--danger` e `--info` son para fondos y bordes.
+- **Paleta de la marca:** los colores salen del logo y del ícono de AKROS Café. `globals.css` redefine las familias
+  de Tailwind con esos tonos: `amber`/`orange`/`yellow` son caramelo dorado, `blue`/`purple`/`indigo` son el azul
+  real de "AKROS", `cyan`/`teal` son pizarra verdosa y `neutral`/`slate`/`gray` son pizarra neutra. Escribir
+  `amber-500` ya da el color de la marca; no hace falta poner códigos de color a mano. Rojo y verde quedan como
+  señales de error y de éxito.
+- **Logo:** va como marca de agua (`MarcaDeAgua`, la taza dorada de `public/logo-taza-dorada.png`) detrás del
+  contenido. El contenedor de la pantalla lleva la clase `isolate` para que quede debajo de todo.
 - Si una pantalla **cambia lo que manda o lo que lee** de la API, hay que actualizar
   `src/__tests__/contratos-pantallas.test.ts` y avisar al responsable del backend.
 
